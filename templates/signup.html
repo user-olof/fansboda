@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+
+{% block title %}Sign Up{% endblock %}
+
+{% block body_class %}bg-light{% endblock %}
+
+{% block content %}
+<div class="container-fluid bg-gradient-primary min-vh-100 d-flex align-items-center justify-content-center">
+    <div class="row w-100 justify-content-center">
+        <div class="col-12 col-sm-8 col-md-6 col-lg-5 col-xl-4">
+            <div class="card card-signin">
+                <div class="card-body">
+                    <!-- Header -->
+                    <div class="text-center mb-4">
+                        <i class="bi bi-person-plus-fill text-success" style="font-size: 3rem;"></i>
+                        <h1 class="h3 mb-3 fw-normal text-dark">Create Account</h1>
+                        <p class="text-muted">Join F&auml;nsboda today! Create your account below.</p>
+                    </div>
+
+                    <!-- Signup Form -->
+                    <form action="" method="post" novalidate class="form-signin">
+                        {{ form.hidden_tag() }}
+
+                        <!-- Email Field (Removed Username Field) -->
+                        <div class="form-floating mb-3">
+                            {{ form.email(class="form-control" + (" is-invalid" if form.email.errors else ""),
+                            placeholder="Email", id="floatingEmail", type="email") }}
+                            {{ form.email.label(for="floatingEmail") }}
+                            {% if form.email.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.email.errors %}
+                                <i class="bi bi-exclamation-circle me-1"></i>{{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Password Field -->
+                        <div class="form-floating mb-3">
+                            {{ form.password(class="form-control" + (" is-invalid" if form.password.errors else ""),
+                            placeholder="Password", id="floatingPassword") }}
+                            {{ form.password.label(for="floatingPassword") }}
+                            {% if form.password.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.password.errors %}
+                                <i class="bi bi-exclamation-circle me-1"></i>{{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                            <div class="form-text" id="passwordHelp">
+                                <small class="text-muted">
+                                    <i class="bi bi-info-circle me-1"></i>Password should be at least 8 characters long
+                                </small>
+                            </div>
+                        </div>
+
+                        <!-- Confirm Password Field -->
+                        {% if form.password_confirm %}
+                        <div class="form-floating mb-3">
+                            {{ form.password_confirm(class="form-control" + (" is-invalid" if
+                            form.password_confirm.errors else ""), placeholder="Confirm Password",
+                            id="floatingPasswordConfirm") }}
+                            {{ form.password_confirm.label(for="floatingPasswordConfirm") }}
+                            {% if form.password_confirm.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.password_confirm.errors %}
+                                <i class="bi bi-exclamation-circle me-1"></i>{{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+
+                        <!-- Terms and Conditions -->
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="termsCheck" required>
+                            <label class="form-check-label" for="termsCheck">
+                                <small>
+                                    I agree to the
+                                    <a href="#" class="text-decoration-none" data-bs-toggle="modal"
+                                        data-bs-target="#termsModal">Terms of Service</a>
+                                    and
+                                    <a href="#" class="text-decoration-none" data-bs-toggle="modal"
+                                        data-bs-target="#privacyModal">Privacy Policy</a>
+                                </small>
+                            </label>
+                        </div>
+
+                        <!-- Submit Button -->
+                        {{ form.submit(class="btn btn-success w-100 py-2 mb-3", id="submitBtn") }}
+
+                        <!-- Additional Links -->
+                        <div class="text-center">
+                            <small class="text-muted">
+                                Already have an account?
+                                <a href="{{ url_for('login') }}" class="text-decoration-none">Sign in</a>
+                            </small>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Card Footer -->
+                <div class="card-footer bg-transparent border-0 text-center">
+                    <small class="text-muted">
+                        <i class="bi bi-shield-check me-1"></i>Your data is protected and secure
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Terms of Service Modal -->
+<div class="modal fade" id="termsModal" tabindex="-1" aria-labelledby="termsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="termsModalLabel">
+                    <i class="bi bi-file-text me-2"></i>Terms of Service
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <h6>1. Acceptance of Terms</h6>
+                <p>By accessing and using Fansboda, you accept and agree to be bound by the terms and provision of this
+                    agreement.</p>
+
+                <h6>2. User Accounts</h6>
+                <p>You are responsible for maintaining the confidentiality of your account and password and for
+                    restricting access to your computer.</p>
+
+                <h6>3. Privacy</h6>
+                <p>Your privacy is important to us. Please review our Privacy Policy, which also governs your use of the
+                    service.</p>
+
+                <h6>4. Prohibited Uses</h6>
+                <p>You may not use our service for any illegal or unauthorized purpose nor may you, in the use of the
+                    service, violate any laws in your jurisdiction.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Accept</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Privacy Policy Modal -->
+<div class="modal fade" id="privacyModal" tabindex="-1" aria-labelledby="privacyModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="privacyModalLabel">
+                    <i class="bi bi-shield-lock me-2"></i>Privacy Policy
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <h6>Information We Collect</h6>
+                <p>We collect information you provide directly to us, such as when you create an account, fill out a
+                    form, or contact us.</p>
+
+                <h6>How We Use Your Information</h6>
+                <p>We use the information we collect to provide, maintain, and improve our services and communicate with
+                    you.</p>
+
+                <h6>Information Sharing</h6>
+                <p>We do not sell, trade, or otherwise transfer your personal information to third parties without your
+                    consent.</p>
+
+                <h6>Data Security</h6>
+                <p>We implement appropriate security measures to protect your personal information against unauthorized
+                    access, alteration, disclosure, or destruction.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Understood</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- jQuery CDN -->
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"
+    integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+
+<!-- Custom Signup JavaScript -->
+<script src="{{ url_for('static', filename='js/signup.js') }}"></script>
+{% endblock %}

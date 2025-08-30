@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}Sign In{% endblock %}
+
+{% block body_class %}bg-light{% endblock %}
+
+{% block content %}
+<div class="container-fluid bg-gradient-primary min-vh-100 d-flex align-items-center justify-content-center">
+    <div class="row w-100 justify-content-center">
+        <div class="col-12 col-sm-8 col-md-6 col-lg-5 col-xl-4">
+            <div class="card card-signin">
+                <div class="card-body">
+                    <!-- Header -->
+                    <div class="text-center mb-4">
+                        <i class="bi bi-person-circle text-primary" style="font-size: 3rem;"></i>
+                        <h1 class="h3 mb-3 fw-normal text-dark">Sign In</h1>
+                        <p class="text-muted">Welcome back! Please sign in to your account.</p>
+                    </div>
+
+                    <!-- Login Form -->
+                    <form action="" method="post" novalidate class="form-signin">
+                        {{ form.hidden_tag() }}
+
+                        <!-- Email Field -->
+                        <div class="form-floating mb-3">
+                            {{ form.email(class="form-control" + (" is-invalid" if form.email.errors else ""),
+                            placeholder="Email", id="floatingEmail", type="email") }}
+                            {{ form.email.label(for="floatingEmail") }}
+                            {% if form.email.errors %}
+                            <div class="invalid-feedback d-block">
+                                {% for error in form.email.errors %}
+                                <i class="bi bi-exclamation-circle me-1"></i>{{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Password Field -->
+                        <div class="form-floating mb-3">
+                            {{ form.password(class="form-control" + (" is-invalid" if form.password.errors else ""),
+                            placeholder="Password", id="floatingPassword") }}
+                            {{ form.password.label(for="floatingPassword") }}
+                            {% if form.password.errors %}
+                            <div class="invalid-feedback d-block">
+                                {% for error in form.password.errors %}
+                                <i class="bi bi-exclamation-circle me-1"></i>{{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Remember Me Checkbox -->
+                        <div class="form-check mb-3">
+                            {{ form.remember_me(class="form-check-input", id="flexCheckDefault") }}
+                            {{ form.remember_me.label(class="form-check-label", for="flexCheckDefault") }}
+                        </div>
+
+                        <!-- Submit Button -->
+                        {{ form.submit(class="btn btn-primary w-100 py-2 mb-3") }}
+
+                        <!-- Additional Links -->
+                        <div class="text-center">
+                            <small class="text-muted">
+                                Don't have an account?
+                                <a href="{{ url_for('signup') }}" class="text-decoration-none">Sign up</a>
+                            </small>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Card Footer -->
+                <div class="card-footer bg-transparent border-0 text-center">
+                    <small class="text-muted">
+                        <i class="bi bi-shield-lock me-1"></i>Your information is secure
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Custom Login JavaScript -->
+<script src="{{ url_for('static', filename='js/login.js') }}"></script>
+{% endblock %}

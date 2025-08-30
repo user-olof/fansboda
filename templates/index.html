@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-12">
+            <!-- Welcome Header -->
+            <div class="jumbotron bg-primary text-white rounded p-5 mb-4">
+                <div class="container-fluid py-5">
+                    <h1 class="display-5 fw-bold">
+                        <i class="bi bi-house-heart me-3"></i>V&auml;lkommen till F&auml;nsboda!
+                    </h1>
+                    <p class="col-md-8 fs-4">
+                        Hello, <strong>{{ current_user.email }}</strong>! You have successfully logged in.
+                    </p>
+                    <a class="btn btn-light btn-lg" href="{{ url_for('users') }}" role="button">
+                        <i class="bi bi-people me-2"></i>View Users
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="row">
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <i class="bi bi-people-fill text-primary mb-3" style="font-size: 3rem;"></i>
+                    <h5 class="card-title">Users</h5>
+                    <p class="card-text">Manage user accounts and profiles.</p>
+                    <a href="{{ url_for('users') }}" class="btn btn-outline-primary">
+                        <i class="bi bi-arrow-right me-1"></i>Go to Users
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <i class="bi bi-gear-fill text-success mb-3" style="font-size: 3rem;"></i>
+                    <h5 class="card-title">Settings</h5>
+                    <p class="card-text">Configure your application settings.</p>
+                    <a href="#" class="btn btn-outline-success">
+                        <i class="bi bi-arrow-right me-1"></i>Settings
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <i class="bi bi-graph-up text-info mb-3" style="font-size: 3rem;"></i>
+                    <h5 class="card-title">Analytics</h5>
+                    <p class="card-text">View your application analytics.</p>
+                    <a href="#" class="btn btn-outline-info">
+                        <i class="bi bi-arrow-right me-1"></i>View Analytics
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
