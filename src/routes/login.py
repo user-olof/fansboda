@@ -63,7 +63,7 @@ def hash_password(password, maxtime=2, datalength=64):
     return scrypt.encrypt(os.urandom(datalength), password, maxtime=maxtime)
 
 
-def verify_password(hashed_password, guessed_password, maxtime=0.5):
+def verify_password(hashed_password, guessed_password, maxtime=2):
     """Verify a password against its hash with better error handling.
 
     Args:
