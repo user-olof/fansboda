@@ -49,7 +49,7 @@ def signup():
     return render_template("signup.html", title="Sign Up", form=form)
 
 
-def hash_password(password, maxtime=0.5, datalength=64):
+def hash_password(password, maxtime=2, datalength=64):
     """Create a secure password hash using scrypt encryption.
 
     Args:
@@ -108,11 +108,11 @@ def logout():
     return redirect(url_for("index"))
 
 
-@app.errorhandler(Exception)
-def handle_exception(e):
-    # pass through HTTP errors
-    if isinstance(e, HTTPException):
-        return e
+# @app.errorhandler(Exception)
+# def handle_exception(e):
+#     # pass through HTTP errors
+#     if isinstance(e, HTTPException):
+#         return e
 
-    # now you're handling non-HTTP exceptions only
-    return render_template("404.html", message=e), 404
+#     # now you're handling non-HTTP exceptions only
+#     return render_template("404.html", message=e), 404
