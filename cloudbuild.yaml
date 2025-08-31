@@ -11,12 +11,12 @@ steps:
     - '--image'
     - '${_AR_HOSTNAME}/${_AR_PROJECT_ID}/${_AR_REPOSITORY}/${_SERVICE_NAME}:$COMMIT_SHA'
     - '--region'
-    - '${_DEPLOY_REGION}'
+    - ${_DEPLOY_REGION}
     - '--platform'
     - ${_PLATFORM}
     - '--service'
-    - '${_SERVICE_NAME}'
-  entrypoint: 'gcloud'
+    - ${_SERVICE_NAME}
+    entrypoint: 'gcloud'
 timeout: '1200s'
 images:
   - '${_AR_HOSTNAME}/${_AR_PROJECT_ID}/${_AR_REPOSITORY}/${_SERVICE_NAME}:$COMMIT_SHA'
