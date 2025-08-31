@@ -11,13 +11,12 @@ template_dir = os.path.join(os.path.dirname(basedir), "templates")
 static_dir = os.path.join(os.path.dirname(basedir), "static")
 
 app = Flask(__name__, template_folder=template_dir, static_folder=static_dir)
+app.env = "development"
 
-# Configure SQLite database
-app.config["SQLALCHEMY_DATABASE_URI"] = (
-    f'sqlite:///{os.path.join(basedir, "database.db")}'
+# Configure the app
+app.config.from_object(
+    "config.DevConfig" if app.env == "development" else "config.ProdConfig"
 )
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY") or "dev-secret-key"
 
 # Enable CSRF protection
 csrf = CSRFProtect(app)
@@ -31,3 +30,4 @@ login.login_view = "login"
 from src.models.user import User
 from src.routes import home
 from src.routes import login as login_routes
+from src.routes import errorhandler
