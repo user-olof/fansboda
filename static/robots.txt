@@ -1,0 +1,19 @@
+User-agent: *
+Disallow: /
+Crawl-delay: 86400
+
+# Honeypot for bad bots
+User-agent: *
+Disallow: /admin/
+Disallow: /private/
+Disallow: /secret/
+Disallow: /api/internal/
+
+# Allow only specific legitimate crawlers (optional)
+User-agent: Googlebot
+Allow: /
+Crawl-delay: 10
+
+User-agent: Bingbot  
+Allow: /
+Crawl-delay: 10 
