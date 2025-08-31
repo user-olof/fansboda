@@ -1,4 +1,4 @@
-# Cloud Build configuration for Fansboda Flask app
+# Cloud Build configuration with custom service account
 steps:
   # Step 1: Build the Docker image
   - name: 'gcr.io/cloud-builders/docker'
@@ -51,11 +51,14 @@ images:
   - '${_AR_HOSTNAME}/${_AR_PROJECT_ID}/${_AR_REPOSITORY}/${_SERVICE_NAME}:$COMMIT_SHA'
   - '${_AR_HOSTNAME}/${_AR_PROJECT_ID}/${_AR_REPOSITORY}/${_SERVICE_NAME}:latest'
 
-# Build options - THIS FIXES THE ERROR
+# Build options - REQUIRED when using custom service account
 options:
-  logging: CLOUD_LOGGING_ONLY  # Use Cloud Logging instead of default bucket
+  logging: CLOUD_LOGGING_ONLY  # This fixes the error!
   machineType: 'E2_STANDARD_2'
   substitutionOption: 'ALLOW_LOOSE'
+
+# Custom service account (if needed)
+serviceAccount: 'projects/${_AR_PROJECT_ID}/serviceAccounts/cloud-build-deployer@${_AR_PROJECT_ID}.iam.gserviceaccount.com'
 
 # Build timeout
 timeout: '1200s'
