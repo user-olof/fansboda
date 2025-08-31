@@ -54,7 +54,6 @@ images:
 # Build options - THIS FIXES THE ERROR
 options:
   logging: CLOUD_LOGGING_ONLY  # Use Cloud Logging instead of default bucket
-  machineType: E2_STANDARD_2  # Remove quotes from enum value
   substitutionOption: ALLOW_LOOSE  # Remove quotes from enum value
 
 # Build timeout
