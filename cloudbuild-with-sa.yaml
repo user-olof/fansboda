@@ -54,8 +54,8 @@ images:
 # Build options - REQUIRED when using custom service account
 options:
   logging: CLOUD_LOGGING_ONLY  # This fixes the error!
-  machineType: 'E2_STANDARD_2'
-  substitutionOption: 'ALLOW_LOOSE'
+  machineType: E2_STANDARD_2  # Remove quotes from enum value
+  substitutionOption: ALLOW_LOOSE  # Remove quotes from enum value
 
 # Custom service account (if needed)
 serviceAccount: 'projects/${_AR_PROJECT_ID}/serviceAccounts/cloud-build-deployer@${_AR_PROJECT_ID}.iam.gserviceaccount.com'
