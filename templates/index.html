@@ -15,54 +15,80 @@
                     <p class="col-md-8 fs-4">
                         Hello, <strong>{{ current_user.email }}</strong>! You have successfully logged in.
                     </p>
-                    <a class="btn btn-light btn-lg" href="{{ url_for('users') }}" role="button">
-                        <i class="bi bi-people me-2"></i>View Users
-                    </a>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Quick Actions -->
-    <div class="row">
-        <div class="col-md-4 mb-4">
-            <div class="card h-100">
-                <div class="card-body text-center">
-                    <i class="bi bi-people-fill text-primary mb-3" style="font-size: 3rem;"></i>
-                    <h5 class="card-title">Users</h5>
-                    <p class="card-text">Manage user accounts and profiles.</p>
-                    <a href="{{ url_for('users') }}" class="btn btn-outline-primary">
-                        <i class="bi bi-arrow-right me-1"></i>Go to Users
-                    </a>
+    <!-- Centered Form Section -->
+    <div class="row justify-content-center">
+        <div class="col-12 col-md-8 col-lg-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h4 class="mb-0 text-center">
+                        <i class="bi bi-calculator me-2"></i>Elräkningar
+                    </h4>
                 </div>
-            </div>
-        </div>
+                <div class="card-body">
+                    <form>
+                        <!-- Electricity - Metallen (Editable) -->
+                        <div class="form-floating mb-3">
+                            <input type="number" class="form-control" name="electricity_bill" id="floatingInput"
+                                placeholder="1000" min="0" step="0.01">
+                            <label for="floatingInput">Elr&auml;kning - Metallen</label>
+                        </div>
 
-        <div class="col-md-4 mb-4">
-            <div class="card h-100">
-                <div class="card-body text-center">
-                    <i class="bi bi-gear-fill text-success mb-3" style="font-size: 3rem;"></i>
-                    <h5 class="card-title">Settings</h5>
-                    <p class="card-text">Configure your application settings.</p>
-                    <a href="#" class="btn btn-outline-success">
-                        <i class="bi bi-arrow-right me-1"></i>Settings
-                    </a>
-                </div>
-            </div>
-        </div>
+                        <!-- Telekom (Calculated) -->
+                        <div class="mb-3">
+                            <label for="telecomFormControlInput" class="form-label">
+                                Telekom <small class="text-muted">(20%)</small>
+                            </label>
+                            <input type="text" class="form-control bg-light" id="telecomFormControlInput"
+                                placeholder="0.00" readonly>
+                        </div>
 
-        <div class="col-md-4 mb-4">
-            <div class="card h-100">
-                <div class="card-body text-center">
-                    <i class="bi bi-graph-up text-info mb-3" style="font-size: 3rem;"></i>
-                    <h5 class="card-title">Analytics</h5>
-                    <p class="card-text">View your application analytics.</p>
-                    <a href="#" class="btn btn-outline-info">
-                        <i class="bi bi-arrow-right me-1"></i>View Analytics
-                    </a>
+                        <!-- Johan och Emil's Bilservice (Calculated) -->
+                        <div class="mb-3">
+                            <label for="johanOchEmilBilserviceControlInput" class="form-label">
+                                Johan och Emil's Bilservice <small class="text-muted">(51,2%)</small>
+                            </label>
+                            <input type="text" class="form-control bg-light" id="johanOchEmilBilserviceControlInput"
+                                placeholder="0.00" readonly>
+                        </div>
+
+                        <!-- JA Bilservice (Calculated) -->
+                        <div class="mb-3">
+                            <label for="jaBilserviceControlInput" class="form-label">
+                                JA Bilservice <small class="text-muted">(9,6%)</small>
+                            </label>
+                            <input type="text" class="form-control bg-light" id="jaBilserviceControlInput"
+                                placeholder="0.00" readonly>
+                        </div>
+
+                        <!-- TK Mätservice (Calculated) -->
+                        <div class="mb-3">
+                            <label for="tkMatserviceControlInput" class="form-label">
+                                TK M&auml;tservice <small class="text-muted">(19,2%)</small>
+                            </label>
+                            <input type="text" class="form-control bg-light" id="tkMatserviceControlInput"
+                                placeholder="0.00" readonly>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>
     </div>
+
+
+
+
+
+
+
 </div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Electricity Calculator Script -->
+<script src="{{ url_for('static', filename='js/electricity-calculator.js') }}"></script>
 {% endblock %}
