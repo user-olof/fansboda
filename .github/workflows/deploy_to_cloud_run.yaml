@@ -10,6 +10,9 @@ jobs:
   deploy_to_cloud_run:
     runs-on: ubuntu-latest
 
+    env:
+      GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
+    
     steps:
     - uses: actions/checkout@v4
 
@@ -21,4 +24,4 @@ jobs:
       
 
    
-        credentials_json: $GOOGLE_APPLICATION_CREDENTIALS
+     
