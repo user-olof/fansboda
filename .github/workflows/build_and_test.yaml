@@ -1,8 +1,9 @@
-name: Fansboda Actions
+name: Fansboda - Build and Test
 run-name: ${{ github.actor }} is testing  🚀
 on: [push]
+
 jobs:
-  build:
+  build_and_test:
 
     runs-on: ubuntu-latest
 
@@ -16,6 +17,14 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
+      
+         # Creates a credentials file that will be used for ADC later
+    - name: Create credentials file
+      run: |
+        echo "${{ secrets.GCP_SVC_ACCOUNT_CREDS }}" | base64 --decode > $GOOGLE_APPLICATION_CREDENTIALS
+        echo "Checking the credentials:"
+        head -n 3 $GOOGLE_APPLICATION_CREDENTIALS
+      shell: bash
     - name: Test with pytest
       env:
         PYTHONPATH: .
