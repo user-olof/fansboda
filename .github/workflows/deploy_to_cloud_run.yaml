@@ -17,8 +17,7 @@ jobs:
     - name: Create credentials file
       run: |
         echo "${{ secrets.GCP_SVC_ACCOUNT_CREDS }}" | base64 --decode > $GOOGLE_APPLICATION_CREDENTIALS
-        echo "Checking the credentials:"
-        head -n 3 "$GOOGLE_APPLICATION_CREDENTIALS"
+
       
 
    
