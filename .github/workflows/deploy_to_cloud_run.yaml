@@ -10,25 +10,25 @@ jobs:
   deploy_to_cloud_run:
     runs-on: ubuntu-latest
 
-    env:
-      PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-      SVC_ACCOUNT: ${{ secrets.GCP_SVC_ACCOUNT }}
-      GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/${{ secrets.GCP_SVC_ACCOUNT }}.json
-      SVC_ACCOUNT_EMAIL: ${{ secrets.GCP_SVC_ACCOUNT }}@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com
-      REGION: ${{ vars.GCP_REGION }} 
+    # env:
+    #   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+    #   SVC_ACCOUNT: ${{ secrets.GCP_SVC_ACCOUNT }}
+    #   GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/${{ secrets.GCP_SVC_ACCOUNT }}.json
+    #   SVC_ACCOUNT_EMAIL: ${{ secrets.GCP_SVC_ACCOUNT }}@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com
+    #   REGION: ${{ vars.GCP_REGION }} 
 
  
     steps:
     - uses: actions/checkout@v4
 
-    - name: Check env vars
-      run: |
-        echo "Environment variables configured:"
-        echo PROJECT_ID="$PROJECT_ID"
-        echo REGION="$REGION"
-        echo SVC_ACCOUNT="$SVC_ACCOUNT"
-        echo SVC_ACCOUNT_EMAIL="$SVC_ACCOUNT_EMAIL"
-        echo GOOGLE_APPLICATION_CREDENTIALS="$GOOGLE_APPLICATION_CREDENTIALS"
+    # - name: Check env vars
+    #   run: |
+    #     echo "Environment variables configured:"
+    #     echo PROJECT_ID="$PROJECT_ID"
+    #     echo REGION="$REGION"
+    #     echo SVC_ACCOUNT="$SVC_ACCOUNT"
+    #     echo SVC_ACCOUNT_EMAIL="$SVC_ACCOUNT_EMAIL"
+    #     echo GOOGLE_APPLICATION_CREDENTIALS="$GOOGLE_APPLICATION_CREDENTIALS"
 
 
     # Creates a credentials file that will be used for ADC later
@@ -36,8 +36,8 @@ jobs:
       run: |
         echo "${{ secrets.GCP_SVC_ACCOUNT_CREDS }}" | base64 --decode > $GOOGLE_APPLICATION_CREDENTIALS  
         echo "Checking credentials"
-        head -n 3 "$GOOGLE_APPLICATION_CREDENTIALS"
-      shell: bash
+        echo "$GOOGLE_APPLICATION_CREDENTIALS" | head -n 3 
+      
     
     - name: Authenticate with Google Cloud
       uses: google-github-actions/auth@v1
