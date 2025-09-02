@@ -13,7 +13,6 @@ def index():
 
 
 @app.route("/users")
-@login_required
 def users():
     users_list = User.query.all()
     return render_template("users.html", title="Users", users=users_list)

@@ -12,7 +12,7 @@ class TestBasicFunctionality:
     def test_app_import(self):
         """Test that we can import the Flask app."""
         assert app is not None
-        assert app.name == "app"
+        assert app.name == "src"
 
     def test_database_import(self):
         """Test that we can import the database."""
