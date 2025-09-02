@@ -36,7 +36,7 @@ jobs:
       run: |
         echo "${{ secrets.GCP_SVC_ACCOUNT_CREDS }}" | base64 --decode > $GOOGLE_APPLICATION_CREDENTIALS  
         echo "Checking credentials"
-        head -n 3 $GOOGLE_APPLICATION_CREDENTIALS
+        head -n 3 "$GOOGLE_APPLICATION_CREDENTIALS"
     
     - name: Authenticate with Google Cloud
       uses: google-github-actions/auth@v1
