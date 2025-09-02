@@ -42,7 +42,7 @@ jobs:
     - name: Authenticate with Google Cloud
       uses: google-github-actions/auth@v1
       with:
-        credentials_json: /tmp/credentials.json
+        credentials_json: ${{ secrets.GCP_SVC_ACCOUNT_CREDS }}
 
       
 
