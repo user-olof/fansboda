@@ -7,6 +7,9 @@ jobs:
 
     runs-on: ubuntu-latest
 
+    env:
+      GOOGLE_APPLICATION_CREDENTIALS: "NONE"
+
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python
