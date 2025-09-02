@@ -1,4 +1,4 @@
-name: Fansboda - Build and Test
+name: Build and Test
 run-name: ${{ github.actor }} is testing  🚀
 on: [push]
 
