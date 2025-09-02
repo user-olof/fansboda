@@ -1,0 +1,23 @@
+name: Fansboda - Deploy to Cloud Run
+run-name: ${{ github.actor }} is deploying to Cloud Run  🚀
+on: [push]
+
+jobs:
+  deploy_to_cloud_run:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    # Creates a credentials file that will be used for ADC later
+    - name: Create credentials file
+      run: |
+        echo "${{ secrets.GCP_SVC_ACCOUNT_CREDS }}" | base64 --decode > $GOOGLE_APPLICATION_CREDENTIALS
+        echo "Checking the credentials:"
+        head -n 3 $GOOGLE_APPLICATION_CREDENTIALS
+      shell: bash
+
+    - name: Authenticate with Google Cloud
+      uses: google-github-actions/auth@v1
+      with:
+        credentials_json: $GOOGLE_APPLICATION_CREDENTIALS
