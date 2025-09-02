@@ -7,6 +7,9 @@ jobs:
 
     runs-on: ubuntu-latest
 
+    env:
+      GOOGLE_APPLICATION_CREDENTIALS: "NONE"
+
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python
@@ -18,6 +21,12 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
     
+    # Creates a credentials file that will be used for ADC later
+    - name: Create credentials file
+      run: |
+        echo "${{ secrets.GCP_SVC_ACCOUNT_CREDS }}" | base64 --decode > $GOOGLE_APPLICATION_CREDENTIALS  
+        echo "Checking credentials"
+        head -n 3 "$GOOGLE_APPLICATION_CREDENTIALS"
 
     - name: Test with pytest
       env:
