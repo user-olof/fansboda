@@ -34,15 +34,15 @@ jobs:
     # Creates a credentials file that will be used for ADC later
     - name: Create credentials file
       run: |
-        echo "${{ secrets.GCP_SVC_ACCOUNT_CREDS }}" | base64 --decode > $GOOGLE_APPLICATION_CREDENTIALS  
+        echo "${{ secrets.GCP_SVC_ACCOUNT_CREDS }}" | base64 --decode > /tmp/credentials.json  
         echo "Checking credentials"
-        echo "$GOOGLE_APPLICATION_CREDENTIALS" | head -n 3 
+        echo "/tmp/credentials.json" | head -n 3 
       
     
     - name: Authenticate with Google Cloud
       uses: google-github-actions/auth@v1
       with:
-        credentials_json: $GOOGLE_APPLICATION_CREDENTIALS
+        credentials_json: /tmp/credentials.json
 
       
 
