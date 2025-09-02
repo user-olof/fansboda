@@ -28,7 +28,7 @@ class TestAppConfiguration:
         """Test that database tables are created."""
         with client.application.app_context():
             # Check if tables exist by trying to query
-            from models import User
+            from src.models.user import User
 
             users = User.query.all()
             assert isinstance(users, list)
@@ -47,7 +47,7 @@ class TestDatabaseIntegration:
     def test_user_crud_operations(self, client):
         """Test complete CRUD operations for User model."""
         with client.application.app_context():
-            from models import User
+            from src.models.user import User
 
             # Create
             user = User(email="crud@example.com")

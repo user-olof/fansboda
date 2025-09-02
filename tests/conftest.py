@@ -38,6 +38,35 @@ def client_with_csrf():
 
 
 @pytest.fixture
+def client_with_user():
+    """Create a test client with a logged-in user."""
+    # Configure for testing
+    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    app.config["SECRET_KEY"] = "test-secret-key"
+    app.config["LOGIN_DISABLED"] = False
+
+    with app.test_client() as client:
+        with app.app_context():
+            db.create_all()
+
+            # Create user
+            user = User(email="test@example.com")
+            user.set_password("testpass")
+            db.session.add(user)
+            db.session.commit()
+
+            # Actually log in the user
+            client.post(
+                "/login", data={"email": "test@example.com", "password": "testpass"}
+            )
+
+            yield client
+            db.drop_all()
+
+
+@pytest.fixture
 def auth(client):
     """Authentication helper fixture."""
     return AuthActions(client)
@@ -55,7 +84,7 @@ def user():
 def authenticated_user(client):
     """Create and save a test user to the database."""
     with client.application.app_context():
-        user = User(username="testuser", email="test@example.com")
+        user = User(email="test@example.com")
         user.set_password("testpass")
         db.session.add(user)
         db.session.commit()
