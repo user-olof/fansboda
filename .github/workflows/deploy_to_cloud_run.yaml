@@ -33,7 +33,7 @@ jobs:
     - name: Decode Google Cloud Service Account Credentials
       run: |
         echo ${{ secrets.GCP_SVC_ACCOUNT_CREDS }} | base64 --decode | jq > gcp-credentials.json
-        export GOOGLE_APPLICATION_CREDENTIALS=gcp-credentials.json
+        export ::set-env name=GOOGLE_APPLICATION_CREDENTIALS::gcp-credentials.json
     
     - name: Authenticate with Google Cloud
       uses: google-github-actions/auth@v1
