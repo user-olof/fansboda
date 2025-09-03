@@ -30,19 +30,17 @@ jobs:
     #     echo SVC_ACCOUNT_EMAIL="$SVC_ACCOUNT_EMAIL"
     #     echo GOOGLE_APPLICATION_CREDENTIALS="$GOOGLE_APPLICATION_CREDENTIALS"
 
-
-    # Creates a credentials file that will be used for ADC later
-    - name: Create credentials file
-      run: |
-        echo "${{ secrets.GCP_SVC_ACCOUNT_CREDS }}" | base64 --decode > /tmp/credentials.json  
-        echo "Checking credentials"
-        echo "/tmp/credentials.json" | head -n 3 
       
     
     - name: Authenticate with Google Cloud
       uses: google-github-actions/auth@v1
       with:
         credentials_json: ${{ secrets.GCP_SVC_ACCOUNT_CREDS }}
+      
+    - name: Set up Google Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        project_id: ${{ secrets.GCP_PROJECT_ID }}
 
       
 
