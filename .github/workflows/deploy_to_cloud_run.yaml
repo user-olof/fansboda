@@ -42,6 +42,10 @@ jobs:
       with:
         project_id: ${{ secrets.GCP_PROJECT_ID }}
 
+    - name: Configure Docker to use gcloud as a credential helper
+      run: |
+        gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev
+
       
 
    
