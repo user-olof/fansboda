@@ -30,12 +30,15 @@ jobs:
     #     echo SVC_ACCOUNT_EMAIL="$SVC_ACCOUNT_EMAIL"
     #     echo GOOGLE_APPLICATION_CREDENTIALS="$GOOGLE_APPLICATION_CREDENTIALS"
 
-      
+    - name: Decode Google Cloud Service Account Credentials
+      run: |
+        echo ${{ secrets.GCP_SVC_ACCOUNT_CREDS }} | base64 --decode > ${{ secrets.GCP_SVC_ACCOUNT_CREDS }}.json
+        export GOOGLE_APPLICATION_CREDENTIALS=${{ secrets.GCP_SVC_ACCOUNT_CREDS }}.json
     
     - name: Authenticate with Google Cloud
       uses: google-github-actions/auth@v1
       with:
-        credentials_json: ${{ secrets.GCP_SVC_ACCOUNT_CREDS }}
+        credentials_json: "$GOOGLE_APPLICATION_CREDENTIALS"
       
     - name: Set up Google Cloud SDK
       uses: google-github-actions/setup-gcloud@v1
@@ -64,6 +67,7 @@ jobs:
           --max-instances 1 \
           --project ${{ secrets.GCP_PROJECT_ID  }} \
           --service-account ${{ secrets.GCP_SVC_ACCOUNT }} 
+          --allow-unauthenticated
 
       
 
