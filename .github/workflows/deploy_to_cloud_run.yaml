@@ -48,7 +48,7 @@ jobs:
 
     - name: Build and Push Docker image
       run: |
-        IMAGE_URI="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/gh-fanboda-repo/fansboda:latest"
+        IMAGE_URI="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/gh-fansboda-repo/fansboda:latest"
         docker build -t "$IMAGE_URI" .
         docker push "$IMAGE_URI"
       
