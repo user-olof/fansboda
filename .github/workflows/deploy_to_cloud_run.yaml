@@ -39,6 +39,12 @@ jobs:
       uses: google-github-actions/auth@v1
       with:
         credentials_json: "${{ secrets.GCP_SVC_ACCOUNT_CREDS }}"
+    
+    - name: Assign custom service account to Cloud Run service
+      run: |
+        gcloud run services update ${{ secrets.GCP_SERVICE_NAME }} \
+        --region=${{ vars.GCP_REGION }} \
+        --service-account=${{ secrets.GCP_SVC_ACCOUNT }}
       
     - name: Set up Google Cloud SDK
       uses: google-github-actions/setup-gcloud@v1
