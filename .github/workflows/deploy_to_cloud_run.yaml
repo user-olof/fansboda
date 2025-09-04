@@ -71,7 +71,7 @@ jobs:
  
     - name: Assign custom service account to Cloud Run service
       run: |
-        gcloud run services update ${{ secrets.GCP_SERVICE_NAME }} \
+        gcloud run services update ${{ vars.GCP_SERVICE_NAME }} \
         --region ${{ vars.GCP_REGION }} \
         --service-account ${{ secrets.GCP_SVC_ACCOUNT }}      
 
