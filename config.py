@@ -18,6 +18,9 @@ class DevConfig:
     PORT = 5000
     HOST = "localhost"
 
+    # Allowed email addresses
+    ALLOWED_EMAILS = ["olof.thornell@gmail.com", "test@example.com"]
+
 
 class ProdConfig:
     SECRET_KEY = os.getenv("SECRET_KEY")
@@ -28,3 +31,6 @@ class ProdConfig:
     DEBUG = False
     PORT = 8080
     HOST = "0.0.0.0"
+
+    # Allowed email addresses
+    ALLOWED_EMAILS = ["olof.thornell@gmail.com"]

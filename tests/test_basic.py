@@ -26,7 +26,7 @@ class TestBasicFunctionality:
         """Test that the client fixture works."""
         assert client is not None
         # Test a simple request
-        response = client.get("/users")  # This route doesn't require auth
+        response = client.get("/users")  # This route does require auth
         assert response.status_code == 200
 
     def test_database_fixture(self, client):
