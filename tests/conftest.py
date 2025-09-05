@@ -47,6 +47,8 @@ def client_with_user():
     app.config["SECRET_KEY"] = "test-secret-key"
     app.config["LOGIN_DISABLED"] = False
 
+    app.config["ALLOWED_EMAILS"] = ["test@example.com"]
+
     with app.test_client() as client:
         with app.app_context():
             db.create_all()

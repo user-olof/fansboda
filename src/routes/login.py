@@ -1,6 +1,6 @@
 import os
 from src import app, db
-from flask import render_template, flash, redirect, url_for
+from flask import current_app, render_template, flash, redirect, url_for
 from flask_login import current_user, login_user, logout_user, login_required
 import sqlalchemy as sa
 from src.models.user import User
@@ -16,10 +16,18 @@ def login():
         return redirect(url_for("index"))
     form = LoginForm()
     if form.validate_on_submit():
+
+        # first find the user in the database
         user = db.session.scalar(sa.select(User).where(User.email == form.email.data))
         if user is None or not verify_password(user.password_hash, form.password.data):
             flash("Invalid username or password")
+            return redirect(url_for("login"), 302)
+
+        # then check if the user is allowed to login
+        if not user.is_allowed():
+            flash("Access denied. You are not authorized to use this application.")
             return redirect(url_for("login"))
+
         login_user(user, remember=form.remember_me.data)
         return redirect(url_for("index"))
     return render_template("login.html", title="Sign In", form=form)
@@ -31,6 +39,11 @@ def signup():
         return redirect(url_for("index"))
     form = SignupForm()
     if form.validate_on_submit():
+        # first check if the user is allowed to sign up
+        allowed_emails = current_app.config["ALLOWED_EMAILS"]
+        if form.email.data not in allowed_emails:
+            flash("Access denied. You are not authorized to use this application.")
+            return redirect(url_for("signup"))
 
         if User.query.filter_by(email=form.email.data).first() is not None:
             flash("Email already exists")
