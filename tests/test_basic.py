@@ -34,7 +34,7 @@ class TestBasicFunctionality:
         with client.application.app_context():
             # Create a user
             user = User(email="smoke@example.com")
-            user.set_password("testpass")
+            user.password_hash = "testpass"
             db.session.add(user)
             db.session.commit()
 

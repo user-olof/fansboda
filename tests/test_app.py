@@ -51,7 +51,7 @@ class TestDatabaseIntegration:
 
             # Create
             user = User(email="crud@example.com")
-            user.set_password("crudpass")
+            user.password_hash = "crudpass"
             db.session.add(user)
             db.session.commit()
 

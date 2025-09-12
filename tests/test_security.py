@@ -23,7 +23,7 @@ class TestEmailWhitelist:
 
         with client.application.app_context():
             user = User(email="allowed@example.com")
-            user.set_password("testpass")
+            user.password_hash = "testpass"
 
             assert user.is_allowed() is True
 
@@ -33,7 +33,7 @@ class TestEmailWhitelist:
 
         with client.application.app_context():
             user = User(email="blocked@example.com")
-            user.set_password("testpass")
+            user.password_hash = "testpass"
 
             assert user.is_allowed() is False
 
@@ -43,7 +43,7 @@ class TestEmailWhitelist:
 
         with client.application.app_context():
             user = User(email="any@example.com")
-            user.set_password("testpass")
+            user.password_hash = "testpass"
 
             assert user.is_allowed() is False
 
@@ -55,7 +55,7 @@ class TestEmailWhitelist:
 
         with client.application.app_context():
             user = User(email="any@example.com")
-            user.set_password("testpass")
+            user.password_hash = "testpass"
 
             # Should return False when config is missing (default behavior)
             assert user.is_allowed() is False
@@ -87,7 +87,7 @@ class TestLoadUserSecurity:
 
             # Create and save user
             user = User(email="allowed@example.com")
-            user.set_password("testpass")
+            user.password_hash = "testpass"
             db.session.add(user)
             db.session.commit()
 
@@ -105,7 +105,7 @@ class TestLoadUserSecurity:
 
             # Create and save user with non-allowed email
             user = User(email="blocked@example.com")
-            user.set_password("testpass")
+            user.password_hash = "testpass"
             db.session.add(user)
             db.session.commit()
 
@@ -139,7 +139,7 @@ class TestLoginSecurity:
 
             # Create allowed user
             user = User(email="allowed@example.com")
-            user.set_password("testpass")
+            user.password_hash = "testpass"
             db.session.add(user)
             db.session.commit()
 
@@ -162,7 +162,7 @@ class TestLoginSecurity:
 
             # Create user with non-allowed email
             user = User(email="blocked@example.com")
-            user.set_password("testpass")
+            user.password_hash = "testpass"
             db.session.add(user)
             db.session.commit()
 
@@ -185,7 +185,7 @@ class TestLoginSecurity:
 
             # Create user with non-allowed email but valid password
             user = User(email="blocked@example.com")
-            user.set_password("correctpassword")
+            user.password_hash = "correctpassword"
             db.session.add(user)
             db.session.commit()
 
@@ -209,7 +209,7 @@ class TestLoginSecurity:
 
             # Create allowed user
             user = User(email="allowed@example.com")
-            user.set_password("correctpass")
+            user.password_hash = "correctpass"
             db.session.add(user)
             db.session.commit()
 
@@ -236,7 +236,7 @@ class TestRouteAccess:
 
             # Create and login allowed user
             user = User(email="allowed@example.com")
-            user.set_password("testpass")
+            user.password_hash = "testpass"
             db.session.add(user)
             db.session.commit()
 
@@ -402,7 +402,7 @@ class TestSessionSecurity:
 
             # Create and login user
             user = User(email="allowed@example.com")
-            user.set_password("testpass")
+            user.password_hash = "testpass"
             db.session.add(user)
             db.session.commit()
 
@@ -434,9 +434,9 @@ class TestSessionSecurity:
 
             # Create two users
             user1 = User(email="user1@example.com")
-            user1.set_password("pass1")
+            user1.password_hash = "pass1"
             user2 = User(email="user2@example.com")
-            user2.set_password("pass2")
+            user2.password_hash = "pass2"
 
             db.session.add(user1)
             db.session.add(user2)

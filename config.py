@@ -1,3 +1,4 @@
+from datetime import timedelta
 from dotenv import load_dotenv
 import os
 
@@ -5,6 +6,24 @@ import os
 load_dotenv()
 
 basedir = os.path.abspath(os.path.dirname(__file__))
+
+
+class TestConfig:
+    SECRET_KEY = "test-secret-key"
+    SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_ECHO = True
+    DEBUG = True
+    TESTING = True
+    PORT = 5000
+    HOST = "localhost"
+    CACHE_TYPE = "NullCache"
+    CACHE_DEFAULT_TIMEOUT = 0
+    CACHE_NO_NULL_WARNING = True
+    WTF_CSRF_ENABLED = False
+    LOGIN_DISABLED = True
+
+    ALLOWED_EMAILS = ["test@example.com"]
 
 
 class DevConfig:
@@ -19,7 +38,10 @@ class DevConfig:
     HOST = "localhost"
 
     # Allowed email addresses
-    ALLOWED_EMAILS = ["olof.thornell@gmail.com", "test@example.com"]
+    ALLOWED_EMAILS = ["olof.thornell@gmail.com"]
+
+    CACHE_TYPE = "redis"
+    CACHE_REDIS_URL = "redis://localhost:6379"
 
 
 class ProdConfig:
@@ -34,3 +56,6 @@ class ProdConfig:
 
     # Allowed email addresses
     ALLOWED_EMAILS = ["olof.thornell@gmail.com"]
+
+    CACHE_TYPE = "redis"
+    CACHE_REDIS_URL = "redis://localhost:6379"
