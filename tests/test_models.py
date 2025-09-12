@@ -20,28 +20,28 @@ class TestUserModel:
     def test_set_password(self, client):
         """Test password hashing."""
         user = User(email="test@example.com")
-        user.set_password("testpassword")
+        user.password_hash = "testpassword"
         assert user.password_hash is not None
         assert user.password_hash != "testpassword"
 
     def test_check_password(self, client):
         """Test password verification."""
         user = User(email="test@example.com")
-        user.set_password("testpassword")
-        assert user.check_password("testpassword") is True
-        assert user.check_password("wrongpassword") is False
+        user.password_hash = "testpassword"
+        assert user.authenticate("testpassword") is True
+        assert user.authenticate("wrongpassword") is False
 
     def test_user_uniqueness(self, client):
         """Test that usernames and emails must be unique."""
         with client.application.app_context():
             user1 = User(email="test1@example.com")
-            user1.set_password("password1")
+            user1.password_hash = "password1"
             db.session.add(user1)
             db.session.commit()
 
             # Try to create another user with same email
             user2 = User(email="test1@example.com")
-            user2.set_password("password2")
+            user2.password_hash = "password2"
             db.session.add(user2)
 
             with pytest.raises(Exception):
@@ -52,7 +52,7 @@ class TestUserModel:
         with client.application.app_context():
             # Create and save user
             user = User(email="dbtest@example.com")
-            user.set_password("testpass")
+            user.password_hash = "testpass"
             db.session.add(user)
             db.session.commit()
 
@@ -60,4 +60,4 @@ class TestUserModel:
             found_user = User.query.filter_by(email="dbtest@example.com").first()
             assert found_user is not None
             assert found_user.email == "dbtest@example.com"
-            assert found_user.check_password("testpass") is True
+            assert found_user.authenticate("testpass") is True

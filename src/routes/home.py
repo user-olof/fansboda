@@ -11,7 +11,7 @@ from src.route_protection import dev_only
 @app.route("/index")
 @allowed_user_required
 def index():
-    return render_template("index.html", title="Dashboard")
+    return render_template("index.html", title="Dashboard", status_code=200)
 
 
 @app.route("/users")

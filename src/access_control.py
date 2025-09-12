@@ -9,12 +9,12 @@ def allowed_user_required(f):
     @wraps(f)
     @login_required
     def decorated_function(*args, **kwargs):
-        if not current_user.is_allowed():
+        if not current_user.is_authenticated or not current_user.is_allowed():
             flash(
                 "Access denied. You are not authorized to use this application.",
                 "error",
             )
-            return redirect(url_for("logout"))
+            return redirect(url_for("login"))
         return f(*args, **kwargs)
 
     return decorated_function

@@ -1,5 +1,6 @@
 from src.models.user import User
 from src import db
+from unittest.mock import patch
 
 
 class TestRoutes:
@@ -16,15 +17,16 @@ class TestRoutes:
         with client.application.app_context():
             # Create a test user
             user = User(email="test@example.com")
-            user.set_password("testpass")
+            user.password_hash = "testpass"
             db.session.add(user)
             db.session.commit()
 
-        # Login and access index
-        auth.login()
-        response = client.get("/")
-        assert response.status_code == 200
-        assert b"You have successfully logged in" in response.data
+            # Login and access index
+            # with patch("src.models.user.User.is_allowed", return_value=True):
+            auth.login()
+            response = client.get("/")
+            assert response.status_code == 200
+            assert b"You have successfully logged in" in response.data
 
     def test_users_route(self, client):
         """Test users route."""
@@ -44,7 +46,7 @@ class TestRoutes:
         with client.application.app_context():
             # Create a test user
             user = User(email="test@example.com")
-            user.set_password("testpass")
+            user.password_hash = "testpass"
             db.session.add(user)
             db.session.commit()
 
@@ -67,24 +69,24 @@ class TestRoutes:
         with client.application.app_context():
             # Create a test user
             user = User(email="test@example.com")
-            user.set_password("testpass")
+            user.password_hash = "testpass"
             db.session.add(user)
             db.session.commit()
 
-        # Login first
-        auth.login()
-
-        # Try to access login page again
-        response = client.get("/login")
-        assert response.status_code == 302
-        assert "/" in response.location
+            # Try to access login page again
+            
+            # Login first
+            auth.login()
+            response = client.get("/login")
+            assert response.status_code == 302
+            assert "/" in response.location
 
     def test_logout_route(self, client, auth):
         """Test logout route."""
         with client.application.app_context():
             # Create a test user
             user = User(email="test@example.com")
-            user.set_password("testpass")
+            user.password_hash = "testpass"
             db.session.add(user)
             db.session.commit()
 
