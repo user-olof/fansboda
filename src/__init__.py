@@ -14,7 +14,7 @@ template_dir = os.path.join(os.path.dirname(basedir), "templates")
 static_dir = os.path.join(os.path.dirname(basedir), "static")
 
 app = Flask(__name__, template_folder=template_dir, static_folder=static_dir)
-app.env = "development"
+app.env = "test"
 
 # Configure the app
 if app.env == "test":
