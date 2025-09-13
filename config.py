@@ -43,6 +43,7 @@ class DevConfig:
     CACHE_TYPE = "SimpleCache"
     CACHE_DEFAULT_TIMEOUT = 300
     CACHE_NO_NULL_WARNING = True
+    WTF_CSRF_ENABLED = True
 
     # Session timeout in seconds
     PERMANENT_SESSION_LIFETIME = 300 # 5 minutes

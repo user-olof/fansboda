@@ -71,10 +71,7 @@ def client_with_csrf():
     app.config["LOGIN_DISABLED"] = False
 
     with app.test_client() as client:
-        with app.app_context():
-            db.create_all()
-            yield client
-            db.drop_all()
+        yield client
 
 
 @pytest.fixture
