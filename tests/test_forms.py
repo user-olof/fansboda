@@ -160,7 +160,7 @@ class TestCSRFProtection:
 
     def test_form_validation_without_csrf(self, client):
         """Test that form validation works when CSRF is disabled (normal testing)."""
-        with client.application.app_context():
+        with client.application.test_request_context():
             form_data = {
                 "email": "test@example.com",  # Changed from username to email
                 "password": "testpass",
