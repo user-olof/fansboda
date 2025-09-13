@@ -38,10 +38,14 @@ class DevConfig:
     HOST = "localhost"
 
     # Allowed email addresses
-    ALLOWED_EMAILS = ["olof.thornell@gmail.com"]
+    ALLOWED_EMAILS = ["olof.thornell@gmail.com", "admin@test.com"]
 
-    CACHE_TYPE = "redis"
-    CACHE_REDIS_URL = "redis://localhost:6379"
+    CACHE_TYPE = "SimpleCache"
+    CACHE_DEFAULT_TIMEOUT = 300
+    CACHE_NO_NULL_WARNING = True
+
+    # Session timeout in seconds
+    PERMANENT_SESSION_LIFETIME = 300 # 5 minutes
 
 
 class ProdConfig:
@@ -59,3 +63,14 @@ class ProdConfig:
 
     CACHE_TYPE = "redis"
     CACHE_REDIS_URL = "redis://localhost:6379"
+
+    # Install Redis
+    # sudo apt update
+    # sudo apt install redis-server
+
+    # # Start Redis service
+    # sudo systemctl start redis-server
+    # sudo systemctl enable redis-server
+
+    # # Verify Redis is running
+    # redis-cli ping

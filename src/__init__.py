@@ -14,7 +14,7 @@ template_dir = os.path.join(os.path.dirname(basedir), "templates")
 static_dir = os.path.join(os.path.dirname(basedir), "static")
 
 app = Flask(__name__, template_folder=template_dir, static_folder=static_dir)
-app.env = "test"
+app.env = "development"
 
 # Configure the app
 if app.env == "test":
@@ -28,6 +28,7 @@ else:
 csrf = CSRFProtect(app)
 
 db = SQLAlchemy(app)
+
 
 bcrypt = flask_bcrypt.Bcrypt(app)
 
@@ -45,3 +46,20 @@ from src.routes import home
 from src.routes import login as login_routes
 from src.routes import errorhandler
 from src.routes import tests
+
+
+# prepopulate database with test data
+def prepopulate_database():
+    with app.app_context():
+        db.create_all()
+
+        # Check if user already exists
+        existing_user = User.query.filter_by(email="admin@test.com").first()
+        if not existing_user:
+            user = User(email="admin@test.com")
+            user.password_hash = "123456"
+            db.session.add(user)
+            db.session.commit()
+            print("Test user created successfully")
+        else:
+            print("Test user already exists")
