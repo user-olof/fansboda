@@ -139,6 +139,10 @@ class TestCSRFProtection:
             form_with_data = LoginForm(data=form_data)
             # The CSRF token should be valid in the same request context
             # Note: CSRF validation in tests can be tricky, this tests the token generation
+            assert form_with_data.validate() is True
+            assert form_with_data.csrf_token is not None
+            assert form_with_data.csrf_token._value() is not None
+            assert len(form_with_data.csrf_token._value()) > 0
 
     def test_csrf_token_in_template_context(self, client):
         """Test that CSRF token is available in template context."""
@@ -161,6 +165,7 @@ class TestCSRFProtection:
     def test_form_validation_without_csrf(self, client):
         """Test that form validation works when CSRF is disabled (normal testing)."""
         with client.application.test_request_context():
+
             form_data = {
                 "email": "test@example.com",  # Changed from username to email
                 "password": "testpass",

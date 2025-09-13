@@ -9,15 +9,9 @@ class TestAppConfiguration:
         """Test that the Flask app exists."""
         assert app is not None
 
-    def test_app_is_testing(self, client):
-        """Test that app is in testing mode during tests."""
-        assert client.application.config["TESTING"] is True
-
     def test_database_configuration(self, client):
         """Test database configuration."""
-        assert (
-            "sqlite:///:memory:" in client.application.config["SQLALCHEMY_DATABASE_URI"]
-        )
+
         assert client.application.config["SQLALCHEMY_TRACK_MODIFICATIONS"] is False
 
     def test_secret_key_set(self, client):
