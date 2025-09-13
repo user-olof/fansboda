@@ -1,6 +1,5 @@
 from src.models.user import User
 from src import db
-from unittest.mock import patch
 
 
 class TestRoutes:

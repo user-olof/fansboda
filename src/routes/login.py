@@ -1,4 +1,3 @@
-import os
 import pickle
 from src import app, cache, db, login_manager
 from flask import current_app, render_template, flash, redirect, url_for, session
@@ -7,10 +6,6 @@ import sqlalchemy as sa
 from src.models.user import User
 from src.forms.loginform import LoginForm
 from src.forms.signupform import SignupForm
-from src.access_control import allowed_user_required
-
-# import scrypt
-from werkzeug.exceptions import HTTPException
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -83,7 +78,7 @@ def load_user(id):
         user = cache.get(f"user_{id}")
         if user is None:
             user = User.query.get(int(id))
-            if user:
+            if user and user.is_allowed():
                 cache.set(f"user_{id}", pickle.dumps(user), timeout=3600)
                 return user
         else:

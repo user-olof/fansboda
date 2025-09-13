@@ -3,8 +3,7 @@ Test cases for electricity bill calculator functionality
 """
 
 import pytest
-from src import app, db
-from src.models.user import User
+from src import app
 
 
 class TestElectricityCalculator:

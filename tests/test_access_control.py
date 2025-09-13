@@ -4,12 +4,8 @@ Test cases for access control decorator functionality.
 This module tests the access control decorators and route protection.
 """
 
-import pytest
 from src import app, db
 from src.models.user import User
-from src.access_control import allowed_user_required
-from flask import render_template
-from flask_login import login_user, current_user, login_required
 
 
 # def setup_test_routes():

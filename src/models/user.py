@@ -1,8 +1,5 @@
-import scrypt
-import os
-from src import db, bcrypt
-# from werkzeug.security import generate_password_hash, check_password_hash
 
+from src import db, bcrypt
 from flask_login import UserMixin
 from flask import current_app
 from sqlalchemy.ext.hybrid import hybrid_property

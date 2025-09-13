@@ -8,10 +8,9 @@ This module tests the new security features including:
 - Configuration-based security
 """
 
-import pytest
 from src import app, db
-from src.models.user import User, load_user
-from flask import url_for
+from src.models.user import User
+from src.routes.login import load_user
 
 
 class TestEmailWhitelist:
@@ -101,7 +100,6 @@ class TestLoadUserSecurity:
         app.config["ALLOWED_EMAILS"] = ["allowed@example.com"]
 
         with client.application.app_context():
-            db.create_all()
 
             # Create and save user with non-allowed email
             user = User(email="blocked@example.com")

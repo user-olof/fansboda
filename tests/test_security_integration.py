@@ -4,11 +4,9 @@ Integration tests for the complete security workflow.
 This module tests end-to-end security scenarios combining multiple components.
 """
 
-import pytest
 from unittest.mock import patch
 from src import app, db
 from src.models.user import User
-from flask import url_for
 
 
 class TestCompleteSecurityWorkflow:
@@ -40,6 +38,7 @@ class TestCompleteSecurityWorkflow:
 
             # Clear any cached user data
             from flask_login import logout_user
+
             user_id = user.id
             logout_user()
 
