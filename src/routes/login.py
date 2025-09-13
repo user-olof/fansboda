@@ -1,13 +1,14 @@
 import os
 import pickle
 from src import app, cache, db, login_manager
-from flask import current_app, render_template, flash, redirect, url_for
+from flask import current_app, render_template, flash, redirect, url_for, session
 from flask_login import current_user, login_user, logout_user, login_required
 import sqlalchemy as sa
 from src.models.user import User
 from src.forms.loginform import LoginForm
 from src.forms.signupform import SignupForm
 from src.access_control import allowed_user_required
+
 # import scrypt
 from werkzeug.exceptions import HTTPException
 
@@ -66,19 +67,29 @@ def signup():
 def logout():
     if current_user.is_authenticated:
         user_id = current_user.id
-        logout_user()
+        # Clear user cache
         cache.delete(f"user_{user_id}")
+
+        # Clear session data
+        session.clear()
+
+        logout_user()
     return redirect(url_for("login"))
 
 
 @login_manager.user_loader
 def load_user(id):
-    user = cache.get(f"user_{id}")
-    if user is None:
-        user = User.query.get(int(id))
-        cache.set(f"user_{id}", pickle.dumps(user), timeout=3600)
-        return user
-    else:
-        print("User found in cache")
-        return pickle.loads(user)
+    try:
+        user = cache.get(f"user_{id}")
+        if user is None:
+            user = User.query.get(int(id))
+            if user:
+                cache.set(f"user_{id}", pickle.dumps(user), timeout=3600)
+                return user
+        else:
+            return pickle.loads(user)
+    except Exception:
+        # If there's any error (including cache issues), clear cache and return None
+        cache.delete(f"user_{id}")
+        return None
     return None
