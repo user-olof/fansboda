@@ -75,14 +75,17 @@ def logout():
 @login_manager.user_loader
 def load_user(id):
     try:
-        user = cache.get(f"user_{id}")
-        if user is None:
+        b_user = cache.get(f"user_{id}")
+        if b_user is None:
             user = User.query.get(int(id))
-            if user and user.is_allowed():
+            if user is not None and user.is_allowed():
                 cache.set(f"user_{id}", pickle.dumps(user), timeout=3600)
                 return user
         else:
-            return pickle.loads(user)
+            user = pickle.loads(b_user)
+            if user is not None and user.is_allowed():
+                return user
+        return None
     except Exception:
         # If there's any error (including cache issues), clear cache and return None
         cache.delete(f"user_{id}")

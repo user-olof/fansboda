@@ -1,6 +1,7 @@
 import pytest
 from src.forms.loginform import LoginForm
 from src.forms.signupform import SignupForm
+from src import app
 
 
 class TestLoginForm:
@@ -164,6 +165,8 @@ class TestCSRFProtection:
 
     def test_form_validation_without_csrf(self, client):
         """Test that form validation works when CSRF is disabled (normal testing)."""
+        app.config["WTF_CSRF_ENABLED"] = False
+
         with client.application.test_request_context():
 
             form_data = {
