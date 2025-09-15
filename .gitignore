@@ -117,5 +117,6 @@ dmypy.json
 secrets/
 
 # database
+database.db
 *.db
 *.db-journal
