@@ -23,8 +23,8 @@ def client():
     # # Configure for testing
     # app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
     # app.config["TESTING"] = True
-    # app.config["DEBUG"] = True
-    # app.config["WTF_CSRF_ENABLED"] = False
+    app.config["DEBUG"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
     # app.config["SECRET_KEY"] = "test-secret-key"
     # app.config["LOGIN_DISABLED"] = False
 

@@ -73,7 +73,7 @@ class TestRoutes:
             db.session.commit()
 
             # Try to access login page again
-            
+
             # Login first
             auth.login()
             response = client.get("/login")
@@ -89,18 +89,19 @@ class TestRoutes:
             db.session.add(user)
             db.session.commit()
 
-        # Login first
-        auth.login()
+            # Login first
+            response = auth.login()
+            assert response.status_code == 200
 
-        # Then logout
-        response = client.get("/logout")
-        assert response.status_code == 302
-        assert "/" in response.location
+            # Then logout
+            # response = client.get("/logout")
+            response = auth.logout()
+            assert response.status_code == 200
 
-        # Verify we're logged out by trying to access protected route
-        response = client.get("/")
-        assert response.status_code == 302
-        assert "/login" in response.location
+            # Verify we're logged out by trying to access protected route
+            response = client.get("/")
+            assert response.status_code == 302
+            assert "/login" in response.location
 
 
 class TestErrorHandlers:
