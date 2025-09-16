@@ -428,7 +428,6 @@ class TestSessionSecurity:
         app.config["WTF_CSRF_ENABLED"] = False
 
         with client.application.app_context():
-            db.create_all()
 
             # Create two users
             user1 = User(email="user1@example.com")
