@@ -77,17 +77,21 @@ def load_user(id):
     try:
         b_user = cache.get(f"user_{id}")
         if b_user is None:
-            user = User.query.get(int(id))
+            # user = User.query.get(int(id))
+            # Use a fresh query to avoid session issues
+            user = db.session.get(User, int(id))
             if user is not None and user.is_allowed():
                 cache.set(f"user_{id}", pickle.dumps(user), timeout=3600)
                 return user
+            return None
         else:
             user = pickle.loads(b_user)
             if user is not None and user.is_allowed():
                 return user
-        return None
+            else:
+                cache.delete(f"user_{id}")
+                return None
     except Exception:
         # If there's any error (including cache issues), clear cache and return None
         cache.delete(f"user_{id}")
         return None
-    return None

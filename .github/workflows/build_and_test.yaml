@@ -24,12 +24,20 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    - name: Test with pytest
+    - name: Install pytest
       env:
         PYTHONPATH: .
       run: |
         pip install pytest pytest-cov
-        pytest --doctest-modules --junitxml=junit/test-results.xml --cov=com --cov-report=xml --cov-report=html
-        pytest --doctest-modules --junitxml=junit/test-results.xml --cov=com --cov-report=xml --cov-report=html --last-failed
+    
+    - name: Test with pytest
+      env:
+        PYTHONPATH: .
+      uses: sjvrijn/pytest-last-failed@v3
+      with:
+        # Additional arguments to be passed to pytest
+        pytest-args: '--doctest-modules --junitxml=junit/test-results.xml --cov=com --cov-report=xml --cov-report=html'
+        # pytest --doctest-modules --junitxml=junit/test-results.xml --cov=com --cov-report=xml --cov-report=html
+        # pytest --doctest-modules --junitxml=junit/test-results.xml --cov=com --cov-report=xml --cov-report=html --last-failed
     
         
