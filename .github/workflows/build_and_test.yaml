@@ -1,6 +1,10 @@
 name: Build and Test
 run-name: ${{ github.actor }} is testing  🚀
-on: [push]
+on:
+  workflow_run:
+    workflows: ["Code Scanning"]
+    types:
+      - completed
 
 jobs:
   build_and_test:
