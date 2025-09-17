@@ -17,9 +17,6 @@ class TestConfig:
     TESTING = True
     PORT = 5000
     HOST = "localhost"
-    CACHE_TYPE = "NullCache"
-    CACHE_DEFAULT_TIMEOUT = 0
-    CACHE_NO_NULL_WARNING = True
     WTF_CSRF_ENABLED = False
     LOGIN_DISABLED = True
 

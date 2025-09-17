@@ -1,6 +1,9 @@
 import pytest
 from src import app, db
 from src.models.user import User
+from flask_caching import Cache
+
+cache = Cache()
 
 
 @pytest.fixture(autouse=True)
@@ -20,55 +23,28 @@ def reset_database():
 @pytest.fixture
 def client():
     """Create a test client for the Flask application."""
-    # # Configure for testing
-    # app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
-    # app.config["TESTING"] = True
-    app.config["DEBUG"] = True
+
     app.config["WTF_CSRF_ENABLED"] = False
-    # app.config["SECRET_KEY"] = "test-secret-key"
-    # app.config["LOGIN_DISABLED"] = False
+    # Ensure we're using test config
+    app.config.from_object("config.TestConfig")
 
-    # # Disable all caching
-    # app.config["CACHE_TYPE"] = "NullCache"
-    # app.config["CACHE_DEFAULT_TIMEOUT"] = 0
-    # app.config["CACHE_NO_NULL_WARNING"] = True
-    # app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-    # app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
-    #     "pool_pre_ping": True,
-    #     "pool_recycle": 300,
-    # }
+    # Explicitly configure cache for testing
+    app.config["CACHE_TYPE"] = "NullCache"
+    app.config["CACHE_DEFAULT_TIMEOUT"] = 0
+    app.config["CACHE_NO_NULL_WARNING"] = True
 
-    # # Disable template caching
-    # app.jinja_env.cache = None
-
-    # # Disable static file caching
-    # app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
-
-    # # Disable user caching for tests
-    # from src.models.user import load_user
-
-    # def test_load_user(id):
-    #     return User.query.get(int(id))
-
-    # original_load_user = load_user
-    # load_user = test_load_user
+    # Reinitialize cache with test config
+    cache.init_app(app)
 
     with app.test_client() as client:
         yield client
-
-    # Restore original load_user method
-    # load_user = original_load_user
 
 
 @pytest.fixture
 def client_with_csrf():
     """Create a test client with CSRF protection enabled."""
     # Configure for testing with CSRF enabled
-    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
-    app.config["TESTING"] = True
     app.config["WTF_CSRF_ENABLED"] = True  # Enable CSRF for specific tests
-    app.config["SECRET_KEY"] = "test-secret-key"
-    app.config["LOGIN_DISABLED"] = False
 
     with app.test_client() as client:
         yield client
@@ -77,13 +53,7 @@ def client_with_csrf():
 @pytest.fixture
 def client_with_user():
     """Create a test client with a logged-in user."""
-    # Configure for testing
-    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
-    app.config["TESTING"] = True
     app.config["WTF_CSRF_ENABLED"] = False
-    app.config["SECRET_KEY"] = "test-secret-key"
-    app.config["LOGIN_DISABLED"] = False
-
     app.config["ALLOWED_EMAILS"] = ["test@example.com"]
 
     with app.test_client() as client:

@@ -29,15 +29,12 @@ jobs:
         PYTHONPATH: .
       run: |
         pip install pytest pytest-cov
-    
     - name: Test with pytest
+      uses:
       env:
         PYTHONPATH: .
-      uses: sjvrijn/pytest-last-failed@v2
-      with:
-        # Additional arguments to be passed to pytest
-        pytest-args: '--doctest-modules --junitxml=junit/test-results.xml --cov=com --cov-report=xml --cov-report=html'
-        # pytest --doctest-modules --junitxml=junit/test-results.xml --cov=com --cov-report=xml --cov-report=html
-        # pytest --doctest-modules --junitxml=junit/test-results.xml --cov=com --cov-report=xml --cov-report=html --last-failed
+        
+        pytest --doctest-modules --junitxml=junit/test-results.xml --cov=com --cov-report=xml --cov-report=html
+        pytest --doctest-modules --junitxml=junit/test-results.xml --cov=com --cov-report=xml --cov-report=html --last-failed
     
         
