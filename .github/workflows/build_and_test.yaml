@@ -1,8 +1,8 @@
-name: Build and Test
+name: 2. Build and Test
 run-name: ${{ github.actor }} is testing  🚀
 on:
   workflow_run:
-    workflows: ["Code Scanning"]
+    workflows: ["1. Code Scanning"]
     types:
       - completed
 
