@@ -96,3 +96,7 @@ def prepopulate_database():
             print("Test user created successfully")
         else:
             print("Test user already exists")
+
+
+# prepopulate database with test data
+prepopulate_database()
