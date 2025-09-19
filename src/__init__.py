@@ -83,20 +83,40 @@ from src.routes import tests
 
 # prepopulate database with test data
 def prepopulate_database():
+    """Initialize database and add default data."""
+    # Only run in non-test mode
+    if app.env == "test":
+        print("Skipping database prepopulation in test mode")
+        return
+
     with app.app_context():
-        db.create_all()
+        try:
+            # Create tables safely
+            db.create_all()
+            print("Database tables created/verified")
 
-        # Check if user already exists
-        existing_user = User.query.filter_by(email="admin@test.com").first()
-        if not existing_user:
-            user = User(email="admin@test.com")
-            user.password_hash = "123456"
-            db.session.add(user)
-            db.session.commit()
-            print("Test user created successfully")
-        else:
-            print("Test user already exists")
+            # Check if we already have any users
+            try:
+                user_count = db.session.query(User).count()
+                print(f"Current user count: {user_count}")
+
+                if user_count == 0:
+                    # No users exist, create the default admin user
+                    user = User(email="admin@test.com")
+                    user.password_hash = "123456"
+                    db.session.add(user)
+                    db.session.commit()
+                    print("Default admin user created successfully")
+                else:
+                    print("Users already exist in database, skipping user creation")
+            except Exception as e:
+                print(f"Error checking/creating users: {e}")
+                db.session.rollback()
+
+        except Exception as e:
+            print(f"Error in prepopulate_database: {e}")
+            # Don't fail the entire application
 
 
-# prepopulate database with test data
+# Call the function to initialize the database
 prepopulate_database()
