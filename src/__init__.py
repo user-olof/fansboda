@@ -91,9 +91,17 @@ def prepopulate_database():
 
     with app.app_context():
         try:
-            # Create tables safely
-            db.create_all()
-            print("Database tables created/verified")
+            # Check if the database exists
+            db_path = app.config.get("SQLALCHEMY_DATABASE_URI", "").replace(
+                "sqlite:///", ""
+            )
+
+            if os.path.exists(db_path):
+                print("Database exists, skipping table creation")
+            else:
+                print("Database does not exist, creating tables")
+                db.create_all()
+                print("Database tables created/verified")
 
             # Check if we already have any users
             try:
@@ -105,6 +113,7 @@ def prepopulate_database():
                     user = User(email="admin@test.com")
                     user.password_hash = "123456"
                     db.session.add(user)
+                    print(f"Added user {user.email} to database")
                     db.session.commit()
                     print("Default admin user created successfully")
                 else:
