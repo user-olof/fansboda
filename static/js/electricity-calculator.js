@@ -81,7 +81,7 @@ $(document).ready(function () {
         if ($('.clear-btn').length === 0) {
             const clearButton = $(`
                 <button type="button" class="btn btn-outline-secondary btn-sm mt-2 clear-btn">
-                    <i class="bi bi-x-circle me-1"></i>Rensa
+                    <i class="bi bi-x-circle me-1"></i>Ta bort
                 </button>
             `);
 

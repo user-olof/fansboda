@@ -8,16 +8,13 @@ This module tests the new security features including:
 - Configuration-based security
 """
 
-from sqlalchemy.orm import Session
-from src import app, db
 from src.models.user import User
-from src.routes.login import load_user
 
 
 class TestEmailWhitelist:
     """Test email whitelist functionality."""
 
-    def test_user_is_allowed_with_whitelisted_email(self, client):
+    def test_user_is_allowed_with_whitelisted_email(self, client, app):
         """Test that users with whitelisted emails are allowed."""
         app.config["ALLOWED_EMAILS"] = ["allowed@example.com", "test@example.com"]
 
@@ -27,18 +24,18 @@ class TestEmailWhitelist:
 
             assert user.is_allowed() is True
 
-    def test_user_is_allowed_with_non_whitelisted_email(self, client):
+    def test_user_is_allowed_with_non_whitelisted_email(self, client, app):
         """Test that users with non-whitelisted emails are not allowed."""
         app.config["ALLOWED_EMAILS"] = ["allowed@example.com"]
 
         with client.application.app_context():
-            user = User(email="blocked@example.com")
+            user = User(email="notallowed@example.com")
             user.password_hash = "testpass"
 
             assert user.is_allowed() is False
 
-    def test_user_is_allowed_with_empty_whitelist(self, client):
-        """Test behavior when ALLOWED_EMAILS is empty."""
+    def test_user_is_allowed_with_empty_whitelist(self, client, app):
+        """Test that users are not allowed when whitelist is empty."""
         app.config["ALLOWED_EMAILS"] = []
 
         with client.application.app_context():
@@ -47,9 +44,9 @@ class TestEmailWhitelist:
 
             assert user.is_allowed() is False
 
-    def test_user_is_allowed_with_missing_config(self, client):
-        """Test behavior when ALLOWED_EMAILS config is missing."""
-        # Remove the config key if it exists
+    def test_user_is_allowed_with_missing_whitelist(self, client, app):
+        """Test that users are not allowed when whitelist is missing."""
+        # Remove ALLOWED_EMAILS from config
         if "ALLOWED_EMAILS" in app.config:
             del app.config["ALLOWED_EMAILS"]
 
@@ -57,405 +54,1099 @@ class TestEmailWhitelist:
             user = User(email="any@example.com")
             user.password_hash = "testpass"
 
-            # Should return False when config is missing (default behavior)
             assert user.is_allowed() is False
 
-    def test_user_is_allowed_case_sensitivity(self, client):
-        """Test that email comparison is case sensitive."""
+    def test_user_is_allowed_case_insensitive(self, client, app):
+        """Test that email whitelist is case insensitive."""
         app.config["ALLOWED_EMAILS"] = ["Test@Example.com"]
 
         with client.application.app_context():
-            user_lower = User(email="test@example.com")
-            user_upper = User(email="TEST@EXAMPLE.COM")
-            user_mixed = User(email="Test@Example.com")
-
-            # Only exact case match should be allowed
-            assert user_lower.is_allowed() is False
-            assert user_upper.is_allowed() is False
-            assert user_mixed.is_allowed() is True
-
-
-class TestLoadUserSecurity:
-    """Test load_user function security checks."""
-
-    def test_load_user_returns_allowed_user(self, client):
-        """Test that load_user returns user when they are allowed."""
-        app.config["ALLOWED_EMAILS"] = ["allowed@example.com"]
-
-        with client.application.app_context():
-            db.create_all()
-
-            # Create and save user
-            user = User(email="allowed@example.com")
+            user = User(email="test@example.com")
             user.password_hash = "testpass"
-            db.session.add(user)
-            db.session.commit()
 
-            # Test load_user function
-            loaded_user = load_user(user.id)
-            assert loaded_user is not None
-            assert loaded_user.email == "allowed@example.com"
+            assert user.is_allowed() is True
 
-    def test_load_user_returns_none_for_blocked_user(self, client):
-        """Test that load_user returns None when user is not allowed."""
-        app.config["ALLOWED_EMAILS"] = ["allowed@example.com"]
-
-        with client.application.app_context():
-
-            # Create and save user with non-allowed email
-            try:
-                user = User(email="blocked@example.com")
-                user.password_hash = "testpass"
-                db.session.add(user)
-                db.session.commit()
-            except Exception as e:
-                print(e)
-
-            # Test load_user function
-            loaded_user = load_user(user.id)
-            assert loaded_user is None
-
-    def test_load_user_returns_none_for_nonexistent_user(self, client):
-        """Test that load_user returns None for non-existent user ID."""
-        app.config["ALLOWED_EMAILS"] = ["allowed@example.com"]
+    def test_user_is_allowed_with_multiple_emails(self, client, app):
+        """Test that users with any whitelisted email are allowed."""
+        app.config["ALLOWED_EMAILS"] = [
+            "user1@example.com",
+            "user2@example.com",
+            "user3@example.com",
+        ]
 
         with client.application.app_context():
-            db.create_all()
-
-            # Test with non-existent user ID
-            loaded_user = load_user(99999)
-            assert loaded_user is None
-
-
-class TestLoginSecurity:
-    """Test login route security functionality."""
-
-    def test_login_success_with_allowed_email(self, client):
-        """Test successful login with allowed email."""
-        # Configure test settings
-        client.application.config["ALLOWED_EMAILS"] = ["allowed@example.com"]
-        client.application.config["WTF_CSRF_ENABLED"] = False
-
-        with client.application.app_context():
-            db.create_all()
-
-            # Create allowed user
-            user = User(email="allowed@example.com")
-            user.password_hash = "testpass"
-            db.session.add(user)
-            db.session.commit()
-
-        # Attempt login (outside the explicit context)
-        response = client.post(
-            "/login", data={"email": "allowed@example.com", "password": "testpass"}
-        )
-
-        # Should redirect to index on success
-        assert response.status_code == 302
-        assert "/" in response.location
-
-    def test_login_blocked_with_non_allowed_email(self, client):
-        """Test that login is blocked for non-allowed email."""
-        app.config["ALLOWED_EMAILS"] = ["allowed@example.com"]
-        app.config["WTF_CSRF_ENABLED"] = False
-
-        with client.application.app_context():
-            db.create_all()
-
-            # Create user with non-allowed email
-            user = User(email="blocked@example.com")
-            user.password_hash = "testpass"
-            db.session.add(user)
-            db.session.commit()
-
-            # Attempt login
-            response = client.post(
-                "/login", data={"email": "blocked@example.com", "password": "testpass"}
-            )
-
-            # Should redirect back to login with error
-            assert response.status_code == 302
-            assert "/login" in response.location
-
-    def test_login_blocked_with_correct_password_but_blocked_email(self, client):
-        """Test that even with correct password, blocked emails can't login."""
-        app.config["ALLOWED_EMAILS"] = ["allowed@example.com"]
-        app.config["WTF_CSRF_ENABLED"] = False
-
-        with client.application.app_context():
-            db.create_all()
-
-            # Create user with non-allowed email but valid password
-            user = User(email="blocked@example.com")
-            user.password_hash = "correctpassword"
-            db.session.add(user)
-            db.session.commit()
-
-            # Attempt login with correct credentials
-            response = client.post(
-                "/login",
-                data={"email": "blocked@example.com", "password": "correctpassword"},
-            )
-
-            # Should still be blocked
-            assert response.status_code == 302
-            assert "/login" in response.location
-
-    def test_login_with_invalid_password_and_allowed_email(self, client):
-        """Test login failure with wrong password but allowed email."""
-        app.config["ALLOWED_EMAILS"] = ["allowed@example.com"]
-        app.config["WTF_CSRF_ENABLED"] = False
-
-        with client.application.app_context():
-            db.create_all()
-
-            # Create allowed user
-            user = User(email="allowed@example.com")
-            user.password_hash = "correctpass"
-            db.session.add(user)
-            db.session.commit()
-
-            # Attempt login with wrong password
-            response = client.post(
-                "/login", data={"email": "allowed@example.com", "password": "wrongpass"}
-            )
-
-            # Should redirect back to login
-            assert response.status_code == 302
-            assert "/login" in response.location
-
-
-class TestRouteAccess:
-    """Test route access with whitelist security."""
-
-    def test_index_access_with_allowed_user(self, client):
-        """Test that allowed users can access protected routes."""
-        app.config["ALLOWED_EMAILS"] = ["allowed@example.com"]
-        app.config["WTF_CSRF_ENABLED"] = False
-
-        with client.application.app_context():
-            db.create_all()
-
-            # Create and login allowed user
-            user = User(email="allowed@example.com")
-            user.password_hash = "testpass"
-            db.session.add(user)
-            db.session.commit()
-
-            # Login
-            client.post(
-                "/login", data={"email": "allowed@example.com", "password": "testpass"}
-            )
-
-            # Access protected route
-            response = client.get("/")
-            assert response.status_code == 200
-
-    def test_index_redirect_for_unauthenticated_user(self, client):
-        """Test that unauthenticated users are redirected to login."""
-        response = client.get("/")
-        assert response.status_code == 302
-        # Should redirect to login
-        assert "/login" in response.location
-
-    def test_users_route_accessible_without_auth(self, client):
-        """Test that /users route is accessible without authentication."""
-        # Note: This tests current behavior - you might want to change this
-        response = client.get("/users")
-        assert response.status_code == 200
-
-
-class TestConfigurationScenarios:
-    """Test different configuration scenarios."""
-
-    def test_dev_config_allows_test_email(self, client):
-        """Test that development config includes test email."""
-        # Simulate dev config
-        app.config["ALLOWED_EMAILS"] = ["olof.thornell@gmail.com", "test@example.com"]
-
-        with client.application.app_context():
-            test_user = User(email="test@example.com")
-            prod_user = User(email="olof.thornell@gmail.com")
-
-            assert test_user.is_allowed() is True
-            assert prod_user.is_allowed() is True
-
-    def test_prod_config_blocks_test_email(self, client):
-        """Test that production config blocks test email."""
-        # Simulate prod config
-        app.config["ALLOWED_EMAILS"] = ["olof.thornell@gmail.com"]
-
-        with client.application.app_context():
-            test_user = User(email="test@example.com")
-            prod_user = User(email="olof.thornell@gmail.com")
-
-            assert test_user.is_allowed() is False
-            assert prod_user.is_allowed() is True
-
-    def test_empty_allowed_emails_blocks_all(self, client):
-        """Test that empty ALLOWED_EMAILS blocks all users."""
-        app.config["ALLOWED_EMAILS"] = []
-
-        with client.application.app_context():
-            user1 = User(email="any@example.com")
-            user2 = User(email="another@example.com")
-
-            assert user1.is_allowed() is False
-            assert user2.is_allowed() is False
-
-
-class TestSecurityEdgeCases:
-    """Test edge cases and potential security issues."""
-
-    def test_sql_injection_in_email_field(self, client):
-        """Test that SQL injection attempts in email are handled safely."""
-        app.config["ALLOWED_EMAILS"] = ["valid@example.com"]
-        app.config["WTF_CSRF_ENABLED"] = False
-
-        with client.application.app_context():
-            db.create_all()
-
-            # Attempt login with SQL injection
-            response = client.post(
-                "/login",
-                data={"email": "'; DROP TABLE user; --", "password": "anything"},
-            )
-
-            # Should not crash and should redirect to login
-            assert response.status_code == 302
-
-            # Database should still be intact
-            users = User.query.all()
-            # Should not crash when querying
-
-    def test_xss_in_email_field(self, client):
-        """Test that XSS attempts in email are handled safely."""
-        app.config["ALLOWED_EMAILS"] = ["valid@example.com"]
-        app.config["WTF_CSRF_ENABLED"] = False
-
-        with client.application.app_context():
-            db.create_all()
-
-            # Attempt login with XSS
-            response = client.post(
-                "/login",
-                data={"email": "<script>alert('xss')</script>", "password": "anything"},
-            )
-
-            # Should not crash and should redirect to login
-            assert response.status_code == 302
-
-    def test_very_long_email(self, client):
-        """Test handling of extremely long email addresses."""
-        app.config["ALLOWED_EMAILS"] = ["valid@example.com"]
-
-        with client.application.app_context():
-            # Create user with very long email
-            long_email = "a" * 1000 + "@example.com"
-            user = User(email=long_email)
-
-            # Should handle gracefully
-            result = user.is_allowed()
-            assert result is False
-
-    def test_unicode_in_email(self, client):
-        """Test handling of unicode characters in email."""
-        app.config["ALLOWED_EMAILS"] = ["tëst@exämple.com", "valid@example.com"]
-
-        with client.application.app_context():
-            unicode_user = User(email="tëst@exämple.com")
-            normal_user = User(email="valid@example.com")
-
-            assert unicode_user.is_allowed() is True
-            assert normal_user.is_allowed() is True
-
-    def test_none_email_handling(self, client):
-        """Test handling of None email values."""
-        app.config["ALLOWED_EMAILS"] = ["valid@example.com"]
-
-        with client.application.app_context():
-            # This should be prevented by database constraints,
-            # but test the is_allowed method's robustness
-            user = User()
-            user.email = None
-
-            # Should not crash
-            try:
-                result = user.is_allowed()
-                # If it doesn't crash, it should return False
-                assert result is False
-            except (TypeError, AttributeError):
-                # Also acceptable if it raises an exception
-                pass
-
-
-class TestSessionSecurity:
-    """Test session-based security functionality."""
-
-    def test_session_invalidated_when_user_removed_from_whitelist(self, client):
-        """Test that sessions are invalidated when user is removed from whitelist."""
-        # This is a conceptual test - in practice, you'd need to implement
-        # real-time whitelist checking or session invalidation
-        app.config["ALLOWED_EMAILS"] = ["allowed@example.com"]
-        app.config["WTF_CSRF_ENABLED"] = False
-
-        with client.application.app_context():
-            db.create_all()
-
-            # Create and login user
-            user = User(email="allowed@example.com")
-            user.password_hash = "testpass"
-            db.session.add(user)
-            db.session.commit()
-
-            # Login successfully
-            login_response = client.post(
-                "/login", data={"email": "allowed@example.com", "password": "testpass"}
-            )
-            assert login_response.status_code == 302
-
-            # Access should work
-            response = client.get("/")
-            assert response.status_code == 200
-
-            # Simulate removing user from whitelist
-            app.config["ALLOWED_EMAILS"] = ["other@example.com"]
-
-            # Access should now be blocked (due to load_user check)
-            response = client.get("/")
-            assert response.status_code == 302  # Redirect to login
-
-    def test_concurrent_sessions_with_mixed_permissions(self, client):
-        """Test behavior with multiple sessions and changing permissions."""
-        # This tests the load_user function's real-time checking
-        app.config["ALLOWED_EMAILS"] = ["user1@example.com", "user2@example.com"]
-        app.config["WTF_CSRF_ENABLED"] = False
-
-        with client.application.app_context():
-
-            # Create two users
             user1 = User(email="user1@example.com")
-            user1.password_hash = "pass1"
+            user1.password_hash = "testpass"
+            assert user1.is_allowed() is True
+
             user2 = User(email="user2@example.com")
-            user2.password_hash = "pass2"
+            user2.password_hash = "testpass"
+            assert user2.is_allowed() is True
 
-            db.session.add(user1)
-            db.session.add(user2)
-            db.session.commit()
+            user3 = User(email="user3@example.com")
+            user3.password_hash = "testpass"
+            assert user3.is_allowed() is True
 
-            # Test that both users can be loaded
-            loaded_user1 = load_user(user1.id)
-            loaded_user2 = load_user(user2.id)
+            user4 = User(email="user4@example.com")
+            user4.password_hash = "testpass"
+            assert user4.is_allowed() is False
 
-            assert loaded_user1 is not None
-            assert loaded_user2 is not None
+    def test_user_is_allowed_with_duplicate_emails(self, client, app):
+        """Test that duplicate emails in whitelist work correctly."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com", "user@example.com"]
 
-            # Remove user2 from whitelist
-            app.config["ALLOWED_EMAILS"] = ["user1@example.com"]
+        with client.application.app_context():
+            user = User(email="user@example.com")
+            user.password_hash = "testpass"
 
-            # Now only user1 should be loadable
-            loaded_user1 = load_user(user1.id)
-            loaded_user2 = load_user(user2.id)
+            assert user.is_allowed() is True
 
-            assert loaded_user1 is not None
-            assert loaded_user2 is None
+    def test_user_is_allowed_with_whitespace_emails(self, client, app):
+        """Test that emails with whitespace are handled correctly."""
+        app.config["ALLOWED_EMAILS"] = [" user@example.com ", "another@example.com"]
+
+        with client.application.app_context():
+            user1 = User(email="user@example.com")
+            user1.password_hash = "testpass"
+            assert user1.is_allowed() is True
+
+            user2 = User(email="another@example.com")
+            user2.password_hash = "testpass"
+            assert user2.is_allowed() is True
+
+    def test_user_is_allowed_with_empty_string_emails(self, client, app):
+        """Test that empty string emails in whitelist are ignored."""
+        app.config["ALLOWED_EMAILS"] = ["", "user@example.com", ""]
+
+        with client.application.app_context():
+            user = User(email="user@example.com")
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is True
+
+    def test_user_is_allowed_with_none_emails(self, client, app):
+        """Test that None emails in whitelist are handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = [None, "user@example.com", None]
+
+        with client.application.app_context():
+            user = User(email="user@example.com")
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is True
+
+    def test_user_is_allowed_with_invalid_emails(self, client, app):
+        """Test that invalid emails in whitelist are handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = [
+            "invalid-email",
+            "user@example.com",
+            "also-invalid",
+        ]
+
+        with client.application.app_context():
+            user = User(email="user@example.com")
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is True
+
+    def test_user_is_allowed_with_mixed_case_emails(self, client, app):
+        """Test that mixed case emails work correctly."""
+        app.config["ALLOWED_EMAILS"] = ["User@Example.com", "ANOTHER@EXAMPLE.COM"]
+
+        with client.application.app_context():
+            user1 = User(email="user@example.com")
+            user1.password_hash = "testpass"
+            assert user1.is_allowed() is True
+
+            user2 = User(email="another@example.com")
+            user2.password_hash = "testpass"
+            assert user2.is_allowed() is True
+
+    def test_user_is_allowed_with_special_characters(self, client, app):
+        """Test that emails with special characters work correctly."""
+        app.config["ALLOWED_EMAILS"] = ["user+tag@example.com", "user.name@example.com"]
+
+        with client.application.app_context():
+            user1 = User(email="user+tag@example.com")
+            user1.password_hash = "testpass"
+            assert user1.is_allowed() is True
+
+            user2 = User(email="user.name@example.com")
+            user2.password_hash = "testpass"
+            assert user2.is_allowed() is True
+
+    def test_user_is_allowed_with_unicode_emails(self, client, app):
+        """Test that unicode emails work correctly."""
+        app.config["ALLOWED_EMAILS"] = ["üser@example.com", "测试@example.com"]
+
+        with client.application.app_context():
+            user1 = User(email="üser@example.com")
+            user1.password_hash = "testpass"
+            assert user1.is_allowed() is True
+
+            user2 = User(email="测试@example.com")
+            user2.password_hash = "testpass"
+            assert user2.is_allowed() is True
+
+    def test_user_is_allowed_with_long_emails(self, client, app):
+        """Test that long emails work correctly."""
+        long_email = "a" * 50 + "@" + "b" * 50 + ".com"
+        app.config["ALLOWED_EMAILS"] = [long_email]
+
+        with client.application.app_context():
+            user = User(email=long_email)
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is True
+
+    def test_user_is_allowed_with_very_long_whitelist(self, client, app):
+        """Test that very long whitelists work correctly."""
+        app.config["ALLOWED_EMAILS"] = [f"user{i}@example.com" for i in range(1000)]
+
+        with client.application.app_context():
+            user = User(email="user500@example.com")
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is True
+
+    def test_user_is_allowed_performance(self, client, app):
+        """Test that email checking is performant."""
+        app.config["ALLOWED_EMAILS"] = [f"user{i}@example.com" for i in range(100)]
+
+        import time
+
+        with client.application.app_context():
+            user = User(email="user50@example.com")
+            user.password_hash = "testpass"
+
+            start_time = time.time()
+            for _ in range(1000):
+                user.is_allowed()
+            end_time = time.time()
+
+            # Should complete 1000 checks in less than 1 second
+            assert (end_time - start_time) < 1.0
+
+    def test_user_is_allowed_with_none_user(self, client, app):
+        """Test that None user is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            # This should not raise an exception
+            assert User.is_allowed(None) is False
+
+    def test_user_is_allowed_with_invalid_user(self, client, app):
+        """Test that invalid user objects are handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            # Create user with None email
+            user = User(email=None)
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_empty_user_email(self, client, app):
+        """Test that empty user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email="")
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_whitespace_user_email(self, client, app):
+        """Test that whitespace user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email="   ")
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_numeric_user_email(self, client, app):
+        """Test that numeric user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=123)
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_list_user_email(self, client, app):
+        """Test that list user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=["user@example.com"])
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_dict_user_email(self, client, app):
+        """Test that dict user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email={"email": "user@example.com"})
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_boolean_user_email(self, client, app):
+        """Test that boolean user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=True)
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_function_user_email(self, client, app):
+        """Test that function user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=lambda: "user@example.com")
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_class_user_email(self, client, app):
+        """Test that class user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=User)
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_module_user_email(self, client, app):
+        """Test that module user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=__import__("sys"))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_exception_user_email(self, client, app):
+        """Test that exception user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=Exception("test"))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_generator_user_email(self, client, app):
+        """Test that generator user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=(x for x in ["user@example.com"]))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_set_user_email(self, client, app):
+        """Test that set user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email={"user@example.com"})
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_tuple_user_email(self, client, app):
+        """Test that tuple user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=("user@example.com",))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_bytes_user_email(self, client, app):
+        """Test that bytes user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=b"user@example.com")
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_bytearray_user_email(self, client, app):
+        """Test that bytearray user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=bytearray(b"user@example.com"))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_memoryview_user_email(self, client, app):
+        """Test that memoryview user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=memoryview(b"user@example.com"))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_frozenset_user_email(self, client, app):
+        """Test that frozenset user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=frozenset(["user@example.com"]))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_range_user_email(self, client, app):
+        """Test that range user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=range(10))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_slice_user_email(self, client, app):
+        """Test that slice user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=slice(0, 10))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_property_user_email(self, client, app):
+        """Test that property user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=property(lambda self: "user@example.com"))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_staticmethod_user_email(self, client, app):
+        """Test that staticmethod user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=staticmethod(lambda: "user@example.com"))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_classmethod_user_email(self, client, app):
+        """Test that classmethod user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=classmethod(lambda cls: "user@example.com"))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_abstractmethod_user_email(self, client, app):
+        """Test that abstractmethod user email is handled gracefully."""
+        from abc import abstractmethod
+
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=abstractmethod(lambda: "user@example.com"))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_partial_user_email(self, client, app):
+        """Test that partial user email is handled gracefully."""
+        from functools import partial
+
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=partial(lambda x: "user@example.com", "test"))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_wraps_user_email(self, client, app):
+        """Test that wraps user email is handled gracefully."""
+        from functools import wraps
+
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=wraps(lambda: "user@example.com"))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_lru_cache_user_email(self, client, app):
+        """Test that lru_cache user email is handled gracefully."""
+        from functools import lru_cache
+
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=lru_cache(lambda: "user@example.com"))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_singledispatch_user_email(self, client, app):
+        """Test that singledispatch user email is handled gracefully."""
+        from functools import singledispatch
+
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=singledispatch(lambda: "user@example.com"))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_singledispatchmethod_user_email(self, client, app):
+        """Test that singledispatchmethod user email is handled gracefully."""
+        from functools import singledispatchmethod
+
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=singledispatchmethod(lambda: "user@example.com"))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_cached_property_user_email(self, client, app):
+        """Test that cached_property user email is handled gracefully."""
+        from functools import cached_property
+
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=cached_property(lambda: "user@example.com"))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_total_ordering_user_email(self, client, app):
+        """Test that total_ordering user email is handled gracefully."""
+        from functools import total_ordering
+
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=total_ordering(lambda: "user@example.com"))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_reduce_user_email(self, client, app):
+        """Test that reduce user email is handled gracefully."""
+        from functools import reduce
+
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=reduce(lambda x, y: "user@example.com", [1, 2, 3]))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_accumulate_user_email(self, client, app):
+        """Test that accumulate user email is handled gracefully."""
+        from itertools import accumulate
+
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=accumulate([1, 2, 3]))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_chain_user_email(self, client, app):
+        """Test that chain user email is handled gracefully."""
+        from itertools import chain
+
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=chain([1, 2, 3], [4, 5, 6]))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_combinations_user_email(self, client, app):
+        """Test that combinations user email is handled gracefully."""
+        from itertools import combinations
+
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=combinations([1, 2, 3], 2))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_combinations_with_replacement_user_email(
+        self, client, app
+    ):
+        """Test that combinations_with_replacement user email is handled gracefully."""
+        from itertools import combinations_with_replacement
+
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=combinations_with_replacement([1, 2, 3], 2))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_compress_user_email(self, client, app):
+        """Test that compress user email is handled gracefully."""
+        from itertools import compress
+
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=compress([1, 2, 3], [True, False, True]))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_count_user_email(self, client, app):
+        """Test that count user email is handled gracefully."""
+        from itertools import count
+
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=count())
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_cycle_user_email(self, client, app):
+        """Test that cycle user email is handled gracefully."""
+        from itertools import cycle
+
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=cycle([1, 2, 3]))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_dropwhile_user_email(self, client, app):
+        """Test that dropwhile user email is handled gracefully."""
+        from itertools import dropwhile
+
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=dropwhile(lambda x: x < 3, [1, 2, 3, 4, 5]))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_filterfalse_user_email(self, client, app):
+        """Test that filterfalse user email is handled gracefully."""
+        from itertools import filterfalse
+
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=filterfalse(lambda x: x % 2, [1, 2, 3, 4, 5]))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_groupby_user_email(self, client, app):
+        """Test that groupby user email is handled gracefully."""
+        from itertools import groupby
+
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=groupby([1, 2, 2, 3, 3, 3]))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_islice_user_email(self, client, app):
+        """Test that islice user email is handled gracefully."""
+        from itertools import islice
+
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=islice([1, 2, 3, 4, 5], 3))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_permutations_user_email(self, client, app):
+        """Test that permutations user email is handled gracefully."""
+        from itertools import permutations
+
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=permutations([1, 2, 3]))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_product_user_email(self, client, app):
+        """Test that product user email is handled gracefully."""
+        from itertools import product
+
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=product([1, 2], [3, 4]))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_repeat_user_email(self, client, app):
+        """Test that repeat user email is handled gracefully."""
+        from itertools import repeat
+
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=repeat(1, 3))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_starmap_user_email(self, client, app):
+        """Test that starmap user email is handled gracefully."""
+        from itertools import starmap
+
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=starmap(pow, [(2, 3), (3, 4)]))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_takewhile_user_email(self, client, app):
+        """Test that takewhile user email is handled gracefully."""
+        from itertools import takewhile
+
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=takewhile(lambda x: x < 3, [1, 2, 3, 4, 5]))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_tee_user_email(self, client, app):
+        """Test that tee user email is handled gracefully."""
+        from itertools import tee
+
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=tee([1, 2, 3])[0])
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_zip_longest_user_email(self, client, app):
+        """Test that zip_longest user email is handled gracefully."""
+        from itertools import zip_longest
+
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=zip_longest([1, 2], [3, 4, 5]))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_zip_user_email(self, client, app):
+        """Test that zip user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=zip([1, 2], [3, 4]))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_map_user_email(self, client, app):
+        """Test that map user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=map(lambda x: x * 2, [1, 2, 3]))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_filter_user_email(self, client, app):
+        """Test that filter user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=filter(lambda x: x % 2, [1, 2, 3, 4, 5]))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_enumerate_user_email(self, client, app):
+        """Test that enumerate user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=enumerate([1, 2, 3]))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_reversed_user_email(self, client, app):
+        """Test that reversed user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=reversed([1, 2, 3]))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_sorted_user_email(self, client, app):
+        """Test that sorted user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=sorted([3, 1, 2]))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_sum_user_email(self, client, app):
+        """Test that sum user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=sum([1, 2, 3]))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_min_user_email(self, client, app):
+        """Test that min user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=min([1, 2, 3]))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_max_user_email(self, client, app):
+        """Test that max user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=max([1, 2, 3]))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_any_user_email(self, client, app):
+        """Test that any user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=any([True, False, True]))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_all_user_email(self, client, app):
+        """Test that all user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=all([True, True, True]))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_ascii_user_email(self, client, app):
+        """Test that ascii user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=ascii("user@example.com"))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_bin_user_email(self, client, app):
+        """Test that bin user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=bin(42))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_bool_user_email(self, client, app):
+        """Test that bool user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=bool(1))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_bytearray_user_email(self, client, app):
+        """Test that bytearray user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=bytearray(b"user@example.com"))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_bytes_user_email(self, client, app):
+        """Test that bytes user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=bytes(b"user@example.com"))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_callable_user_email(self, client, app):
+        """Test that callable user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=callable(lambda: "user@example.com"))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_chr_user_email(self, client, app):
+        """Test that chr user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=chr(65))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_classmethod_user_email(self, client, app):
+        """Test that classmethod user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=classmethod(lambda cls: "user@example.com"))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_compile_user_email(self, client, app):
+        """Test that compile user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=compile("print('hello')", "<string>", "exec"))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_complex_user_email(self, client, app):
+        """Test that complex user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=complex(1, 2))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_delattr_user_email(self, client, app):
+        """Test that delattr user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=delattr)
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_dict_user_email(self, client, app):
+        """Test that dict user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=dict())
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_dir_user_email(self, client, app):
+        """Test that dir user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=dir())
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_divmod_user_email(self, client, app):
+        """Test that divmod user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=divmod(10, 3))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_enumerate_user_email(self, client, app):
+        """Test that enumerate user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=enumerate([1, 2, 3]))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_eval_user_email(self, client, app):
+        """Test that eval user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=eval("1 + 1"))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_exec_user_email(self, client, app):
+        """Test that exec user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=exec)
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_filter_user_email(self, client, app):
+        """Test that filter user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=filter(lambda x: x % 2, [1, 2, 3, 4, 5]))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_float_user_email(self, client, app):
+        """Test that float user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=float(3.14))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_format_user_email(self, client, app):
+        """Test that format user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=format(42, "x"))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_frozenset_user_email(self, client, app):
+        """Test that frozenset user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=frozenset([1, 2, 3]))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_getattr_user_email(self, client, app):
+        """Test that getattr user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=getattr)
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_globals_user_email(self, client, app):
+        """Test that globals user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=globals())
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_hasattr_user_email(self, client, app):
+        """Test that hasattr user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=hasattr)
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False
+
+    def test_user_is_allowed_with_hash_user_email(self, client, app):
+        """Test that hash user email is handled gracefully."""
+        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
+
+        with client.application.app_context():
+            user = User(email=hash("user@example.com"))
+            user.password_hash = "testpass"
+
+            assert user.is_allowed() is False

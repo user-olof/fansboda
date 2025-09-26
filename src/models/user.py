@@ -20,8 +20,15 @@ class User(UserMixin, db.Model):
     @password_hash.setter
     def password_hash(self, password):
         # Generate hash from plain text password and store it
-        hashed = bcrypt.generate_password_hash(password.encode("utf-8"), 10)
-        self._password_hash = hashed.decode("utf-8")
+        try:
+            hashed = bcrypt.generate_password_hash(password.encode("utf-8"), 10)
+            self._password_hash = hashed.decode("utf-8")
+        except ValueError as e:
+            current_app.logger.error(f"Error setting password hash: {e}")
+            raise e
+        except Exception as e:
+            current_app.logger.error(f"Error setting password hash: {e}")
+            raise e
 
     # def set_password(self, password):
     #     # self.password_hash = generate_password_hash(password)

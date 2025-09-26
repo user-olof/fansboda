@@ -1,13 +1,41 @@
 import pytest
-from src import app, db
+from src import create_app, db
 from src.models.user import User
 from flask_caching import Cache
 
 cache = Cache()
 
 
+"""Create application for testing."""
+# app = create_app("test") # This line is removed as per the new_code
+
+# Explicitly configure cache for testing
+# app.config["CACHE_TYPE"] = "NullCache" # This line is removed as per the new_code
+# app.config["CACHE_DEFAULT_TIMEOUT"] = 0 # This line is removed as per the new_code
+# app.config["CACHE_NO_NULL_WARNING"] = True # This line is removed as per the new_code
+
+# Reinitialize cache with test config
+# cache.init_app(app) # This line is removed as per the new_code
+
+
+@pytest.fixture(scope="session")
+def app():
+    """Create application for testing."""
+    app = create_app("test")
+
+    # Configure cache for testing
+    app.config["CACHE_TYPE"] = "NullCache"
+    app.config["CACHE_DEFAULT_TIMEOUT"] = 0
+    app.config["CACHE_NO_NULL_WARNING"] = True
+
+    # Reinitialize cache with test config
+    cache.init_app(app)
+
+    return app
+
+
 @pytest.fixture(autouse=True)
-def reset_database():
+def reset_database(app):
     """Reset the database before each test."""
     with app.app_context():
         # Drop all tables
@@ -21,27 +49,22 @@ def reset_database():
 
 
 @pytest.fixture
-def client():
+def client(app):
     """Create a test client for the Flask application."""
 
     app.config["WTF_CSRF_ENABLED"] = False
     # Ensure we're using test config
-    app.config.from_object("config.TestConfig")
-
-    # Explicitly configure cache for testing
-    app.config["CACHE_TYPE"] = "NullCache"
-    app.config["CACHE_DEFAULT_TIMEOUT"] = 0
-    app.config["CACHE_NO_NULL_WARNING"] = True
+    # app.config.from_object("config.TestConfig")
 
     # Reinitialize cache with test config
-    cache.init_app(app)
+    # cache.init_app(app)
 
     with app.test_client() as client:
         yield client
 
 
 @pytest.fixture
-def client_with_csrf():
+def client_with_csrf(app):
     """Create a test client with CSRF protection enabled."""
     # Configure for testing with CSRF enabled
     app.config["WTF_CSRF_ENABLED"] = True  # Enable CSRF for specific tests
@@ -51,14 +74,13 @@ def client_with_csrf():
 
 
 @pytest.fixture
-def client_with_user():
+def client_with_user(app):
     """Create a test client with a logged-in user."""
     app.config["WTF_CSRF_ENABLED"] = False
     app.config["ALLOWED_EMAILS"] = ["test@example.com"]
 
     with app.test_client() as client:
         with app.app_context():
-            db.create_all()
 
             # Create user
             user = User(email="test@example.com")
@@ -72,7 +94,6 @@ def client_with_user():
             )
 
             yield client
-            db.drop_all()
 
 
 @pytest.fixture
@@ -123,7 +144,7 @@ class AuthActions:
 
 
 @pytest.fixture(autouse=True)
-def clear_sessions():
+def clear_sessions(app):
     """Clear all sessions and caches before each test."""
     with app.app_context():
 

@@ -91,10 +91,9 @@ $(document).ready(function () {
     if ($passwordInput.length) {
         // Create password toggle button
         const $toggleBtn = $(`
-            <button type="button" class="btn btn-link password-toggle p-0" 
-                    style="position: absolute; right: 15px; top: 50%; transform: translateY(-50%); z-index: 10; color: #6c757d;">
-                <i class="bi bi-eye"></i>
-            </button>
+     <button type="button" class="btn btn-link password-toggle p-0">
+    <i class="bi bi-eye"></i>
+</button>
         `);
 
         // Add relative positioning to password field container

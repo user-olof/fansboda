@@ -1,6 +1,31 @@
 .hero-background {
-    background-image: url('../images/fansboda-1-2.png');
+    background-image: url('../images/fansboda-2-1.png');
     background-size: cover;
-    background-position: center;
+    background-position: 70% 60%;
     background-repeat: no-repeat;
+
+
+    /* Responsive dimensions */
+    height: 250px;
+    /* Default height */
+    max-width: 80%;
+    /* Default width */
+    margin: 0px auto;
+
+}
+
+
+/* Make it taller on larger screens */
+@media (min-width: 768px) {
+    .hero-background {
+        height: 350px;
+        max-width: 70%;
+    }
+}
+
+@media (min-width: 1200px) {
+    .hero-background {
+        height: 400px;
+        max-width: 60%;
+    }
 }
