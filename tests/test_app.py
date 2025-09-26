@@ -1,11 +1,11 @@
-from app import app, db
+from src import db
 from sqlalchemy import text
 
 
 class TestAppConfiguration:
     """Test cases for Flask application configuration."""
 
-    def test_app_exists(self):
+    def test_app_exists(self, app):
         """Test that the Flask app exists."""
         assert app is not None
 

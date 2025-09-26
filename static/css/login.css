@@ -1,0 +1,822 @@
+/* Login form - Same font sizes for all screens */
+.login-form-container {
+    margin: 0 auto;
+}
+
+/* Login form - Smaller font sizes for all screens */
+
+/* Icon sizing - Reduced */
+.login-icon {
+    font-size: 2.5rem; /* Reduced from 4.75rem */
+}
+
+/* Heading sizing - Reduced */
+.login-heading {
+    font-size: 1.4rem; /* Reduced from 2.5rem */
+}
+
+/* Subtitle sizing - Reduced */
+.login-subtitle {
+    font-size: 0.9rem; /* Reduced from 1.4rem */
+}
+
+/* Form labels - Reduced */
+.form-label {
+    font-size: 0.9rem; /* Reduced from 1.4rem */
+}
+
+/* Form inputs - Reduced */
+.form-control {
+    font-size: 0.9rem; /* Reduced from 1.4rem */
+    padding: 0.75rem; /* Reduced padding */
+}
+
+/* Buttons - Reduced */
+.btn {
+    font-size: 0.9rem; /* Reduced from 1.4rem */
+    padding: 0.75rem 1.5rem; /* Reduced padding */
+}
+
+/* Links - Reduced */
+.login-links {
+    font-size: 0.8rem; /* Reduced from 1.3rem */
+}
+
+/* Container sizing - Responsive to prevent overflow */
+
+/* Very small mobile screens (up to 320px) */
+@media (max-width: 320px) {
+    .login-form-container {
+        max-width: 280px;
+        min-width: 260px;
+        padding: 0 10px;
+    }
+    
+    .card-body {
+        padding: 1rem;
+    }
+    
+    .login-icon {
+        font-size: 2rem;
+    }
+    
+    .login-heading {
+        font-size: 1.2rem;
+    }
+    
+    .login-subtitle {
+        font-size: 0.8rem;
+    }
+    
+    .form-control {
+        font-size: 0.8rem;
+        padding: 0.6rem;
+    }
+    
+    .btn {
+        font-size: 0.8rem;
+        padding: 0.6rem 1.2rem;
+    }
+    
+    .login-links {
+        font-size: 0.75rem;
+    }
+}
+
+/* Small mobile screens (321px - 360px) */
+@media (min-width: 321px) and (max-width: 360px) {
+    .login-form-container {
+        max-width: 300px;
+        min-width: 280px;
+        padding: 0 15px;
+    }
+    
+    .card-body {
+        padding: 1.2rem;
+    }
+    
+    .login-icon {
+        font-size: 2.2rem;
+    }
+    
+    .login-heading {
+        font-size: 1.3rem;
+    }
+    
+    .login-subtitle {
+        font-size: 0.85rem;
+    }
+    
+    .form-control {
+        font-size: 0.85rem;
+        padding: 0.65rem;
+    }
+    
+    .btn {
+        font-size: 0.85rem;
+        padding: 0.65rem 1.3rem;
+    }
+    
+    .login-links {
+        font-size: 0.75rem;
+    }
+}
+
+/* Medium mobile screens (361px - 414px) */
+@media (min-width: 361px) and (max-width: 414px) {
+    .login-form-container {
+        max-width: 320px;
+        min-width: 300px;
+        padding: 0 20px;
+    }
+    
+    .card-body {
+        padding: 1.4rem;
+    }
+    
+    .login-icon {
+        font-size: 2.3rem;
+    }
+    
+    .login-heading {
+        font-size: 1.35rem;
+    }
+    
+    .login-subtitle {
+        font-size: 0.9rem;
+    }
+    
+    .form-control {
+        font-size: 0.9rem;
+        padding: 0.7rem;
+    }
+    
+    .btn {
+        font-size: 0.9rem;
+        padding: 0.7rem 1.4rem;
+    }
+    
+    .login-links {
+        font-size: 0.8rem;
+    }
+}
+
+/* Small tablets (415px - 800px) */
+@media (min-width: 415px) and (max-width: 800px) {
+    .login-form-container {
+        max-width: 380px;
+        min-width: 350px;
+        padding: 0 25px;
+    }
+    
+    .card-body {
+        padding: 1.6rem;
+    }
+    
+    .login-icon {
+        font-size: 2.4rem;
+    }
+    
+    .login-heading {
+        font-size: 1.4rem;
+    }
+    
+    .login-subtitle {
+        font-size: 0.95rem;
+    }
+    
+    .form-control {
+        font-size: 0.95rem;
+        padding: 0.75rem;
+    }
+    
+    .btn {
+        font-size: 0.95rem;
+        padding: 0.75rem 1.5rem;
+    }
+    
+    .login-links {
+        font-size: 0.85rem;
+    }
+}
+
+/* Medium tablets (801px - 960px) */
+@media (min-width: 801px) and (max-width: 960px) {
+    .login-form-container {
+        max-width: 420px;
+        min-width: 380px;
+        padding: 0 30px;
+    }
+    
+    .card-body {
+        padding: 1.8rem;
+    }
+    
+    .login-icon {
+        font-size: 2.6rem;
+    }
+    
+    .login-heading {
+        font-size: 1.5rem;
+    }
+    
+    .login-subtitle {
+        font-size: 1rem;
+    }
+    
+    .form-control {
+        font-size: 1rem;
+        padding: 0.8rem;
+    }
+    
+    .btn {
+        font-size: 1rem;
+        padding: 0.8rem 1.6rem;
+    }
+    
+    .login-links {
+        font-size: 0.9rem;
+    }
+}
+
+/* Large tablets / Small laptops (961px - 1024px) */
+@media (min-width: 961px) and (max-width: 1024px) {
+    .login-form-container {
+        max-width: 450px;
+        min-width: 420px;
+        padding: 0 35px;
+    }
+    
+    .card-body {
+        padding: 2rem;
+    }
+    
+    .login-icon {
+        font-size: 2.8rem;
+    }
+    
+    .login-heading {
+        font-size: 1.6rem;
+    }
+    
+    .login-subtitle {
+        font-size: 1.05rem;
+    }
+    
+    .form-control {
+        font-size: 1.05rem;
+        padding: 0.85rem;
+    }
+    
+    .btn {
+        font-size: 1.05rem;
+        padding: 0.85rem 1.7rem;
+    }
+    
+    .login-links {
+        font-size: 0.95rem;
+    }
+}
+
+/* Medium laptops (1025px - 1280px) */
+@media (min-width: 1025px) and (max-width: 1280px) {
+    .login-form-container {
+        max-width: 480px;
+        min-width: 450px;
+        padding: 0 40px;
+    }
+    
+    .card-body {
+        padding: 2.2rem;
+    }
+    
+    .login-icon {
+        font-size: 3rem;
+    }
+    
+    .login-heading {
+        font-size: 1.7rem;
+    }
+    
+    .login-subtitle {
+        font-size: 1.1rem;
+    }
+    
+    .form-control {
+        font-size: 1.1rem;
+        padding: 0.9rem;
+    }
+    
+    .btn {
+        font-size: 1.1rem;
+        padding: 0.9rem 1.8rem;
+    }
+    
+    .login-links {
+        font-size: 1rem;
+    }
+}
+
+/* Large laptops (1281px - 1366px) */
+@media (min-width: 1281px) and (max-width: 1366px) {
+    .login-form-container {
+        max-width: 500px;
+        min-width: 470px;
+        padding: 0 45px;
+    }
+    
+    .card-body {
+        padding: 2.4rem;
+    }
+    
+    .login-icon {
+        font-size: 3.2rem;
+    }
+    
+    .login-heading {
+        font-size: 1.8rem;
+    }
+    
+    .login-subtitle {
+        font-size: 1.15rem;
+    }
+    
+    .form-control {
+        font-size: 1.15rem;
+        padding: 1rem;
+    }
+    
+    .btn {
+        font-size: 1.15rem;
+        padding: 1rem 2rem;
+    }
+    
+    .login-links {
+        font-size: 1.05rem;
+    }
+}
+
+/* Desktop monitors (1367px - 1440px) */
+@media (min-width: 1367px) and (max-width: 1440px) {
+    .login-form-container {
+        max-width: 520px;
+        min-width: 490px;
+        padding: 0 50px;
+    }
+    
+    .card-body {
+        padding: 2.6rem;
+    }
+    
+    .login-icon {
+        font-size: 3.4rem;
+    }
+    
+    .login-heading {
+        font-size: 1.9rem;
+    }
+    
+    .login-subtitle {
+        font-size: 1.2rem;
+    }
+    
+    .form-control {
+        font-size: 1.2rem;
+        padding: 1.1rem;
+    }
+    
+    .btn {
+        font-size: 1.2rem;
+        padding: 1.1rem 2.2rem;
+    }
+    
+    .login-links {
+        font-size: 1.1rem;
+    }
+}
+
+/* Large desktop monitors (1441px - 1600px) */
+@media (min-width: 1441px) and (max-width: 1600px) {
+    .login-form-container {
+        max-width: 550px;
+        min-width: 520px;
+        padding: 0 55px;
+    }
+    
+    .card-body {
+        padding: 2.8rem;
+    }
+    
+    .login-icon {
+        font-size: 3.6rem;
+    }
+    
+    .login-heading {
+        font-size: 2rem;
+    }
+    
+    .login-subtitle {
+        font-size: 1.25rem;
+    }
+    
+    .form-control {
+        font-size: 1.25rem;
+        padding: 1.2rem;
+    }
+    
+    .btn {
+        font-size: 1.25rem;
+        padding: 1.2rem 2.4rem;
+    }
+    
+    .login-links {
+        font-size: 1.15rem;
+    }
+}
+
+/* Extra large monitors (1601px - 1680px) */
+@media (min-width: 1601px) and (max-width: 1680px) {
+    .login-form-container {
+        max-width: 580px;
+        min-width: 550px;
+        padding: 0 60px;
+    }
+    
+    .card-body {
+        padding: 3rem;
+    }
+    
+    .login-icon {
+        font-size: 3.8rem;
+    }
+    
+    .login-heading {
+        font-size: 2.1rem;
+    }
+    
+    .login-subtitle {
+        font-size: 1.3rem;
+    }
+    
+    .form-control {
+        font-size: 1.3rem;
+        padding: 1.3rem;
+    }
+    
+    .btn {
+        font-size: 1.3rem;
+        padding: 1.3rem 2.6rem;
+    }
+    
+    .login-links {
+        font-size: 1.2rem;
+    }
+}
+
+/* Ultra wide monitors (1681px - 1920px) */
+@media (min-width: 1681px) and (max-width: 1920px) {
+    .login-form-container {
+        max-width: 600px;
+        min-width: 570px;
+        padding: 0 65px;
+    }
+    
+    .card-body {
+        padding: 3.2rem;
+    }
+    
+    .login-icon {
+        font-size: 4rem;
+    }
+    
+    .login-heading {
+        font-size: 2.2rem;
+    }
+    
+    .login-subtitle {
+        font-size: 1.35rem;
+    }
+    
+    .form-control {
+        font-size: 1.35rem;
+        padding: 1.4rem;
+    }
+    
+    .btn {
+        font-size: 1.35rem;
+        padding: 1.4rem 2.8rem;
+    }
+    
+    .login-links {
+        font-size: 1.25rem;
+    }
+}
+
+/* 4K and larger monitors (1921px+) */
+@media (min-width: 1921px) {
+    .login-form-container {
+        max-width: 650px;
+        min-width: 620px;
+        padding: 0 70px;
+    }
+    
+    .card-body {
+        padding: 3.4rem;
+    }
+    
+    .login-icon {
+        font-size: 4.2rem;
+    }
+    
+    .login-heading {
+        font-size: 2.3rem;
+    }
+    
+    .login-subtitle {
+        font-size: 1.4rem;
+    }
+    
+    .form-control {
+        font-size: 1.4rem;
+        padding: 1.5rem;
+    }
+    
+    .btn {
+        font-size: 1.4rem;
+        padding: 1.5rem 3rem;
+    }
+    
+    .login-links {
+        font-size: 1.3rem;
+    }
+}
+
+/* Height-based adjustments for landscape mobile */
+@media (max-height: 600px) and (orientation: landscape) {
+    .login-form-container {
+        max-width: 300px !important;
+        min-width: 280px !important;
+    }
+    
+    .card-body {
+        padding: 0.8rem !important;
+    }
+    
+    .login-icon {
+        font-size: 2rem !important;
+    }
+    
+    .login-heading {
+        font-size: 1.2rem !important;
+        margin-bottom: 0.5rem !important;
+    }
+    
+    .login-subtitle {
+        font-size: 0.8rem !important;
+        margin-bottom: 1rem !important;
+    }
+    
+    .form-control {
+        font-size: 0.8rem !important;
+        padding: 0.6rem !important;
+        margin-bottom: 0.8rem !important;
+    }
+    
+    .btn {
+        font-size: 0.8rem !important;
+        padding: 0.6rem 1rem !important;
+        margin-bottom: 0.8rem !important;
+    }
+}
+
+/* Height-based adjustments for portrait mobile */
+@media (max-height: 800px) and (orientation: portrait) {
+    .card-body {
+        padding: 1.5rem !important;
+    }
+    
+    .login-icon {
+        font-size: 2.5rem !important;
+    }
+    
+    .login-heading {
+        font-size: 1.4rem !important;
+        margin-bottom: 1rem !important;
+    }
+    
+    .login-subtitle {
+        font-size: 0.9rem !important;
+        margin-bottom: 1.5rem !important;
+    }
+}
+
+/* Hide subtitle on mobile phone screen sizes */
+@media (max-width: 768px) {
+    .login-subtitle {
+        display: none;
+    }
+}
+
+/* Ensure form doesn't overflow on very small screens */
+@media (max-width: 360px) {
+    .container-fluid {
+        padding: 0 5px;
+    }
+    
+    .card-body {
+        padding: 0.8rem !important;
+    }
+    
+    .login-icon {
+        font-size: 1.8rem !important;
+    }
+    
+    .login-heading {
+        font-size: 1.1rem !important;
+    }
+    
+    .login-subtitle {
+        font-size: 0.8rem !important;
+    }
+    
+    .form-control {
+        font-size: 0.8rem !important;
+        padding: 0.6rem !important;
+    }
+    
+    .btn {
+        font-size: 0.8rem !important;
+        padding: 0.6rem 1.2rem !important;
+    }
+    
+    .login-links {
+        font-size: 0.75rem !important;
+    }
+}
+
+/* Hide subtitle on mobile phone screen sizes */
+@media (max-width: 768px) {
+    .login-subtitle {
+        display: none;
+    }
+}
+
+/* Alternative: Show it only on larger screens */
+@media (min-width: 769px) {
+    .login-subtitle {
+        display: block;
+    }
+}
+
+/* Remember Me checkbox alignment with form elements */
+.form-check {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    text-align: left !important;
+    min-height: 1.5rem;
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+}
+
+.form-check-input {
+    margin: 0 !important;
+    margin-right: 0.5rem !important;
+    flex-shrink: 0;
+    width: 1rem !important;
+    height: 1rem !important;
+    vertical-align: top !important;
+    margin-left: 0 !important;
+}
+
+.form-check-label {
+    margin: 0 !important;
+    margin-left: 0.5rem !important;
+    text-align: left !important;
+    white-space: nowrap;
+    line-height: 1.2 !important;
+    display: flex !important;
+    align-items: center !important;
+    height: 1.2rem;
+    padding-left: 0 !important;
+}
+
+/* Center form content on large monitors - 20% larger */
+@media (min-width: 1367px) {
+    .form-signin {
+        max-width: 360px !important; /* Increased from 300px to 360px (20%) */
+        margin: 0 auto !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+    }
+    
+    .form-signin .form-floating {
+        width: 100% !important;
+        max-width: 336px !important; /* Increased from 280px to 336px (20%) */
+        margin: 0 auto 1rem auto !important;
+    }
+    
+    .form-signin .form-check {
+        width: 100% !important;
+        max-width: 336px !important; /* Increased from 280px to 336px (20%) */
+        margin: 0 auto 1rem auto !important;
+        justify-content: flex-start !important;
+    }
+    
+    .form-signin .btn {
+        width: 100% !important;
+        max-width: 336px !important; /* Increased from 280px to 336px (20%) */
+        margin: 0 auto 1rem auto !important;
+    }
+    
+    .form-signin .text-center {
+        width: 100% !important;
+        max-width: 336px !important; /* Increased from 280px to 336px (20%) */
+        margin: 0 auto !important;
+    }
+}
+
+/* Extra centering for very large monitors - 20% larger */
+@media (min-width: 1681px) {
+    .form-signin {
+        max-width: 384px !important; /* Increased from 320px to 384px (20%) */
+    }
+    
+    .form-signin .form-floating {
+        max-width: 360px !important; /* Increased from 300px to 360px (20%) */
+    }
+    
+    .form-signin .form-check {
+        max-width: 360px !important; /* Increased from 300px to 360px (20%) */
+    }
+    
+    .form-signin .btn {
+        max-width: 360px !important; /* Increased from 300px to 360px (20%) */
+    }
+    
+    .form-signin .text-center {
+        max-width: 360px !important; /* Increased from 300px to 360px (20%) */
+    }
+}
+
+/* 4K and larger monitors - 20% larger */
+@media (min-width: 1921px) {
+    .form-signin {
+        max-width: 420px !important; /* Increased from 350px to 420px (20%) */
+    }
+    
+    .form-signin .form-floating {
+        max-width: 396px !important; /* Increased from 330px to 396px (20%) */
+    }
+    
+    .form-signin .form-check {
+        max-width: 396px !important; /* Increased from 330px to 396px (20%) */
+    }
+    
+    .form-signin .btn {
+        max-width: 396px !important; /* Increased from 330px to 396px (20%) */
+    }
+    
+    .form-signin .text-center {
+        max-width: 396px !important; /* Increased from 330px to 396px (20%) */
+    }
+}
+
+/* Fix password visibility icon position */
+.form-floating .form-control {
+    padding-right: 2.5rem !important; /* Make room for the icon */
+}
+
+/* Password toggle button positioning */
+.password-toggle {
+    position: absolute !important;
+    right: 15px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    z-index: 10 !important;
+    color: #6c757d !important;
+    background: none !important;
+    border: none !important;
+    padding: 4px !important; /* Reduced padding for smaller clickable area */
+    cursor: pointer !important;
+    width: 14px !important; /* Fixed width */
+    height: 14px !important; /* Fixed height */
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.password-toggle:hover {
+    color: #495057 !important;
+}
+
+.password-toggle:focus {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* Ensure the password field has enough padding for the icon */
+.form-floating .form-control {
+    padding-right: 2.5rem !important;
+}

@@ -33,9 +33,6 @@
                                         <i class="bi bi-hash me-1"></i>ID
                                     </th>
                                     <th scope="col">
-                                        <i class="bi bi-person me-1"></i>Username
-                                    </th>
-                                    <th scope="col">
                                         <i class="bi bi-envelope me-1"></i>Email
                                     </th>
                                     <th scope="col">
@@ -48,15 +45,14 @@
                                 <tr>
                                     <th scope="row">{{ user.id }}</th>
                                     <td>
-                                        <a href="{{ url_for('user_by_name', username=user.username) }}"
+                                        <a href="{{ url_for('home.user_by_email', email=user.email) }}"
                                             class="text-decoration-none fw-semibold">
-                                            {{ user.username }}
+                                            {{ user.email }}
                                         </a>
                                     </td>
-                                    <td>{{ user.email }}</td>
                                     <td>
                                         <div class="btn-group btn-group-sm" role="group">
-                                            <a href="{{ url_for('user', user_id=user.id) }}"
+                                            <a href="{{ url_for('home.user', user_id=user.id) }}"
                                                 class="btn btn-outline-primary">
                                                 <i class="bi bi-eye"></i>
                                             </a>

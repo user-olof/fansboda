@@ -14,7 +14,7 @@ def allowed_user_required(f):
                 "Access denied. You are not authorized to use this application.",
                 "error",
             )
-            return redirect(url_for("login"))
+            return redirect(url_for("login.login"))
         return f(*args, **kwargs)
 
     return decorated_function

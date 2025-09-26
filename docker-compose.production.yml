@@ -1,0 +1,10 @@
+services:
+  # Flask application
+  web:
+    restart: always
+    environment:
+      - FLASK_ENV=production
+
+  # Nginx reverse proxy
+  nginx:
+    restart: always
