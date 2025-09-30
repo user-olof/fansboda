@@ -59,7 +59,7 @@ def client(app):
     # Reinitialize cache with test config
     # cache.init_app(app)
 
-    with app.test_client() as client:
+    with app.test_client(use_cookies=True) as client:
         yield client
 
 

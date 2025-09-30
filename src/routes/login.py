@@ -19,6 +19,17 @@ from src.forms.signupform import SignupForm
 login_bp = Blueprint("login", __name__)
 
 
+# @login_bp.route("/set_login_attempt")
+# def set_login_attempt():
+#     session["login_attempt"] = 0
+#     return "Login attempt set to 0"
+
+
+# @login_bp.route("/get_login_attempt")
+# def get_login_attempt():
+#     return session["login_attempt"]
+
+
 @login_bp.route("/login", methods=["GET", "POST"])
 def login():
     if current_user.is_authenticated:
@@ -29,10 +40,23 @@ def login():
         # first find the user in the database
         from src import db
 
-        user = db.session.scalar(sa.select(User).where(User.email == form.email.data))
+        try:
+            user = db.session.scalar(
+                sa.select(User).where(User.email == form.email.data)
+            )
+        except Exception as e:
+            print(f"Error: {e}")
+            user = None
+
         if user is None or not user.authenticate(form.password.data):
 
             flash("Invalid username or password")
+            session["login_attempt"] += 1
+            if session["login_attempt"] > 3:
+                flash("Too many login attempts. Please try again later.")
+                return render_template(
+                    "temporary_closed.html"
+                )  # TODO: lock out the user for 1 hour
             return redirect(url_for("login.login"))
 
         # then check if the user is allowed to login

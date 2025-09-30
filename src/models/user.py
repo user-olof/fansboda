@@ -1,4 +1,3 @@
-
 from src import db, bcrypt
 from flask_login import UserMixin
 from flask import current_app
@@ -30,17 +29,8 @@ class User(UserMixin, db.Model):
             current_app.logger.error(f"Error setting password hash: {e}")
             raise e
 
-    # def set_password(self, password):
-    #     # self.password_hash = generate_password_hash(password)
-    #     self.password_hash = current_app.bcrypt.generate_password_hash(password)
-
     def authenticate(self, password):
         return bcrypt.check_password_hash(self._password_hash, password.encode("utf-8"))
-
-    # def check_password(self, password):
-    #     # return check_password_hash(self.password_hash, password)
-    #     flag, msg = self._verify_password(self.password_hash, password)
-    #     return flag
 
     def is_allowed(self):
         allowed_emails = current_app.config.get("ALLOWED_EMAILS", [])
@@ -97,6 +87,3 @@ class User(UserMixin, db.Model):
     #         else:
     #             # Some other error occurred (corrupted data, etc.)
     #             return False, "error"
-
-
-

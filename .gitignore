@@ -115,8 +115,15 @@ dmypy.json
 
 # secrets
 secrets/
+*.pem
 
 # database
 database.db
 *.db
 *.db-journal
+
+# sessions
+sessions/
+
+# certificates
+certificates/

@@ -1,7 +1,8 @@
 # src/__init__.py
 import sys
 import os
-from flask import Flask
+from flask import Flask, session
+from flask_session import Session
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
@@ -72,6 +73,7 @@ def create_app(config_name=None):
     login_manager.login_view = "login.login"  # Updated for blueprint
     csrf.init_app(app)
     cache.init_app(app)
+    Session(app)
 
     # Configure Flask-Talisman with CSP
     if app.env == "production":
@@ -82,42 +84,42 @@ def create_app(config_name=None):
             strict_transport_security=True,
             strict_transport_security_max_age=31536000,
             content_security_policy={
-                'default-src': "'self'",
-                'script-src': [
+                "default-src": "'self'",
+                "script-src": [
                     "'self'",
                     "'unsafe-inline'",  # Needed for inline scripts
-                    'https://cdn.jsdelivr.net',  # Bootstrap JS
-                    'https://code.jquery.com',   # jQuery
+                    "https://cdn.jsdelivr.net",  # Bootstrap JS
+                    "https://code.jquery.com",  # jQuery
                 ],
-                'style-src': [
+                "style-src": [
                     "'self'",
                     "'unsafe-inline'",  # Needed for inline styles
-                    'https://cdn.jsdelivr.net',  # Bootstrap CSS
-                    'https://fonts.googleapis.com',  # Google Fonts
+                    "https://cdn.jsdelivr.net",  # Bootstrap CSS
+                    "https://fonts.googleapis.com",  # Google Fonts
                 ],
-                'font-src': [
+                "font-src": [
                     "'self'",
-                    'https://cdn.jsdelivr.net',  # Bootstrap Icons
-                    'https://fonts.gstatic.com',  # Google Fonts
+                    "https://cdn.jsdelivr.net",  # Bootstrap Icons
+                    "https://fonts.gstatic.com",  # Google Fonts
                 ],
-                'img-src': [
+                "img-src": [
                     "'self'",
-                    'data:',  # Data URLs for images
-                    'https:',  # HTTPS images
+                    "data:",  # Data URLs for images
+                    "https:",  # HTTPS images
                 ],
-                'connect-src': [
+                "connect-src": [
                     "'self'",
                 ],
-                'frame-ancestors': "'none'",
-                'base-uri': "'self'",
-                'form-action': "'self'",
-                'object-src': "'none'",
-                'media-src': "'self'",
-                'worker-src': "'self'",
-                'manifest-src': "'self'",
+                "frame-ancestors": "'none'",
+                "base-uri": "'self'",
+                "form-action": "'self'",
+                "object-src": "'none'",
+                "media-src": "'self'",
+                "worker-src": "'self'",
+                "manifest-src": "'self'",
             },
-            content_security_policy_nonce_in=['script-src', 'style-src'],
-            referrer_policy='strict-origin-when-cross-origin'
+            content_security_policy_nonce_in=["script-src", "style-src"],
+            referrer_policy="strict-origin-when-cross-origin",
         )
     else:
         # Development CSP - more permissive for debugging
@@ -125,37 +127,37 @@ def create_app(config_name=None):
             app,
             force_https=False,  # Allow HTTP in development
             content_security_policy={
-                'default-src': "'self'",
-                'script-src': [
+                "default-src": "'self'",
+                "script-src": [
                     "'self'",
                     "'unsafe-inline'",
                     "'unsafe-eval'",  # Allow eval for development
-                    'https://cdn.jsdelivr.net',
-                    'https://code.jquery.com',
+                    "https://cdn.jsdelivr.net",
+                    "https://code.jquery.com",
                 ],
-                'style-src': [
+                "style-src": [
                     "'self'",
                     "'unsafe-inline'",
-                    'https://cdn.jsdelivr.net',
-                    'https://fonts.googleapis.com',
+                    "https://cdn.jsdelivr.net",
+                    "https://fonts.googleapis.com",
                 ],
-                'font-src': [
+                "font-src": [
                     "'self'",
-                    'https://cdn.jsdelivr.net',
-                    'https://fonts.gstatic.com',
+                    "https://cdn.jsdelivr.net",
+                    "https://fonts.gstatic.com",
                 ],
-                'img-src': [
+                "img-src": [
                     "'self'",
-                    'data:',
-                    'https:',
+                    "data:",
+                    "https:",
                 ],
-                'connect-src': [
+                "connect-src": [
                     "'self'",
                 ],
-                'frame-ancestors': "'none'",
-                'base-uri': "'self'",
-                'form-action': "'self'",
-            }
+                "frame-ancestors": "'none'",
+                "base-uri": "'self'",
+                "form-action": "'self'",
+            },
         )
 
     # Import and register blueprints
@@ -175,6 +177,7 @@ def create_app(config_name=None):
 
     # Initialize database and prepopulate if not in test mode
     with app.app_context():
+
         if env != "test":
             prepopulate_database(app)
 

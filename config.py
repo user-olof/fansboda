@@ -1,6 +1,7 @@
 import os
 from datetime import timedelta
 from dotenv import load_dotenv
+from cachelib.file import FileSystemCache
 
 load_dotenv()
 
@@ -17,6 +18,7 @@ def get_database_uri(env_name="dev"):
 
 class TestConfig:
     """Test configuration."""
+
     SSL_CONTEXT = ("certificates/cert.pem", "certificates/key.pem")
     SECRET_KEY = "test-secret-key"
     SQLALCHEMY_DATABASE_URI = get_database_uri("test")
@@ -32,6 +34,20 @@ class TestConfig:
     WTF_CSRF_ENABLED = False
     LOGIN_DISABLED = True
     ALLOWED_EMAILS = ["test@example.com"]
+
+    # SESSION_COOKIE_SECURE = True  # ensure that cookies are only sent over HTTPS
+    # SESSION_COOKIE_HTTPONLY = True  # mitigate the risk of XSS attacks by ensuring that cookies cannot be easily stolen via malicious scripts
+    # REMEMBER_COOKIE_SECURE = True
+    # REMEMBER_COOKIE_DURATION = 300  # 5 minutes
+    SESSION_COOKIE_NAME = "session"
+    SESSION_COOKIE_ENABLED = True
+
+    SESSION_TYPE = "filesystem"
+    SESSION_FILE_DIR = "cache"
+    SESSION_FILE_THRESHOLD = 500
+    SESSION_PERMANENT = False
+    PERMANENT_SESSION_LIFETIME = timedelta(hours=24)
+    SESSION_CLEANUP_N_REQUESTS = 10
 
 
 class DevConfig:
@@ -49,6 +65,14 @@ class DevConfig:
     CACHE_NO_NULL_WARNING = True
     WTF_CSRF_ENABLED = True
     PERMANENT_SESSION_LIFETIME = 300
+    REMEMBER_COOKIE_DURATION = 300  # 5 minutes
+
+    SESSION_TYPE = 'cachelib'
+    SESSION_SERIALIZATION_FORMAT = 'json'
+    SESSION_CACHELIB = FileSystemCache(threshold=500, cache_dir="./flask_session")
+    SESSION_PERMANENT = False
+    PERMANENT_SESSION_LIFETIME = timedelta(hours=24)
+    SESSION_CLEANUP_N_REQUESTS = 100
 
 
 class ProdConfig:
@@ -67,6 +91,7 @@ class ProdConfig:
     SESSION_COOKIE_SECURE = True  # ensure that cookies are only sent over HTTPS
     SESSION_COOKIE_HTTPONLY = True  # mitigate the risk of XSS attacks by ensuring that cookies cannot be easily stolen via malicious scripts
     REMEMBER_COOKIE_SECURE = True
+    REMEMBER_COOKIE_DURATION = 300  # 5 minutes
 
     # Install Redis
     # sudo apt update
