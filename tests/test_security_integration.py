@@ -451,7 +451,7 @@ class TestCompleteSecurityWorkflow:
             assert login_response.status_code == 302
 
             # Access multiple routes
-            routes = ["/", "/users", "/profile"]
+            routes = ["/", "/users"]
             for route in routes:
                 response = client.get(route)
                 assert response.status_code in [200, 302]

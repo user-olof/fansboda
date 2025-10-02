@@ -1,14 +1,14 @@
 # src/__init__.py
 import sys
 import os
-from flask import Flask, session
-from flask_session import Session
+from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
 from flask_caching import Cache
 from flask_talisman import Talisman
 import flask_bcrypt
+from flask_migrate import Migrate
 
 
 # Configure Flask to look for templates in the parent directory
@@ -22,6 +22,7 @@ bcrypt = flask_bcrypt.Bcrypt()
 login_manager = LoginManager()
 csrf = CSRFProtect()
 cache = Cache()
+migrate = Migrate()
 
 
 def get_environment():
@@ -73,7 +74,8 @@ def create_app(config_name=None):
     login_manager.login_view = "login.login"  # Updated for blueprint
     csrf.init_app(app)
     cache.init_app(app)
-    Session(app)
+    # Session(app)
+    migrate.init_app(app, db)
 
     # Configure Flask-Talisman with CSP
     if app.env == "production":

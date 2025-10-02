@@ -15,31 +15,20 @@ import sqlalchemy as sa
 from src.models.user import User
 from src.forms.loginform import LoginForm
 from src.forms.signupform import SignupForm
+from datetime import datetime, timedelta
+from src import db
 
 login_bp = Blueprint("login", __name__)
-
-
-# @login_bp.route("/set_login_attempt")
-# def set_login_attempt():
-#     session["login_attempt"] = 0
-#     return "Login attempt set to 0"
-
-
-# @login_bp.route("/get_login_attempt")
-# def get_login_attempt():
-#     return session["login_attempt"]
 
 
 @login_bp.route("/login", methods=["GET", "POST"])
 def login():
     if current_user.is_authenticated:
         return redirect(url_for("home.index"))
+
     form = LoginForm()
     if form.validate_on_submit():
-
-        # first find the user in the database
-        from src import db
-
+        # Find the user in the database
         try:
             user = db.session.scalar(
                 sa.select(User).where(User.email == form.email.data)
@@ -48,25 +37,46 @@ def login():
             print(f"Error: {e}")
             user = None
 
-        if user is None or not user.authenticate(form.password.data):
-
+        # Check if user exists and is not locked out
+        if user is None:
             flash("Invalid username or password")
-            session["login_attempt"] += 1
-            if session["login_attempt"] > 3:
-                flash("Too many login attempts. Please try again later.")
-                return render_template(
-                    "temporary_closed.html"
-                )  # TODO: lock out the user for 1 hour
             return redirect(url_for("login.login"))
 
-        # then check if the user is allowed to login
-        if not user.is_allowed():
+        # Check if user is locked out
+        if user.is_locked_out():
+            remaining_minutes = user.get_lockout_time_remaining()
+            flash(
+                f"Account locked due to too many failed attempts. Try again in {remaining_minutes} minutes."
+            )
+            return render_template("temporary_closed.html")
 
+        # Check if password is correct
+        if not user.authenticate(form.password.data):
+            # Record failed login attempt
+            user.record_failed_login()
+
+            if user.is_locked_out():
+                flash(
+                    "Account locked due to too many failed attempts. Try again in 24 hours."
+                )
+                return render_template("temporary_closed.html")
+            else:
+                attempts_left = 5 - user.failed_login_attempts
+                flash(
+                    f"Invalid username or password. {attempts_left} attempts remaining."
+                )
+                return redirect(url_for("login.login"))
+
+        # Check if user is allowed to login
+        if not user.is_allowed():
             flash("Access denied. You are not authorized to use this application.")
             return redirect(url_for("login.login"))
 
+        # Successful login - reset attempts and log in
+        user.reset_login_attempts()
         login_user(user, remember=form.remember_me.data)
 
+        flash("Login successful!")
         return redirect(url_for("home.index"))
 
     return render_template("login.html", title="Login", form=form)

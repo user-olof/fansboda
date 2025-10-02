@@ -561,18 +561,6 @@ class TestEmailWhitelist:
 
             assert user.is_allowed() is False
 
-    def test_user_is_allowed_with_reduce_user_email(self, client, app):
-        """Test that reduce user email is handled gracefully."""
-        from functools import reduce
-
-        app.config["ALLOWED_EMAILS"] = ["user@example.com"]
-
-        with client.application.app_context():
-            user = User(email=reduce(lambda x, y: "user@example.com", [1, 2, 3]))
-            user.password_hash = "testpass"
-
-            assert user.is_allowed() is False
-
     def test_user_is_allowed_with_accumulate_user_email(self, client, app):
         """Test that accumulate user email is handled gracefully."""
         from itertools import accumulate

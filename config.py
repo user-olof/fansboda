@@ -18,7 +18,7 @@ def get_database_uri(env_name="dev"):
 
 class TestConfig:
     """Test configuration."""
-
+    
     SSL_CONTEXT = ("certificates/cert.pem", "certificates/key.pem")
     SECRET_KEY = "test-secret-key"
     SQLALCHEMY_DATABASE_URI = get_database_uri("test")
@@ -51,6 +51,7 @@ class TestConfig:
 
 
 class DevConfig:
+    FLASK_APP = "app:app"
     SSL_CONTEXT = ("certificates/cert.pem", "certificates/key.pem")
     SECRET_KEY = os.getenv("SECRET_KEY") or "dev-secret-key"
     SQLALCHEMY_DATABASE_URI = get_database_uri("dev")
