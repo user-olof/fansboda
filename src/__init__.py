@@ -9,7 +9,10 @@ from flask_caching import Cache
 from flask_talisman import Talisman
 import flask_bcrypt
 from flask_migrate import Migrate
+from dotenv import load_dotenv
 
+
+load_dotenv()
 
 # Configure Flask to look for templates in the parent directory
 basedir = os.path.abspath(os.path.dirname(__file__))

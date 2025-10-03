@@ -4,28 +4,94 @@
 
 {% block body_class %}bg-light{% endblock %}
 
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/signup.css') }}">
+<style nonce="{{ csp_nonce() }}">
+    /* Center the form elements */
+    .card-body {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+    }
+    
+    .form-signin {
+        width: 100% !important;
+        max-width: 400px !important;
+        margin: 0 auto !important;
+    }
+    
+    .form-floating {
+        width: 100% !important;
+        max-width: 350px !important;
+        margin: 0 auto 1rem auto !important;
+    }
+    
+    .form-check {
+        width: 100% !important;
+        max-width: 350px !important;
+        margin: 0 auto 1rem auto !important;
+    }
+    
+    .btn {
+        width: 100% !important;
+        max-width: 350px !important;
+        margin: 0 auto !important;
+    }
+    
+    /* Fix floating label overlap issue */
+    .form-floating > .form-control {
+        padding-top: 1.625rem !important;
+        padding-bottom: 0.625rem !important;
+    }
+    
+    .form-floating > .form-control:focus {
+        padding-top: 1.625rem !important;
+        padding-bottom: 0.625rem !important;
+    }
+    
+    .form-floating > .form-control:not(:placeholder-shown) {
+        padding-top: 1.625rem !important;
+        padding-bottom: 0.625rem !important;
+    }
+    
+    .form-floating > .form-control:not(:placeholder-shown) ~ label {
+        opacity: 0.65 !important;
+        transform: scale(0.85) translateY(-0.5rem) translateX(0.15rem) !important;
+    }
+    
+    .form-floating > .form-control:focus ~ label {
+        opacity: 0.65 !important;
+        transform: scale(0.85) translateY(-0.5rem) translateX(0.15rem) !important;
+    }
+    
+    .form-floating > label {
+        padding: 1rem 0.75rem !important;
+    }
+    </style>
+    
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid bg-gradient-primary min-vh-100 d-flex align-items-center justify-content-center">
     <div class="row w-100 justify-content-center">
-        <div class="col-12 col-sm-8 col-md-6 col-lg-5 col-xl-4">
+        <div class="col-12 col-sm-8 col-md-6 col-lg-5 col-xl-4 signup-form-wrapper">
             <div class="card card-signin">
-                <div class="card-body">
+                <div class="card-body text-center">
                     <!-- Header -->
                     <div class="text-center mb-4">
-                        <i class="bi bi-person-plus-fill text-success" style="font-size: 3rem;"></i>
-                        <h1 class="h3 mb-3 fw-normal text-dark">Create Account</h1>
-                        <p class="text-muted">Join F&auml;nsboda today! Create your account below.</p>
+                        <i class="bi bi-person-plus-fill text-success signup-icon"></i>
+                        <h1 class="signup-heading mb-3 fw-normal text-dark">Create Account</h1>
                     </div>
 
                     <!-- Signup Form -->
                     <form action="" method="post" novalidate class="form-signin">
                         {{ form.hidden_tag() }}
 
-                        <!-- Email Field (Removed Username Field) -->
+                        <!-- Email Field -->
                         <div class="form-floating mb-3">
                             {{ form.email(class="form-control" + (" is-invalid" if form.email.errors else ""),
                             placeholder="Email", id="floatingEmail", type="email") }}
-                            {{ form.email.label(for="floatingEmail") }}
+                            {{ form.email.label(for="floatingEmail", class="form-label") }}
                             {% if form.email.errors %}
                             <div class="invalid-feedback">
                                 {% for error in form.email.errors %}
@@ -39,7 +105,7 @@
                         <div class="form-floating mb-3">
                             {{ form.password(class="form-control" + (" is-invalid" if form.password.errors else ""),
                             placeholder="Password", id="floatingPassword") }}
-                            {{ form.password.label(for="floatingPassword") }}
+                            {{ form.password.label(for="floatingPassword", class="form-label") }}
                             {% if form.password.errors %}
                             <div class="invalid-feedback">
                                 {% for error in form.password.errors %}
@@ -60,7 +126,7 @@
                             {{ form.password_confirm(class="form-control" + (" is-invalid" if
                             form.password_confirm.errors else ""), placeholder="Confirm Password",
                             id="floatingPasswordConfirm") }}
-                            {{ form.password_confirm.label(for="floatingPasswordConfirm") }}
+                            {{ form.password_confirm.label(for="floatingPasswordConfirm", class="form-label") }}
                             {% if form.password_confirm.errors %}
                             <div class="invalid-feedback">
                                 {% for error in form.password_confirm.errors %}
@@ -91,7 +157,7 @@
 
                         <!-- Additional Links -->
                         <div class="text-center">
-                            <small class="text-muted">
+                            <small class="signup-links text-muted">
                                 Already have an account?
                                 <a href="{{ url_for('login.login') }}" class="text-decoration-none">Sign in</a>
                             </small>

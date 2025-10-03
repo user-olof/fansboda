@@ -127,3 +127,6 @@ flask_session/
 
 # certificates
 certificates/
+
+# vscode
+.vscode/

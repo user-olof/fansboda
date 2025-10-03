@@ -82,6 +82,11 @@ def login():
     return render_template("login.html", title="Login", form=form)
 
 
+# @login_bp.route("/signup", methods=["GET", "POST"])
+# def signup():
+#     return "SIGNUP ROUTE IS WORKING - THIS IS A TEST"
+
+
 @login_bp.route("/signup", methods=["GET", "POST"])
 def signup():
     if current_user.is_authenticated:

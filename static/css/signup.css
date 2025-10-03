@@ -1,0 +1,876 @@
+/* Center the form elements */
+.card-body {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+}
+
+.form-signin {
+    width: 100% !important;
+    max-width: 400px !important;
+    margin: 0 auto !important;
+}
+
+.form-floating {
+    width: 100% !important;
+    max-width: 350px !important;
+    margin: 0 auto 1rem auto !important;
+}
+
+.form-check {
+    width: 100% !important;
+    max-width: 350px !important;
+    margin: 0 auto 1rem auto !important;
+}
+
+.btn {
+    width: 100% !important;
+    max-width: 350px !important;
+    margin: 0 auto !important;
+}
+
+/* Fix floating label overlap issue */
+.form-floating > .form-control {
+    padding-top: 1.625rem !important;
+    padding-bottom: 0.625rem !important;
+}
+
+.form-floating > .form-control:focus {
+    padding-top: 1.625rem !important;
+    padding-bottom: 0.625rem !important;
+}
+
+.form-floating > .form-control:not(:placeholder-shown) {
+    padding-top: 1.625rem !important;
+    padding-bottom: 0.625rem !important;
+}
+
+.form-floating > .form-control:not(:placeholder-shown) ~ label {
+    opacity: 0.65 !important;
+    transform: scale(0.85) translateY(-0.5rem) translateX(0.15rem) !important;
+}
+
+.form-floating > .form-control:focus ~ label {
+    opacity: 0.65 !important;
+    transform: scale(0.85) translateY(-0.5rem) translateX(0.15rem) !important;
+}
+
+.form-floating > label {
+    padding: 1rem 0.75rem !important;
+}
+
+/* Signup form - Same font sizes for all screens */
+.signup-form-wrapper .signup-form-container {
+    margin: 0 auto !important;
+}
+
+/* Signup form - Smaller font sizes for all screens */
+
+/* Icon sizing - Reduced */
+.signup-form-wrapper .signup-icon {
+    font-size: 2.5rem !important; /* Reduced from 4.75rem */
+}
+
+/* Heading sizing - Reduced */
+.signup-form-wrapper .signup-heading {
+    font-size: 1.4rem !important; /* Reduced from 2.5rem */
+}
+
+/* Subtitle sizing - Reduced */
+.signup-form-wrapper .signup-subtitle {
+    font-size: 0.9rem !important; /* Reduced from 1.4rem */
+}
+
+/* Form labels - Reduced */
+.signup-form-wrapper .form-label {
+    font-size: 0.9rem !important; /* Reduced from 1.4rem */
+}
+
+/* Form inputs - Reduced */
+.signup-form-wrapper .form-control {
+    font-size: 0.9rem !important; /* Reduced from 1.4rem */
+    padding: 0.75rem !important; /* Reduced padding */
+}
+
+/* Buttons - Reduced */
+.signup-form-wrapper .btn {
+    font-size: 0.9rem !important; /* Reduced from 1.4rem */
+    padding: 0.75rem 1.5rem !important; /* Reduced padding */
+}
+
+/* Links - Reduced */
+.signup-form-wrapper .signup-links {
+    font-size: 0.8rem !important; /* Reduced from 1.3rem */
+}
+
+/* Container sizing - Responsive to prevent overflow */
+
+/* Very small mobile screens (up to 320px) */
+@media (max-width: 320px) {
+    .signup-form-wrapper .signup-form-container {
+        max-width: 280px !important;
+        min-width: 260px !important;
+        padding: 0 10px !important;
+    }
+    
+    .signup-form-wrapper .card-body {
+        padding: 1rem !important;
+    }
+    
+    .signup-form-wrapper .signup-icon {
+        font-size: 2rem !important;
+    }
+    
+    .signup-form-wrapper .signup-heading {
+        font-size: 1.2rem !important;
+    }
+    
+    .signup-form-wrapper .signup-subtitle {
+        font-size: 0.8rem !important;
+    }
+    
+    .signup-form-wrapper .form-control {
+        font-size: 0.8rem !important;
+        padding: 0.6rem !important;
+    }
+    
+    .signup-form-wrapper .btn {
+        font-size: 0.8rem !important;
+        padding: 0.6rem 1.2rem !important;
+    }
+    
+    .signup-form-wrapper .signup-links {
+        font-size: 0.75rem !important;
+    }
+}
+
+/* Small mobile screens (321px - 360px) */
+@media (min-width: 321px) and (max-width: 360px) {
+    .signup-form-wrapper .signup-form-container {
+        max-width: 300px !important;
+        min-width: 280px !important;
+        padding: 0 15px !important;
+    }
+    
+    .signup-form-wrapper .card-body {
+        padding: 1.2rem !important;
+    }
+    
+    .signup-form-wrapper .signup-icon {
+        font-size: 2.2rem !important;
+    }
+    
+    .signup-form-wrapper .signup-heading {
+        font-size: 1.3rem !important;
+    }
+    
+    .signup-form-wrapper .signup-subtitle {
+        font-size: 0.85rem !important;
+    }
+    
+    .signup-form-wrapper .form-control {
+        font-size: 0.85rem !important;
+        padding: 0.65rem !important;
+    }
+    
+    .signup-form-wrapper .btn {
+        font-size: 0.85rem !important;
+        padding: 0.65rem 1.3rem !important;
+    }
+    
+    .signup-form-wrapper .signup-links {
+        font-size: 0.75rem !important;
+    }
+}
+
+/* Medium mobile screens (361px - 414px) */
+@media (min-width: 361px) and (max-width: 414px) {
+    .signup-form-wrapper .signup-form-container {
+        max-width: 320px !important;
+        min-width: 300px !important;
+        padding: 0 20px !important;
+    }
+    
+    .signup-form-wrapper .card-body {
+        padding: 1.4rem !important;
+    }
+    
+    .signup-form-wrapper .signup-icon {
+        font-size: 2.3rem !important;
+    }
+    
+    .signup-form-wrapper .signup-heading {
+        font-size: 1.35rem !important;
+    }
+    
+    .signup-form-wrapper .signup-subtitle {
+        font-size: 0.9rem !important;
+    }
+    
+    .signup-form-wrapper .form-control {
+        font-size: 0.9rem !important;
+        padding: 0.7rem !important;
+    }
+    
+    .signup-form-wrapper .btn {
+        font-size: 0.9rem !important;
+        padding: 0.7rem 1.4rem !important;
+    }
+    
+    .signup-form-wrapper .signup-links {
+        font-size: 0.8rem !important;
+    }
+}
+
+/* Small tablets (415px - 800px) */
+@media (min-width: 415px) and (max-width: 800px) {
+    .signup-form-wrapper .signup-form-container {
+        max-width: 380px !important;
+        min-width: 350px !important;
+        padding: 0 25px !important;
+    }
+    
+    .signup-form-wrapper .card-body {
+        padding: 1.6rem !important;
+    }
+    
+    .signup-form-wrapper .signup-icon {
+        font-size: 2.4rem !important;
+    }
+    
+    .signup-form-wrapper .signup-heading {
+        font-size: 1.4rem !important;
+    }
+    
+    .signup-form-wrapper .signup-subtitle {
+        font-size: 0.95rem !important;
+    }
+    
+    .signup-form-wrapper .form-control {
+        font-size: 0.95rem !important;
+        padding: 0.75rem !important;
+    }
+    
+    .signup-form-wrapper .btn {
+        font-size: 0.95rem !important;
+        padding: 0.75rem 1.5rem !important;
+    }
+    
+    .signup-form-wrapper .signup-links {
+        font-size: 0.85rem !important;
+    }
+}
+
+/* Medium tablets (801px - 960px) */
+@media (min-width: 801px) and (max-width: 960px) {
+    .signup-form-wrapper .signup-form-container {
+        max-width: 420px !important;
+        min-width: 380px !important;
+        padding: 0 30px !important;
+    }
+    
+    .signup-form-wrapper .card-body {
+        padding: 1.8rem !important;
+    }
+    
+    .signup-form-wrapper .signup-icon {
+        font-size: 2.6rem !important;
+    }
+    
+    .signup-form-wrapper .signup-heading {
+        font-size: 1.5rem !important;
+    }
+    
+    .signup-form-wrapper .signup-subtitle {
+        font-size: 1rem !important;
+    }
+    
+    .signup-form-wrapper .form-control {
+        font-size: 1rem !important;
+        padding: 0.8rem !important;
+    }
+    
+    .signup-form-wrapper .btn {
+        font-size: 1rem !important;
+        padding: 0.8rem 1.6rem !important;
+    }
+    
+    .signup-form-wrapper .signup-links {
+        font-size: 0.9rem !important;
+    }
+}
+
+/* Large tablets / Small laptops (961px - 1024px) */
+@media (min-width: 961px) and (max-width: 1024px) {
+    .signup-form-wrapper .signup-form-container {
+        max-width: 450px !important;
+        min-width: 420px !important;
+        padding: 0 35px !important;
+    }
+    
+    .signup-form-wrapper .card-body {
+        padding: 2rem !important;
+    }
+    
+    .signup-form-wrapper .signup-icon {
+        font-size: 2.8rem !important;
+    }
+    
+    .signup-form-wrapper .signup-heading {
+        font-size: 1.6rem !important;
+    }
+    
+    .signup-form-wrapper .signup-subtitle {
+        font-size: 1.05rem !important;
+    }
+    
+    .signup-form-wrapper .form-control {
+        font-size: 1.05rem !important;
+        padding: 0.85rem !important;
+    }
+    
+    .signup-form-wrapper .btn {
+        font-size: 1.05rem !important;
+        padding: 0.85rem 1.7rem !important;
+    }
+    
+    .signup-form-wrapper .signup-links {
+        font-size: 0.95rem !important;
+    }
+}
+
+/* Medium laptops (1025px - 1280px) */
+@media (min-width: 1025px) and (max-width: 1280px) {
+    .signup-form-wrapper .signup-form-container {
+        max-width: 480px !important;
+        min-width: 450px !important;
+        padding: 0 40px !important;
+    }
+    
+    .signup-form-wrapper .card-body {
+        padding: 2.2rem !important;
+    }
+    
+    .signup-form-wrapper .signup-icon {
+        font-size: 3rem !important;
+    }
+    
+    .signup-form-wrapper .signup-heading {
+        font-size: 1.7rem !important;
+    }
+    
+    .signup-form-wrapper .signup-subtitle {
+        font-size: 1.1rem !important;
+    }
+    
+    .signup-form-wrapper .form-control {
+        font-size: 1.1rem !important;
+        padding: 0.9rem !important;
+    }
+    
+    .signup-form-wrapper .btn {
+        font-size: 1.1rem !important;
+        padding: 0.9rem 1.8rem !important;
+    }
+    
+    .signup-form-wrapper .signup-links {
+        font-size: 1rem !important;
+    }
+}
+
+/* Large laptops (1281px - 1366px) */
+@media (min-width: 1281px) and (max-width: 1366px) {
+    .signup-form-wrapper .signup-form-container {
+        max-width: 500px !important;
+        min-width: 470px !important;
+        padding: 0 45px !important;
+    }
+    
+    .signup-form-wrapper .card-body {
+        padding: 2.4rem !important;
+    }
+    
+    .signup-form-wrapper .signup-icon {
+        font-size: 3.2rem !important;
+    }
+    
+    .signup-form-wrapper .signup-heading {
+        font-size: 1.8rem !important;
+    }
+    
+    .signup-form-wrapper .signup-subtitle {
+        font-size: 1.15rem !important;
+    }
+    
+    .signup-form-wrapper .form-control {
+        font-size: 1.15rem !important;
+        padding: 1rem !important;
+    }
+    
+    .signup-form-wrapper .btn {
+        font-size: 1.15rem !important;
+        padding: 1rem 2rem !important;
+    }
+    
+    .signup-form-wrapper .signup-links {
+        font-size: 1.05rem !important;
+    }
+}
+
+/* Desktop monitors (1367px - 1440px) */
+@media (min-width: 1367px) and (max-width: 1440px) {
+    .signup-form-wrapper .signup-form-container {
+        max-width: 520px !important;
+        min-width: 490px !important;
+        padding: 0 50px !important;
+    }
+    
+    .signup-form-wrapper .card-body {
+        padding: 2.6rem !important;
+    }
+    
+    .signup-form-wrapper .signup-icon {
+        font-size: 3.4rem !important;
+    }
+    
+    .signup-form-wrapper .signup-heading {
+        font-size: 1.9rem !important;
+    }
+    
+    .signup-form-wrapper .signup-subtitle {
+        font-size: 1.2rem !important;
+    }
+    
+    .signup-form-wrapper .form-control {
+        font-size: 1.2rem !important;
+        padding: 1.1rem !important;
+    }
+    
+    .signup-form-wrapper .btn {
+        font-size: 1.2rem !important;
+        padding: 1.1rem 2.2rem !important;
+    }
+    
+    .signup-form-wrapper .signup-links {
+        font-size: 1.1rem !important;
+    }
+}
+
+/* Large desktop monitors (1441px - 1600px) */
+@media (min-width: 1441px) and (max-width: 1600px) {
+    .signup-form-wrapper .signup-form-container {
+        max-width: 550px !important;
+        min-width: 520px !important;
+        padding: 0 55px !important;
+    }
+    
+    .signup-form-wrapper .card-body {
+        padding: 2.8rem !important;
+    }
+    
+    .signup-form-wrapper .signup-icon {
+        font-size: 3.6rem !important;
+    }
+    
+    .signup-form-wrapper .signup-heading {
+        font-size: 2rem !important;
+    }
+    
+    .signup-form-wrapper .signup-subtitle {
+        font-size: 1.25rem !important;
+    }
+    
+    .signup-form-wrapper .form-control {
+        font-size: 1.25rem !important;
+        padding: 1.2rem !important;
+    }
+    
+    .signup-form-wrapper .btn {
+        font-size: 1.25rem !important;
+        padding: 1.2rem 2.4rem !important;
+    }
+    
+    .signup-form-wrapper .signup-links {
+        font-size: 1.15rem !important;
+    }
+}
+
+/* Extra large monitors (1601px - 1680px) */
+@media (min-width: 1601px) and (max-width: 1680px) {
+    .signup-form-wrapper .signup-form-container {
+        max-width: 580px !important;
+        min-width: 550px !important;
+        padding: 0 60px !important;
+    }
+    
+    .signup-form-wrapper .card-body {
+        padding: 3rem !important;
+    }
+    
+    .signup-form-wrapper .signup-icon {
+        font-size: 3.8rem !important;
+    }
+    
+    .signup-form-wrapper .signup-heading {
+        font-size: 2.1rem !important;
+    }
+    
+    .signup-form-wrapper .signup-subtitle {
+        font-size: 1.3rem !important;
+    }
+    
+    .signup-form-wrapper .form-control {
+        font-size: 1.3rem !important;
+        padding: 1.3rem !important;
+    }
+    
+    .signup-form-wrapper .btn {
+        font-size: 1.3rem !important;
+        padding: 1.3rem 2.6rem !important;
+    }
+    
+    .signup-form-wrapper .signup-links {
+        font-size: 1.2rem !important;
+    }
+}
+
+/* Ultra wide monitors (1681px - 1920px) */
+@media (min-width: 1681px) and (max-width: 1920px) {
+    .signup-form-wrapper .signup-form-container {
+        max-width: 600px !important;
+        min-width: 570px !important;
+        padding: 0 65px !important;
+    }
+    
+    .signup-form-wrapper .card-body {
+        padding: 3.2rem !important;
+    }
+    
+    .signup-form-wrapper .signup-icon {
+        font-size: 4rem !important;
+    }
+    
+    .signup-form-wrapper .signup-heading {
+        font-size: 2.2rem !important;
+    }
+    
+    .signup-form-wrapper .signup-subtitle {
+        font-size: 1.35rem !important;
+    }
+    
+    .signup-form-wrapper .form-control {
+        font-size: 1.35rem !important;
+        padding: 1.4rem !important;
+    }
+    
+    .signup-form-wrapper .btn {
+        font-size: 1.35rem !important;
+        padding: 1.4rem 2.8rem !important;
+    }
+    
+    .signup-form-wrapper .signup-links {
+        font-size: 1.25rem !important;
+    }
+}
+
+/* 4K and larger monitors (1921px+) */
+@media (min-width: 1921px) {
+    .signup-form-wrapper .signup-form-container {
+        max-width: 650px !important;
+        min-width: 620px !important;
+        padding: 0 70px !important;
+    }
+    
+    .signup-form-wrapper .card-body {
+        padding: 3.4rem !important;
+    }
+    
+    .signup-form-wrapper .signup-icon {
+        font-size: 4.2rem !important;
+    }
+    
+    .signup-form-wrapper .signup-heading {
+        font-size: 2.3rem !important;
+    }
+    
+    .signup-form-wrapper .signup-subtitle {
+        font-size: 1.4rem !important;
+    }
+    
+    .signup-form-wrapper .form-control {
+        font-size: 1.4rem !important;
+        padding: 1.5rem !important;
+    }
+    
+    .signup-form-wrapper .btn {
+        font-size: 1.4rem !important;
+        padding: 1.5rem 3rem !important;
+    }
+    
+    .signup-form-wrapper .signup-links {
+        font-size: 1.3rem !important;
+    }
+}
+
+/* Height-based adjustments for landscape mobile */
+@media (max-height: 600px) and (orientation: landscape) {
+    .signup-form-wrapper .signup-form-container {
+        max-width: 300px !important;
+        min-width: 280px !important;
+    }
+    
+    .signup-form-wrapper .card-body {
+        padding: 0.8rem !important;
+    }
+    
+    .signup-form-wrapper .signup-icon {
+        font-size: 2rem !important;
+    }
+    
+    .signup-form-wrapper .signup-heading {
+        font-size: 1.2rem !important;
+        margin-bottom: 0.5rem !important;
+    }
+    
+    .signup-form-wrapper .signup-subtitle {
+        font-size: 0.8rem !important;
+        margin-bottom: 1rem !important;
+    }
+    
+    .signup-form-wrapper .form-control {
+        font-size: 0.8rem !important;
+        padding: 0.6rem !important;
+        margin-bottom: 0.8rem !important;
+    }
+    
+    .signup-form-wrapper .btn {
+        font-size: 0.8rem !important;
+        padding: 0.6rem 1rem !important;
+        margin-bottom: 0.8rem !important;
+    }
+}
+
+/* Height-based adjustments for portrait mobile */
+@media (max-height: 800px) and (orientation: portrait) {
+    .signup-form-wrapper .card-body {
+        padding: 1.5rem !important;
+    }
+    
+    .signup-form-wrapper .signup-icon {
+        font-size: 2.5rem !important;
+    }
+    
+    .signup-form-wrapper .signup-heading {
+        font-size: 1.4rem !important;
+        margin-bottom: 1rem !important;
+    }
+    
+    .signup-form-wrapper .signup-subtitle {
+        font-size: 0.9rem !important;
+        margin-bottom: 1.5rem !important;
+    }
+}
+
+/* Hide subtitle on mobile phone screen sizes */
+@media (max-width: 768px) {
+    .signup-form-wrapper .signup-subtitle {
+        display: none !important;
+    }
+}
+
+/* Ensure form doesn't overflow on very small screens */
+@media (max-width: 360px) {
+    .signup-form-wrapper .container-fluid {
+        padding: 0 5px !important;
+    }
+    
+    .signup-form-wrapper .card-body {
+        padding: 0.8rem !important;
+    }
+    
+    .signup-form-wrapper .signup-icon {
+        font-size: 1.8rem !important;
+    }
+    
+    .signup-form-wrapper .signup-heading {
+        font-size: 1.1rem !important;
+    }
+    
+    .signup-form-wrapper .signup-subtitle {
+        font-size: 0.8rem !important;
+    }
+    
+    .signup-form-wrapper .form-control {
+        font-size: 0.8rem !important;
+        padding: 0.6rem !important;
+    }
+    
+    .signup-form-wrapper .btn {
+        font-size: 0.8rem !important;
+        padding: 0.6rem 1.2rem !important;
+    }
+    
+    .signup-form-wrapper .signup-links {
+        font-size: 0.75rem !important;
+    }
+}
+
+/* Alternative: Show it only on larger screens */
+@media (min-width: 769px) {
+    .signup-form-wrapper .signup-subtitle {
+        display: block !important;
+    }
+}
+
+/* Terms and Conditions checkbox alignment with form elements */
+.signup-form-wrapper .form-check {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    text-align: left !important;
+    min-height: 1.5rem !important;
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+}
+
+.signup-form-wrapper .form-check-input {
+    margin: 0 !important;
+    margin-right: 0.5rem !important;
+    flex-shrink: 0 !important;
+    width: 1rem !important;
+    height: 1rem !important;
+    vertical-align: top !important;
+    margin-left: 0 !important;
+}
+
+.signup-form-wrapper .form-check-label {
+    margin: 0 !important;
+    margin-left: 0.5rem !important;
+    text-align: left !important;
+    white-space: nowrap !important;
+    line-height: 1.2 !important;
+    display: flex !important;
+    align-items: center !important;
+    height: 1.2rem !important;
+    padding-left: 0 !important;
+}
+
+/* Center form content on large monitors - 20% larger */
+@media (min-width: 1367px) {
+    .signup-form-wrapper .form-signin {
+        max-width: 360px !important; /* Increased from 300px to 360px (20%) */
+        margin: 0 auto !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+    }
+    
+    .signup-form-wrapper .form-signin .form-floating {
+        width: 100% !important;
+        max-width: 336px !important; /* Increased from 280px to 336px (20%) */
+        margin: 0 auto 1rem auto !important;
+    }
+    
+    .signup-form-wrapper .form-signin .form-check {
+        width: 100% !important;
+        max-width: 336px !important; /* Increased from 280px to 336px (20%) */
+        margin: 0 auto 1rem auto !important;
+        justify-content: flex-start !important;
+    }
+    
+    .signup-form-wrapper .form-signin .btn {
+        width: 100% !important;
+        max-width: 336px !important; /* Increased from 280px to 336px (20%) */
+        margin: 0 auto 1rem auto !important;
+    }
+    
+    .signup-form-wrapper .form-signin .text-center {
+        width: 100% !important;
+        max-width: 336px !important; /* Increased from 280px to 336px (20%) */
+        margin: 0 auto !important;
+    }
+}
+
+/* Extra centering for very large monitors - 20% larger */
+@media (min-width: 1681px) {
+    .signup-form-wrapper .form-signin {
+        max-width: 384px !important; /* Increased from 320px to 384px (20%) */
+    }
+    
+    .signup-form-wrapper .form-signin .form-floating {
+        max-width: 360px !important; /* Increased from 300px to 360px (20%) */
+    }
+    
+    .signup-form-wrapper .form-signin .form-check {
+        max-width: 360px !important; /* Increased from 300px to 360px (20%) */
+    }
+    
+    .signup-form-wrapper .form-signin .btn {
+        max-width: 360px !important; /* Increased from 300px to 360px (20%) */
+    }
+    
+    .signup-form-wrapper .form-signin .text-center {
+        max-width: 360px !important; /* Increased from 300px to 360px (20%) */
+    }
+}
+
+/* 4K and larger monitors - 20% larger */
+@media (min-width: 1921px) {
+    .signup-form-wrapper .form-signin {
+        max-width: 420px !important; /* Increased from 350px to 420px (20%) */
+    }
+    
+    .signup-form-wrapper .form-signin .form-floating {
+        max-width: 396px !important; /* Increased from 330px to 396px (20%) */
+    }
+    
+    .signup-form-wrapper .form-signin .form-check {
+        max-width: 396px !important; /* Increased from 330px to 396px (20%) */
+    }
+    
+    .signup-form-wrapper .form-signin .btn {
+        max-width: 396px !important; /* Increased from 330px to 396px (20%) */
+    }
+    
+    .signup-form-wrapper .form-signin .text-center {
+        max-width: 396px !important; /* Increased from 330px to 396px (20%) */
+    }
+}
+
+/* Fix password visibility icon position */
+.signup-form-wrapper .form-floating .form-control {
+    padding-right: 2.5rem !important; /* Make room for the icon */
+}
+
+/* Password toggle button positioning */
+.signup-form-wrapper .password-toggle {
+    position: absolute !important;
+    right: 15px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    z-index: 10 !important;
+    color: #6c757d !important;
+    background: none !important;
+    border: none !important;
+    padding: 4px !important; /* Reduced padding for smaller clickable area */
+    cursor: pointer !important;
+    width: 14px !important; /* Fixed width */
+    height: 14px !important; /* Fixed height */
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.signup-form-wrapper .password-toggle:hover {
+    color: #495057 !important;
+}
+
+.signup-form-wrapper .password-toggle:focus {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* Ensure the password field has enough padding for the icon */
+.signup-form-wrapper .form-floating .form-control {
+    padding-right: 2.5rem !important;
+}

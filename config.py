@@ -60,7 +60,7 @@ class DevConfig:
     DEBUG = True
     PORT = 5000
     HOST = "localhost"
-    ALLOWED_EMAILS = ["olof.thornell@gmail.com", "admin@test.com"]
+    ALLOWED_EMAILS = os.getenv("ALLOWED_EMAILS", "").split(",")
     CACHE_TYPE = "SimpleCache"
     CACHE_DEFAULT_TIMEOUT = 300
     CACHE_NO_NULL_WARNING = True
