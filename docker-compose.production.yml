@@ -8,3 +8,39 @@ services:
   # Nginx reverse proxy
   nginx:
     restart: always
+    volumes:
+      - ./certificates:/etc/nginx/ssl:ro
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./static:/var/www/static:ro
+
+  # Certbot for SSL certificate management
+  certbot:
+    image: certbot/certbot:latest
+    container_name: fansboda-certbot
+    restart: unless-stopped
+    volumes:
+      - ./certificates:/etc/letsencrypt:rw
+      - ./certbot-webroot:/var/www/certbot:rw
+    command: certonly --webroot --webroot-path=/var/www/certbot --email olof.thornell@gmail.com --agree-tos --no-eff-email --staging -d fansboda.dpdns.org
+    depends_on:
+      - nginx
+    networks:
+      - fansboda-network
+
+  # Certbot renewal service
+  certbot-renew:
+    image: certbot/certbot:latest
+    container_name: fansboda-certbot-renew
+    restart: unless-stopped
+    volumes:
+      - ./certificates:/etc/letsencrypt:rw
+      - ./certbot-webroot:/var/www/certbot:rw
+    command: sh -c "trap exit TERM; while :; do certbot renew --webroot --webroot-path=/var/www/certbot; sleep 12h & wait $${!}; done;"
+    depends_on:
+      - nginx
+    networks:
+      - fansboda-network
+
+networks:
+  fansboda-network:
+    driver: bridge

@@ -2,7 +2,7 @@ from src import db, bcrypt
 from flask_login import UserMixin
 from flask import current_app
 from sqlalchemy.ext.hybrid import hybrid_property
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 class User(UserMixin, db.Model):
@@ -70,11 +70,11 @@ class User(UserMixin, db.Model):
         """Check if user is currently locked out."""
         if self.locked_until is None:
             return False
-        return datetime.utcnow() < self.locked_until
+        return datetime.now(timezone.utc) < self.locked_until
 
     def record_failed_login(self):
         """Record a failed login attempt."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         self.failed_login_attempts += 1
         self.last_failed_login = now
 

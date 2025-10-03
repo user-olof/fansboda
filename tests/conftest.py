@@ -59,8 +59,7 @@ def client(app):
     # Reinitialize cache with test config
     # cache.init_app(app)
 
-    with app.test_client() as client:
-        yield client
+    return app.test_client()
 
 
 @pytest.fixture
