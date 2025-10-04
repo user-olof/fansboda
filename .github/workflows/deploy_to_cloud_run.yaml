@@ -10,30 +10,8 @@ jobs:
   deploy_to_cloud_run:
     runs-on: ubuntu-latest
 
-    # env:
-    #   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-    #   SVC_ACCOUNT: ${{ secrets.GCP_SVC_ACCOUNT }}
-    #   GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/${{ secrets.GCP_SVC_ACCOUNT }}.json
-    #   SVC_ACCOUNT_EMAIL: ${{ secrets.GCP_SVC_ACCOUNT }}@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com
-    #   REGION: ${{ vars.GCP_REGION }} 
-
- 
     steps:
     - uses: actions/checkout@v4
-
-    # - name: Check env vars
-    #   run: |
-    #     echo "Environment variables configured:"
-    #     echo PROJECT_ID="$PROJECT_ID"
-    #     echo REGION="$REGION"
-    #     echo SVC_ACCOUNT="$SVC_ACCOUNT"
-    #     echo SVC_ACCOUNT_EMAIL="$SVC_ACCOUNT_EMAIL"
-    #     echo GOOGLE_APPLICATION_CREDENTIALS="$GOOGLE_APPLICATION_CREDENTIALS"
-
-    # - name: Decode Google Cloud Service Account Credentials
-    #   run: |
-    #     echo "${{ secrets.GCP_SVC_ACCOUNT_CREDS }}" | base64 --decode | jq > gcp-credentials.json
-    #     export "GOOGLE_APPLICATION_CREDENTIALS=gcp-credentials.json"
     
     - name: Authenticate with Google Cloud
       uses: google-github-actions/auth@v1
@@ -71,12 +49,44 @@ jobs:
           --project ${{ secrets.GCP_PROJECT_ID  }} \
           --service-account ${{ secrets.GCP_SVC_ACCOUNT }} \
           --allow-unauthenticated
+
+    # Add this new step for database migration
+    - name: Run Database Migrations
+      run: |
+        # Get the service URL
+        SERVICE_URL=$(gcloud run services describe ${{ vars.GCP_SERVICE_NAME }} \
+          --region ${{ vars.GCP_REGION }} \
+          --project ${{ secrets.GCP_PROJECT_ID }} \
+          --format 'value(status.url)')
+        
+        # Run migration using Cloud Run Jobs (recommended) or direct container execution
+        gcloud run jobs create migrate-db-${{ github.run_number }} \
+          --image "${{ vars.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME }}:${{ github.run_number }}" \
+          --region ${{ vars.GCP_REGION }} \
+          --project ${{ secrets.GCP_PROJECT_ID }} \
+          --set-env-vars FLASK_APP=app.py,FLASK_ENV=production \
+          --command "flask" \
+          --args "db,upgrade" \
+          --cpu 1 \
+          --memory 512Mi \
+          --max-retries 3 \
+          --parallelism 1 \
+          --task-count 1 || echo "Migration job creation failed, trying alternative method"
+        
+        # Execute the migration job
+        gcloud run jobs execute migrate-db-${{ github.run_number }} \
+          --region ${{ vars.GCP_REGION }} \
+          --project ${{ secrets.GCP_PROJECT_ID }} \
+          --wait || echo "Migration execution failed"
+        
+        # Clean up the migration job
+        gcloud run jobs delete migrate-db-${{ github.run_number }} \
+          --region ${{ vars.GCP_REGION }} \
+          --project ${{ secrets.GCP_PROJECT_ID }} \
+          --quiet || echo "Job cleanup failed"
  
     - name: Assign custom service account to Cloud Run service
       run: |
         gcloud run services update ${{ vars.GCP_SERVICE_NAME }} \
         --region ${{ vars.GCP_REGION }} \
         --service-account ${{ secrets.GCP_SVC_ACCOUNT }}      
-
-   
-     
