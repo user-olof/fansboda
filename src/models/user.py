@@ -6,6 +6,9 @@ from datetime import datetime, timedelta, timezone
 
 
 class User(UserMixin, db.Model):
+    __tablename__ = 'user'
+    __table_args__ = {'extend_existing': True}  # This allows redefinition
+    
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
     _password_hash = db.Column(db.String)
