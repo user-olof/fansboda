@@ -1,6 +1,8 @@
 name: 1. Code Scanning
 run-name: ${{ github.actor }} is scanning code  🔍
-on: [push]
+on:
+  push:
+    branches: [ main ]
 
 jobs:
   security:

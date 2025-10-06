@@ -1,0 +1,40 @@
+# In .github/workflows/deploy_to_cloud_run.yaml
+name: 4. Prepopulate Production Database
+run-name: ${{ github.actor }} is prepopulating the production database  🚀
+on: 
+  workflow_run:
+      workflows: ["3. Deploy to Cloud Run"] # Run the deploy after successful Build and Test
+      types:
+        - completed     
+
+jobs:
+  prepopulate_database:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Prepopulate Production Database
+      run: |
+        gcloud run jobs create prepopulate-db-${{ github.run_number }} \
+          --image "${{ vars.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME }}:${{ github.run_number }}" \
+          --region ${{ vars.GCP_REGION }} \
+          --project ${{ secrets.GCP_PROJECT_ID }} \
+          --set-env-vars FLASK_APP=app.py,FLASK_ENV=development \
+          --command "python" \
+          --args "prepopulate_development.py" \
+          --cpu 1 \
+          --memory 512Mi \
+          --max-retries 3 \
+          --parallelism 1 \
+          --tasks 1
+
+        gcloud run jobs execute prepopulate-db-${{ github.run_number }} \
+          --region ${{ vars.GCP_REGION }} \
+          --project ${{ secrets.GCP_PROJECT_ID }} \
+          --wait
+
+        gcloud run jobs delete prepopulate-db-${{ github.run_number }} \
+          --region ${{ vars.GCP_REGION }} \
+          --project ${{ secrets.GCP_PROJECT_ID }} \
+          --quiet
