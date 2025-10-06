@@ -79,8 +79,8 @@ jobs:
           --region ${{ vars.GCP_REGION }} \
           --project ${{ secrets.GCP_PROJECT_ID }} \
           --set-env-vars FLASK_APP=app.py,FLASK_ENV=development \
-          --command "flask" \
-          --args "db upgrade" \
+          --command "python" \
+          --args "-m flask db upgrade" \
           --cpu 1 \
           --memory 512Mi \
           --max-retries 3 \
