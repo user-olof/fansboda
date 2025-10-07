@@ -130,3 +130,13 @@ certificates/
 
 # vscode
 .vscode/
+
+# SSL certificates (never commit these)
+ssl/*.pem
+ssl/*.key
+ssl/*.crt
+ssl/*.p12
+ssl/*.pfx
+
+# But keep the folder structure
+!ssl/.gitkeep
