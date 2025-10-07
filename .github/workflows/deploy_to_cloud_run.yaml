@@ -11,7 +11,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       image_uri: ${{ steps.build.outputs.image_uri }}
-      image_name: ${{ steps.build.outputs.image_uri }}
       image_tag: ${{ steps.build.outputs.image_tag }}
 
     steps:
@@ -88,7 +87,7 @@ jobs:
           --project ${{ secrets.GCP_PROJECT_ID }} \
           --set-env-vars FLASK_APP=app.py,FLASK_ENV=development \
           --command "flask" \
-          --args "db" "upgrade" \
+          --args "db upgrade" \
           --cpu 1 \
           --memory 512Mi \
           --max-retries 3 \
