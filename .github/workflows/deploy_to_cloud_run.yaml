@@ -9,6 +9,10 @@ on:
 jobs:
   deploy_to_cloud_run:
     runs-on: ubuntu-latest
+    outputs:
+      image_uri: ${{ steps.build.outputs.image_uri }}
+      image_name: ${{ steps.build.outputs.image_uri }}
+      image_tag: ${{ steps.build.outputs.image_tag }}
 
     steps:
     - uses: actions/checkout@v4
@@ -49,6 +53,10 @@ jobs:
         IMAGE_URI="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME }}:${{ github.run_number }}"
         docker build -t "$IMAGE_URI" .
         docker push "$IMAGE_URI"
+
+        # Set outputs
+        echo "image_uri=$IMAGE_URI" >> $GITHUB_OUTPUT
+        echo "image_tag=${{ github.run_number }}" >> $GITHUB_OUTPUT
     
     - name: Deploy to Cloud Run
       run: |
