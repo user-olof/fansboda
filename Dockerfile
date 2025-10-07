@@ -13,6 +13,9 @@ WORKDIR /app
 # Create virtual environment
 RUN python -m venv .venv
 
+# Add virtual environment to PATH
+ENV PATH="/app/.venv/bin:$PATH"
+
 # Install system dependencies
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
