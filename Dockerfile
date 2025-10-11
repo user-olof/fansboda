@@ -24,6 +24,7 @@ RUN apt-get update \
     libc6-dev \
     libffi-dev \
     libssl-dev \
+    libpq-dev \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
@@ -43,9 +44,11 @@ RUN addgroup --system --gid 1001 appgroup \
 COPY . .
 
 # Create necessary directories and set permissions
-RUN mkdir -p /app/instance \
+RUN mkdir -p /app/instance /tmp/flask_session \
     && chown -R appuser:appgroup /app \
-    && chmod -R 755 /app
+    && chmod -R 755 /app \
+    && chown -R appuser:appgroup /tmp/flask_session \
+    && chmod -R 755 /tmp/flask_session
 
 # Switch to non-root user
 USER appuser

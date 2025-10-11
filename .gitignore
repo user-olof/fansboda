@@ -140,3 +140,6 @@ ssl/*.pfx
 
 # But keep the folder structure
 !ssl/.gitkeep
+
+# ignore markdown files
+*.md

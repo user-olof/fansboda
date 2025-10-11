@@ -69,7 +69,9 @@ jobs:
           --max-instances 1 \
           --project ${{ secrets.GCP_PROJECT_ID  }} \
           --service-account ${{ secrets.GCP_SVC_ACCOUNT }} \
-          --allow-unauthenticated
+          --allow-unauthenticated \
+          --set-env-vars FLASK_ENV=production \
+          --update-secrets DATABASE_URL=${{ secrets.NEON_DATABASE_URL }}:latest,SECRET_KEY=${{ secrets.SECRET_KEY }}:latest
 
     # Add this new step for database migration
     - name: Run Database Migrations
@@ -85,9 +87,12 @@ jobs:
           --image "${{ vars.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME }}:${{ github.run_number }}" \
           --region ${{ vars.GCP_REGION }} \
           --project ${{ secrets.GCP_PROJECT_ID }} \
-          --set-env-vars FLASK_APP=app.py,FLASK_ENV=development \
+          --service-account ${{ secrets.GCP_SVC_ACCOUNT }} \
+          --set-env-vars FLASK_APP=app.py,FLASK_ENV=production \
+          --set-secrets DATABASE_URL=${{ secrets.NEON_DATABASE_URL }}:latest,SECRET_KEY=${{ secrets.SECRET_KEY }}:latest \
           --command "flask" \
-          --args "db upgrade" \
+          --args "db" \
+          --args "upgrade" \
           --cpu 1 \
           --memory 512Mi \
           --max-retries 3 \

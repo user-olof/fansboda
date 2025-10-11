@@ -12,12 +12,23 @@ def get_database_uri(env_name="dev"):
     """Get database URI."""
     if env_name == "test":
         return "sqlite:///:memory:"
+    elif env_name == "prod":
+        # Use Neon serverless PostgreSQL
+        neon_database_url = os.getenv("DATABASE_URL")
+        if not neon_database_url:
+            raise ValueError(
+                "DATABASE_URL environment variable must be set for production. "
+                "Get your connection string from https://neon.tech"
+            )
+        return neon_database_url
     else:
+        # Development - use SQLite
         return f"sqlite:///{os.path.join(basedir, 'database.db')}"
 
 
 class TestConfig:
     """Test configuration."""
+
     FLASK_APP = "app.py"
     SSL_CONTEXT = ("certificates/cert.pem", "certificates/key.pem")
     SECRET_KEY = "test-secret-key"
@@ -68,8 +79,8 @@ class DevConfig:
     PERMANENT_SESSION_LIFETIME = 300
     REMEMBER_COOKIE_DURATION = 300  # 5 minutes
 
-    SESSION_TYPE = 'cachelib'
-    SESSION_SERIALIZATION_FORMAT = 'json'
+    SESSION_TYPE = "cachelib"
+    SESSION_SERIALIZATION_FORMAT = "json"
     SESSION_CACHELIB = FileSystemCache(threshold=500, cache_dir="./flask_session")
     SESSION_PERMANENT = False
     PERMANENT_SESSION_LIFETIME = timedelta(hours=24)
@@ -82,26 +93,35 @@ class ProdConfig:
     SQLALCHEMY_DATABASE_URI = get_database_uri("prod")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ECHO = False
+
+    # PostgreSQL connection pool settings for Neon
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "pool_size": 5,
+        "max_overflow": 2,
+        "pool_timeout": 30,
+        "pool_recycle": 1800,  # Recycle connections after 30 minutes
+        "pool_pre_ping": True,  # Verify connections before using
+    }
+
     DEBUG = False
     PORT = 8080
     HOST = "0.0.0.0"
     ALLOWED_EMAILS = ["olof.thornell@gmail.com"]
-    CACHE_TYPE = "redis"
-    CACHE_REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+
+    # Use SimpleCache instead of Redis (cost saving)
+    CACHE_TYPE = "SimpleCache"
+    CACHE_DEFAULT_TIMEOUT = 300
+    CACHE_NO_NULL_WARNING = True
+
+    # Use filesystem for sessions (cost saving)
+    SESSION_TYPE = "filesystem"
+    SESSION_FILE_DIR = "/tmp/flask_session"
+    SESSION_PERMANENT = False
+    PERMANENT_SESSION_LIFETIME = timedelta(hours=24)
 
     SESSION_COOKIE_SECURE = True  # ensure that cookies are only sent over HTTPS
     SESSION_COOKIE_HTTPONLY = True  # mitigate the risk of XSS attacks by ensuring that cookies cannot be easily stolen via malicious scripts
     REMEMBER_COOKIE_SECURE = True
     REMEMBER_COOKIE_DURATION = 300  # 5 minutes
 
-    # Install Redis
-    # sudo apt update
-    # sudo apt install redis-server
-
-    # # Start Redis service
-    # sudo systemctl start redis-server
-    # sudo systemctl enable redis-server
-
-    # # Verify Redis is running
-    # redis-cli ping
     WTF_CSRF_ENABLED = True
