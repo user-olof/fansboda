@@ -12,7 +12,7 @@ def get_database_uri(env_name="dev"):
     """Get database URI."""
     if env_name == "test":
         return "sqlite:///:memory:"
-    elif env_name == "prod":
+    else:  # env_name == "dev" or "prod"
         # Use Neon serverless PostgreSQL
         neon_database_url = os.getenv("DATABASE_URL")
         if not neon_database_url:
@@ -21,9 +21,6 @@ def get_database_uri(env_name="dev"):
                 "Get your connection string from https://neon.tech"
             )
         return neon_database_url
-    else:
-        # Development - use SQLite
-        return f"sqlite:///{os.path.join(basedir, 'database.db')}"
 
 
 class TestConfig:
