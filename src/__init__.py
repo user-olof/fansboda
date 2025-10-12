@@ -11,7 +11,7 @@ import flask_bcrypt
 from flask_migrate import Migrate
 from dotenv import load_dotenv
 
-
+# x
 load_dotenv()
 
 # Configure Flask to look for templates in the parent directory
