@@ -16,19 +16,6 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    # Add this new step to create .env file from GitHub secret
-    - name: Create .env file from GitHub secret
-      run: |
-        echo "${{ secrets.ENV_DEVELOPMENT }}" > .env
-        echo "✅ Created .env file from ENV_DEVELOPMENT secret"
-        # Optional: Verify the file was created (without showing sensitive content)
-        if [ -f .env ]; then
-          echo "📄 .env file created successfully"
-          echo "📊 File size: $(wc -c < .env) bytes"
-        else
-          echo "❌ Failed to create .env file"
-          exit 1
-        fi
     
     - name: Authenticate with Google Cloud
       uses: google-github-actions/auth@v1
