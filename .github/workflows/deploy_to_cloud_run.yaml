@@ -76,7 +76,7 @@ jobs:
           --project ${{ secrets.GCP_PROJECT_ID }} \
           --service-account ${{ secrets.GCP_SVC_ACCOUNT }} \
           --set-env-vars FLASK_APP=app.py,FLASK_ENV=production \
-          --set-secrets DATABASE_URL=${{ secrets.NEON_DATABASE_URL }}:latest,SECRET_KEY=${{ secrets.SECRET_KEY }}:latest \
+          --set-secrets DATABASE_URL=DATABASE_MAIN_URL:latest,SECRET_KEY=SECRET_KEY:latest \
           --command "flask" \
           --args "db" \
           --args "upgrade" \
