@@ -33,10 +33,12 @@ def get_database_uri(env_name="dev"):
     elif env_name == "prod":
         neon_database_url = os.getenv("DATABASE_PROD_URL")
         if not neon_database_url:
-            raise ValueError(
-                "DATABASE_URL environment variable must be set for production. "
-                "Get your connection string from https://neon.tech"
-            )
+            neon_database_url = _get_secret_from_gcp("DATABASE_PROD_URL")
+            if not neon_database_url:
+                raise ValueError(
+                    "DATABASE_URL environment variable must be set for production. "
+                    "Get your connection string from https://neon.tech"
+                )
         return neon_database_url
     else:
         raise ValueError(f"Invalid environment name: {env_name}")
