@@ -8,6 +8,13 @@ load_dotenv()
 basedir = os.path.abspath(os.path.dirname(__file__))
 
 
+class Config:
+    """Base configuration."""
+
+    FLASK_APP = "app.py"
+    GOOGLE_CLOUD_PROJECT = "fansboda-project"
+
+
 def get_database_uri(env_name="dev"):
     """Get database URI."""
     if env_name == "test":
@@ -16,10 +23,12 @@ def get_database_uri(env_name="dev"):
         # Use Neon serverless PostgreSQL
         neon_database_url = os.getenv("DATABASE_MAIN_URL")
         if not neon_database_url:
-            raise ValueError(
-                "DATABASE_URL environment variable must be set for development. "
-                "Get your connection string from https://neon.tech"
-            )
+            neon_database_url = _get_secret_from_gcp("DATABASE_MAIN_URL")
+            if not neon_database_url:
+                raise ValueError(
+                    "DATABASE_URL environment variable must be set for development. "
+                    "Get your connection string from https://neon.tech"
+                )
         return neon_database_url
     elif env_name == "prod":
         neon_database_url = os.getenv("DATABASE_PROD_URL")
@@ -33,10 +42,25 @@ def get_database_uri(env_name="dev"):
         raise ValueError(f"Invalid environment name: {env_name}")
 
 
-class TestConfig:
+def _get_secret_from_gcp(secret_name):
+    """Helper function to get secret from Google Cloud Secret Manager."""
+    try:
+        from google.cloud import secretmanager
+
+        # Access secret
+        client = secretmanager.SecretManagerServiceClient()
+        name = f"projects/{Config.GOOGLE_CLOUD_PROJECT}/secrets/{secret_name}/versions/latest"
+        response = client.access_secret_version(request={"name": name})
+        return response.payload.data.decode("UTF-8")
+
+    except Exception as e:
+        print(f"Warning: Could not access Secret Manager: {e}")
+        return None
+
+
+class TestConfig(Config):
     """Test configuration."""
 
-    FLASK_APP = "app.py"
     SSL_CONTEXT = ("certificates/cert.pem", "certificates/key.pem")
     SECRET_KEY = "test-secret-key"
     SQLALCHEMY_DATABASE_URI = get_database_uri("test")
@@ -68,8 +92,9 @@ class TestConfig:
     SESSION_CLEANUP_N_REQUESTS = 10
 
 
-class DevConfig:
-    FLASK_APP = "app.py"
+class DevConfig(Config):
+    """Development configuration."""
+
     SSL_CONTEXT = ("certificates/cert.pem", "certificates/key.pem")
     SECRET_KEY = os.getenv("SECRET_KEY") or "dev-secret-key"
     SQLALCHEMY_DATABASE_URI = get_database_uri("dev")
@@ -94,7 +119,9 @@ class DevConfig:
     SESSION_CLEANUP_N_REQUESTS = 100
 
 
-class ProdConfig:
+class ProdConfig(Config):
+    """Production configuration."""
+
     SSL_CONTEXT = None  # gunicorn and NGINX
     SECRET_KEY = os.getenv("SECRET_KEY")
     SQLALCHEMY_DATABASE_URI = get_database_uri("prod")
