@@ -183,7 +183,7 @@ def create_app(config_name=None):
 
     # Initialize database and prepopulate if not in test mode
     with app.app_context():
-        if env != "development":
+        if env != "test":
             prepopulate_database(app)
 
     return app
