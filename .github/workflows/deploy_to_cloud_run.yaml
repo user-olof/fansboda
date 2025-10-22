@@ -57,8 +57,7 @@ jobs:
           --project ${{ secrets.GCP_PROJECT_ID  }} \
           --service-account ${{ secrets.GCP_SVC_ACCOUNT }} \
           --allow-unauthenticated \
-          --set-env-vars FLASK_ENV=development \
-          --update-secrets DATABASE_URL=MAIN_DATABASE_URL:latest,SECRET_KEY=SECRET_KEY:latest
+          --set-env-vars FLASK_ENV=development,DATABASE_URL=${{ secrets.DATABASE_MAIN_URL }},SECRET_KEY=${{ secrets.SECRET_KEY }} \
 
     # Add this new step for database migration
     - name: Run Database Migrations
@@ -75,8 +74,7 @@ jobs:
           --region ${{ vars.GCP_REGION }} \
           --project ${{ secrets.GCP_PROJECT_ID }} \
           --service-account ${{ secrets.GCP_SVC_ACCOUNT }} \
-          --set-env-vars FLASK_APP=app.py,FLASK_ENV=development \
-          --update-secrets DATABASE_URL=DATABASE_MAIN_URL:latest,SECRET_KEY=SECRET_KEY:latest \
+          --set-env-vars FLASK_APP=app.py,FLASK_ENV=development,DATABASE_URL=${{ secrets.DATABASE_MAIN_URL }},SECRET_KEY=${{ secrets.SECRET_KEY }} \
           --command "flask" \
           --args "db" \
           --args "upgrade" \
