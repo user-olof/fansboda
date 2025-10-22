@@ -119,7 +119,9 @@ class DevConfig(Config):
     SESSION_PERMANENT = False
     PERMANENT_SESSION_LIFETIME = timedelta(hours=24)
     SESSION_CLEANUP_N_REQUESTS = 100
-
+    SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_HTTPONLY = True
+    
 
 class ProdConfig(Config):
     """Production configuration."""
