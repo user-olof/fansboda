@@ -35,22 +35,25 @@ def get_environment():
     """
     # Check if we're running tests
     is_testing = (
-        # Check if pytest is in the command line arguments
         any("pytest" in arg for arg in sys.argv)
-        or
-        # Check if pytest module is loaded
-        "pytest" in sys.modules
-        or
-        # Check if we're running from a test directory
-        any("test" in path for path in sys.path if os.path.exists(path))
-        or
-        # Check if FLASK_ENV is explicitly set to test
-        os.environ.get("FLASK_ENV") == "test"
+        or "pytest" in sys.modules
+        or any("test" in path for path in sys.path if os.path.exists(path))
+        or os.environ.get("FLASK_ENV") == "test"
+    )
+
+    # Check if we're in production
+    is_production = (
+        os.environ.get("FLASK_ENV") == "production"
+        or os.environ.get("ENVIRONMENT") == "production"
+        or os.environ.get("ENV") == "production"
     )
 
     if is_testing:
         print("Using TestConfig")
         return "test"
+    elif is_production:
+        print("Using ProdConfig")
+        return "production"
     else:
         print("Using DevConfig")
         return "development"
@@ -82,89 +85,96 @@ def create_app(config_name=None):
     migrate.init_app(app, db)
 
     # Configure Flask-Talisman with CSP
-    if app.env == "production":
-        # Production CSP - strict security
-        talisman = Talisman(
-            app,
-            force_https=True,
-            strict_transport_security=True,
-            strict_transport_security_max_age=31536000,
-            content_security_policy={
-                "default-src": "'self'",
-                "script-src": [
-                    "'self'",
-                    "'unsafe-inline'",  # Needed for inline scripts
-                    "https://cdn.jsdelivr.net",  # Bootstrap JS
-                    "https://code.jquery.com",  # jQuery
-                ],
-                "style-src": [
-                    "'self'",
-                    "'unsafe-inline'",  # Needed for inline styles
-                    "https://cdn.jsdelivr.net",  # Bootstrap CSS
-                    "https://fonts.googleapis.com",  # Google Fonts
-                ],
-                "font-src": [
-                    "'self'",
-                    "https://cdn.jsdelivr.net",  # Bootstrap Icons
-                    "https://fonts.gstatic.com",  # Google Fonts
-                ],
-                "img-src": [
-                    "'self'",
-                    "data:",  # Data URLs for images
-                    "https:",  # HTTPS images
-                ],
-                "connect-src": [
-                    "'self'",
-                ],
-                "frame-ancestors": "'none'",
-                "base-uri": "'self'",
-                "form-action": "'self'",
-                "object-src": "'none'",
-                "media-src": "'self'",
-                "worker-src": "'self'",
-                "manifest-src": "'self'",
-            },
-            content_security_policy_nonce_in=["script-src", "style-src"],
-            referrer_policy="strict-origin-when-cross-origin",
-        )
-    else:
-        # Development CSP - more permissive for debugging
-        talisman = Talisman(
-            app,
-            force_https=False,  # Allow HTTP in development
-            content_security_policy={
-                "default-src": "'self'",
-                "script-src": [
-                    "'self'",
-                    "'unsafe-inline'",
-                    "'unsafe-eval'",  # Allow eval for development
-                    "https://cdn.jsdelivr.net",
-                    "https://code.jquery.com",
-                ],
-                "style-src": [
-                    "'self'",
-                    "'unsafe-inline'",
-                    "https://cdn.jsdelivr.net",
-                    "https://fonts.googleapis.com",
-                ],
-                "font-src": [
-                    "'self'",
-                    "https://cdn.jsdelivr.net",
-                    "https://fonts.gstatic.com",
-                ],
-                "img-src": [
-                    "'self'",
-                    "data:",
-                    "https:",
-                ],
-                "connect-src": [
-                    "'self'",
-                ],
-                "frame-ancestors": "'none'",
-                "base-uri": "'self'",
-                "form-action": "'self'",
-            },
-        )
+    if app.env in ["production", "development"]:
+        # Development CSP - slightly more permissive
+        if app.env == "development":
+            talisman = Talisman(
+                app,
+                force_https=False,  # Allow HTTP in development
+                strict_transport_security=False,  # No HSTS in development
+                content_security_policy={
+                    "default-src": "'self'",
+                    "script-src": [
+                        "'self'",
+                        "'unsafe-inline'",  # Needed for inline scripts
+                        "https://cdn.jsdelivr.net",
+                        "https://code.jquery.com",
+                    ],
+                    "style-src": [
+                        "'self'",
+                        "'unsafe-inline'",  # Needed for inline styles
+                        "https://cdn.jsdelivr.net",
+                        "https://fonts.googleapis.com",
+                    ],
+                    "font-src": [
+                        "'self'",
+                        "https://cdn.jsdelivr.net",
+                        "https://fonts.gstatic.com",
+                    ],
+                    "img-src": [
+                        "'self'",
+                        "data:",
+                        "https:",
+                    ],
+                    "connect-src": [
+                        "'self'",
+                    ],
+                    "frame-ancestors": "'none'",
+                    "base-uri": "'self'",
+                    "form-action": "'self'",
+                    "object-src": "'none'",
+                    "media-src": "'self'",
+                    "worker-src": "'self'",
+                    "manifest-src": "'self'",
+                },
+                content_security_policy_nonce_in=["script-src", "style-src"],
+                referrer_policy="strict-origin-when-cross-origin",
+            )
+        else:
+            # Production CSP - strict security
+            talisman = Talisman(
+                app,
+                force_https=True,
+                strict_transport_security=True,
+                strict_transport_security_max_age=31536000,
+                content_security_policy={
+                    "default-src": "'self'",
+                    "script-src": [
+                        "'self'",
+                        "'unsafe-inline'",
+                        "https://cdn.jsdelivr.net",
+                        "https://code.jquery.com",
+                    ],
+                    "style-src": [
+                        "'self'",
+                        "'unsafe-inline'",
+                        "https://cdn.jsdelivr.net",
+                        "https://fonts.googleapis.com",
+                    ],
+                    "font-src": [
+                        "'self'",
+                        "https://cdn.jsdelivr.net",
+                        "https://fonts.gstatic.com",
+                    ],
+                    "img-src": [
+                        "'self'",
+                        "data:",
+                        "https:",
+                    ],
+                    "connect-src": [
+                        "'self'",
+                    ],
+                    "frame-ancestors": "'none'",
+                    "base-uri": "'self'",
+                    "form-action": "'self'",
+                    "object-src": "'none'",
+                    "media-src": "'self'",
+                    "worker-src": "'self'",
+                    "manifest-src": "'self'",
+                },
+                content_security_policy_nonce_in=["script-src", "style-src"],
+                referrer_policy="strict-origin-when-cross-origin",
+            )
 
     # Import and register blueprints
     from src.routes.home import home_bp
