@@ -58,6 +58,7 @@ jobs:
           --service-account ${{ secrets.GCP_SVC_ACCOUNT }} \
           --allow-unauthenticated \
           --set-env-vars FLASK_ENV=development,DATABASE_URL=${{ secrets.DATABASE_MAIN_URL }},SECRET_KEY=${{ secrets.SECRET_KEY }} \
+          --replace 
 
     # Add this new step for database migration
     - name: Run Database Migrations
@@ -75,6 +76,7 @@ jobs:
           --project ${{ secrets.GCP_PROJECT_ID }} \
           --service-account ${{ secrets.GCP_SVC_ACCOUNT }} \
           --set-env-vars FLASK_APP=app.py,FLASK_ENV=development,DATABASE_URL=${{ secrets.DATABASE_MAIN_URL }},SECRET_KEY=${{ secrets.SECRET_KEY }} \
+          --replace \
           --command "flask" \
           --args "db" \
           --args "upgrade" \
