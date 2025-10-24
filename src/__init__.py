@@ -30,6 +30,11 @@ cache = Cache()
 migrate = Migrate()
 
 
+def get_allowed_emails():
+    """Get allowed emails from environment variable."""
+    return os.environ.get("ALLOWED_EMAILS", "").split(",")
+
+
 def get_environment():
     """
     Determine which configuration to use based on various indicators.

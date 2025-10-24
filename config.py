@@ -144,7 +144,7 @@ class ProdConfig(Config):
     DEBUG = False
     PORT = 8080
     HOST = "0.0.0.0"
-    ALLOWED_EMAILS = ["olof.thornell@gmail.com"]
+    
 
     # Use SimpleCache instead of Redis (cost saving)
     CACHE_TYPE = "SimpleCache"
