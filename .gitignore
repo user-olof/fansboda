@@ -143,3 +143,11 @@ ssl/*.pfx
 
 # ignore markdown files
 *.md
+
+# zap session files
+*session
+*session.data
+*session.lck
+*session.log
+*session.properties
+*session.script

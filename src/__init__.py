@@ -152,8 +152,7 @@ def create_app(config_name=None):
             talisman = Talisman(
                 app,
                 force_https=True,
-                strict_transport_security=True,
-                strict_transport_security_max_age=31536000,
+                strict_transport_security=False,
                 content_security_policy={
                     "default-src": "'self'",
                     "script-src": [
