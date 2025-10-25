@@ -106,7 +106,7 @@ class DevConfig(Config):
     PORT = 5000
     HOST = "localhost"
 
-    ALLOWED_EMAILS = os.getenv("ALLOWED_EMAILS", "").split(",")
+    ALLOWED_EMAILS = os.getenv("ALLOWED_EMAILS", "").split(";")
 
     CACHE_TYPE = "SimpleCache"
     CACHE_DEFAULT_TIMEOUT = 300
@@ -146,6 +146,8 @@ class ProdConfig(Config):
     DEBUG = False
     PORT = 8080
     HOST = "0.0.0.0"
+
+    ALLOWED_EMAILS = os.getenv("ALLOWED_EMAILS", "").split(";")
 
     # Use SimpleCache instead of Redis (cost saving)
     CACHE_TYPE = "SimpleCache"
