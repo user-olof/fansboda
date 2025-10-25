@@ -238,7 +238,7 @@ def configure_talisman(app: Flask):
                     "img-src": [
                         "'self'",
                         "data:",
-                        "https:",
+                        # "https:", # This is not needed as we are using HTTP in development
                     ],
                     "connect-src": [
                         "'self'",
@@ -285,7 +285,7 @@ def configure_talisman(app: Flask):
                     "img-src": [
                         "'self'",
                         "data:",
-                        "https:",
+                        # "https:",
                     ],
                     "connect-src": [
                         "'self'",
