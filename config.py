@@ -97,7 +97,7 @@ class TestConfig(Config):
 class DevConfig(Config):
     """Development configuration."""
 
-    SSL_CONTEXT = ("certificates/cert.pem", "certificates/key.pem")
+    # SSL_CONTEXT = ("certificates/cert.pem", "certificates/key.pem")
     SECRET_KEY = os.getenv("SECRET_KEY") or "dev-secret-key"
     SQLALCHEMY_DATABASE_URI = get_database_uri("dev")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
