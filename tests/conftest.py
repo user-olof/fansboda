@@ -23,13 +23,13 @@ def app():
     """Create application for testing."""
     app = create_app("test")
 
-    # Configure cache for testing
-    app.config["CACHE_TYPE"] = "NullCache"
-    app.config["CACHE_DEFAULT_TIMEOUT"] = 0
-    app.config["CACHE_NO_NULL_WARNING"] = True
+    # # Configure cache for testing
+    # app.config["CACHE_TYPE"] = "NullCache"
+    # app.config["CACHE_DEFAULT_TIMEOUT"] = 0
+    # app.config["CACHE_NO_NULL_WARNING"] = True
 
-    # Reinitialize cache with test config
-    cache.init_app(app)
+    # # Reinitialize cache with test config
+    # cache.init_app(app)
 
     return app
 
@@ -145,16 +145,13 @@ class AuthActions:
 @pytest.fixture(autouse=True)
 def clear_sessions(app):
     """Clear all sessions and caches before each test."""
-    with app.app_context():
+    ''' This is not needed as we are using NullCache for testing '''
+    # with app.app_context():
 
-        # Clear any other caches
-        if hasattr(app, "cache"):
-            app.cache.clear()
+    # # Clear any other caches
+    # if hasattr(app, "cache"):
+    #     app.cache.clear()
 
     yield
 
-    with app.app_context():
 
-        # Clear any other caches
-        if hasattr(app, "cache"):
-            app.cache.clear()
