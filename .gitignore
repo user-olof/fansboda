@@ -151,3 +151,4 @@ ssl/*.pfx
 *session.log
 *session.properties
 *session.script
+/*session.tmp/*
