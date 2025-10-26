@@ -152,3 +152,4 @@ ssl/*.pfx
 *session.properties
 *session.script
 /*session.tmp/*
+zap_scans/

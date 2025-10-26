@@ -267,13 +267,11 @@ def configure_talisman(app: Flask):
                     "default-src": "'self'",
                     "script-src": [
                         "'self'",
-                        "'unsafe-inline'",
                         "https://cdn.jsdelivr.net",
                         "https://code.jquery.com",
                     ],
                     "style-src": [
                         "'self'",
-                        "'unsafe-inline'",
                         "https://cdn.jsdelivr.net",
                         "https://fonts.googleapis.com",
                     ],
