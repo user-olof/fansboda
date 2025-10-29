@@ -3,7 +3,7 @@ name: 4. Prepopulate Production Database
 run-name: ${{ github.actor }} is prepopulating the production database  🚀
 on: 
   workflow_run:
-      workflows: ["3. Deploy to Cloud Run"] # Run the deploy after successful Build and Test
+      workflows: ["3. Deploy Production to Cloud Run"] # Run the deploy after successful Build and Test
       types:
         - completed     
 
@@ -37,7 +37,7 @@ jobs:
           "https://api.github.com/repos/${{ github.repository }}/actions/runs/$WORKFLOW_RUN_ID/jobs")
         
         # Extract the image_uri from the job outputs
-        IMAGE_URI=$(echo "$RESPONSE" | jq -r '.jobs[] | select(.name == "deploy_to_cloud_run") | .steps[] | select(.name == "Build and Push Docker image") | .outputs.image_uri // empty')
+        IMAGE_URI=$(echo "$RESPONSE" | jq -r '.jobs[] | select(.name == "deploy_production_to_cloud_run") | .steps[] | select(.name == "Build and Push Docker image") | .outputs.image_uri // empty')
         
         # Fallback: construct the IMAGE_URI if not found in outputs
         if [ -z "$IMAGE_URI" ] || [ "$IMAGE_URI" = "null" ]; then
@@ -54,9 +54,9 @@ jobs:
           --region ${{ vars.GCP_REGION }} \
           --project ${{ secrets.GCP_PROJECT_ID }} \
           --service-account ${{ secrets.GCP_SVC_ACCOUNT }} \
-          --set-env-vars FLASK_APP=app.py,FLASK_ENV=development,DATABASE_URL=DATABASE_MAIN_URL:latest,SECRET_KEY=SECRET_KEY:latest   \
+          --set-env-vars FLASK_APP=app.py,FLASK_ENV=production,DATABASE_URL=DATABASE_PROD_URL:latest,SECRET_KEY=SECRET_KEY:latest   \
           --command "python" \
-          --args "scripts/prepopulate_development.py" \
+          --args "scripts/prepopulate_production.py" \
           --cpu 1 \
           --memory 512Mi \
           --max-retries 3 \

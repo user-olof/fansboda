@@ -1,4 +1,4 @@
-name: 3. Deploy to Cloud Run
+name: 3. Deploy Production to Cloud Run
 run-name: ${{ github.actor }} is deploying to Cloud Run  🚀
 on: 
   workflow_run:
@@ -57,9 +57,9 @@ jobs:
           --project ${{ secrets.GCP_PROJECT_ID  }} \
           --service-account ${{ secrets.GCP_SVC_ACCOUNT }} \
           --allow-unauthenticated \
-          --set-env-vars FLASK_ENV=development,HSTS_MAX_AGE=31536000 \
+          --set-env-vars FLASK_ENV=production,HSTS_MAX_AGE=31536000 \
           --set-env-vars ALLOWED_EMAILS="${{ secrets.ALLOWED_EMAILS }}" \
-          --update-secrets DATABASE_URL=DATABASE_MAIN_URL:latest,SECRET_KEY=SECRET_KEY:latest \
+          --update-secrets DATABASE_URL=DATABASE_PROD_URL:latest,SECRET_KEY=SECRET_KEY:latest \
           
 
 
@@ -78,7 +78,7 @@ jobs:
           --region ${{ vars.GCP_REGION }} \
           --project ${{ secrets.GCP_PROJECT_ID }} \
           --service-account ${{ secrets.GCP_SVC_ACCOUNT }} \
-          --set-env-vars FLASK_APP=app.py,FLASK_ENV=development,DATABASE_URL=DATABASE_MAIN_URL:latest,SECRET_KEY=SECRET_KEY:latest \
+          --set-env-vars FLASK_APP=app.py,FLASK_ENV=production,DATABASE_URL=DATABASE_PROD_URL:latest,SECRET_KEY=SECRET_KEY:latest \
           --command "flask" \
           --args "db" \
           --args "upgrade" \

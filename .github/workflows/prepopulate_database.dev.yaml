@@ -1,0 +1,74 @@
+# In .github/workflows/deploy_to_cloud_run.yaml
+name: 4. Prepopulate Dev Database
+run-name: ${{ github.actor }} is prepopulating the production database  🚀
+on: 
+  workflow_run:
+      workflows: ["3. Deploy Dev to Cloud Run"] # Run the deploy after successful Build and Test
+      types:
+        - completed     
+
+jobs:
+  prepopulate_database:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Authenticate with Google Cloud
+      uses: google-github-actions/auth@v1
+      with:
+        credentials_json: "${{ secrets.GCP_SVC_ACCOUNT_CREDS }}"
+
+    - name: Set up Google Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+    - name: Get IMAGE_URI from previous workflow
+      id: get_image_uri
+      run: |
+        # Get the workflow run ID from the triggering event
+        WORKFLOW_RUN_ID="${{ github.event.workflow_run.id }}"
+        
+        # Fetch the workflow run details to get the outputs
+        RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          -H "Accept: application/vnd.github.v3+json" \
+          "https://api.github.com/repos/${{ github.repository }}/actions/runs/$WORKFLOW_RUN_ID/jobs")
+        
+        # Extract the image_uri from the job outputs
+        IMAGE_URI=$(echo "$RESPONSE" | jq -r '.jobs[] | select(.name == "deploy_dev_to_cloud_run") | .steps[] | select(.name == "Build and Push Docker image") | .outputs.image_uri // empty')
+        
+        # Fallback: construct the IMAGE_URI if not found in outputs
+        if [ -z "$IMAGE_URI" ] || [ "$IMAGE_URI" = "null" ]; then
+          IMAGE_URI="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME }}:${{ github.event.workflow_run.run_number }}"
+        fi
+        
+        echo "image_uri=$IMAGE_URI" >> $GITHUB_OUTPUT
+        echo "Using IMAGE_URI: $IMAGE_URI"
+
+    - name: Prepopulate Production Database
+      run: |
+        gcloud run jobs create prepopulate-db-${{ github.run_number }} \
+          --image "${{ steps.get_image_uri.outputs.image_uri }}" \
+          --region ${{ vars.GCP_REGION }} \
+          --project ${{ secrets.GCP_PROJECT_ID }} \
+          --service-account ${{ secrets.GCP_SVC_ACCOUNT }} \
+          --set-env-vars FLASK_APP=app.py,FLASK_ENV=development,DATABASE_URL=DATABASE_MAIN_URL:latest,SECRET_KEY=SECRET_KEY:latest   \
+          --command "python" \
+          --args "scripts/prepopulate_development.py" \
+          --cpu 1 \
+          --memory 512Mi \
+          --max-retries 3 \
+          --parallelism 1 \
+          --tasks 1
+
+        gcloud run jobs execute prepopulate-db-${{ github.run_number }} \
+          --region ${{ vars.GCP_REGION }} \
+          --project ${{ secrets.GCP_PROJECT_ID }} \
+          --wait
+
+        gcloud run jobs delete prepopulate-db-${{ github.run_number }} \
+          --region ${{ vars.GCP_REGION }} \
+          --project ${{ secrets.GCP_PROJECT_ID }} \
+          --quiet

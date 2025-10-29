@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Dev database prepopulation script."""
+"""Production database prepopulation script."""
 import os
 import sys
 from pathlib import Path
@@ -44,12 +44,12 @@ def prepopulate_database(app):
 
 def main():
     """Run prepopulation."""
-    app = create_app("development")
+    app = create_app("production")
 
     with app.app_context():
-        print("Starting development database prepopulation...")
+        print("Starting production database prepopulation...")
         prepopulate_database(app)
-        print("Development database prepopulation completed!")
+        print("Production database prepopulation completed!")
 
 
 if __name__ == "__main__":

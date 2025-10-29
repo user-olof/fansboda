@@ -128,7 +128,7 @@ class DevConfig(Config):
 class ProdConfig(Config):
     """Production configuration."""
 
-    SSL_CONTEXT = None  # gunicorn and NGINX
+    # SSL_CONTEXT = None  # gunicorn and NGINX
     SECRET_KEY = os.getenv("SECRET_KEY")
     SQLALCHEMY_DATABASE_URI = get_database_uri("prod")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
@@ -153,11 +153,13 @@ class ProdConfig(Config):
     CACHE_TYPE = "SimpleCache"
     CACHE_DEFAULT_TIMEOUT = 300
     CACHE_NO_NULL_WARNING = True
+    WTF_CSRF_ENABLED = True
+    PERMANENT_SESSION_LIFETIME = 300
+    REMEMBER_COOKIE_DURATION = 300  # 5 minutes
 
     # Use filesystem for sessions (cost saving)
-    SESSION_TYPE = "filesystem"
-    SESSION_FILE_DIR = "/tmp/flask_session"
-    SESSION_PERMANENT = False
+    SESSION_TYPE = "cookie"
+    SESSION_PERMANENT = True
     PERMANENT_SESSION_LIFETIME = timedelta(hours=2)
 
     SESSION_COOKIE_SECURE = True  # ensure that cookies are only sent over HTTPS
@@ -168,4 +170,4 @@ class ProdConfig(Config):
     REMEMBER_COOKIE_SECURE = True
     REMEMBER_COOKIE_DURATION = 300  # 5 minutes
 
-    WTF_CSRF_ENABLED = True
+    

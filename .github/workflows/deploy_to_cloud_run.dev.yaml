@@ -1,0 +1,108 @@
+name: 3. Deploy Dev to Cloud Run
+run-name: ${{ github.actor }} is deploying to Cloud Run  🚀
+on: 
+  workflow_run:
+      workflows: ["2. Build and Test"] # Run the deploy after successful Build and Test
+      types:
+        - completed     
+
+jobs:
+  deploy_to_cloud_run:
+    runs-on: ubuntu-latest
+    outputs:
+      image_uri: ${{ steps.build.outputs.image_uri }}
+      image_tag: ${{ steps.build.outputs.image_tag }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    
+    - name: Authenticate with Google Cloud
+      uses: google-github-actions/auth@v1
+      with:
+        credentials_json: "${{ secrets.GCP_SVC_ACCOUNT_CREDS }}"
+      
+    - name: Set up Google Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        project_id: ${{ secrets.GCP_PROJECT_ID }}
+      
+    - name: Set up gcloud beta
+      run: gcloud components install beta
+
+    - name: Configure Docker to use gcloud as a credential helper
+      run: |
+        gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev
+
+    - name: Build and Push Docker image
+      run: |
+        IMAGE_URI="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME }}:${{ github.run_number }}"
+        docker build -t "$IMAGE_URI" .
+        docker push "$IMAGE_URI"
+
+        # Set outputs
+        echo "image_uri=$IMAGE_URI" >> $GITHUB_OUTPUT
+        echo "image_tag=${{ github.run_number }}" >> $GITHUB_OUTPUT
+    
+    - name: Deploy to Cloud Run
+      run: |
+        gcloud beta run deploy ${{ vars.GCP_IMAGE_NAME }}  \
+          --image "${{ vars.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME }}:${{ github.run_number }}" \
+          --platform managed \
+          --region ${{ vars.GCP_REGION }} \
+          --port 8080 \
+          --memory 512Mi \
+          --cpu 1 \
+          --max-instances 1 \
+          --project ${{ secrets.GCP_PROJECT_ID  }} \
+          --service-account ${{ secrets.GCP_SVC_ACCOUNT }} \
+          --allow-unauthenticated \
+          --set-env-vars FLASK_ENV=development,HSTS_MAX_AGE=31536000 \
+          --set-env-vars ALLOWED_EMAILS="${{ secrets.ALLOWED_EMAILS }}" \
+          --update-secrets DATABASE_URL=DATABASE_MAIN_URL:latest,SECRET_KEY=SECRET_KEY:latest \
+          
+
+
+    # Add this new step for database migration
+    - name: Run Database Migrations
+      run: |
+        # Get the service URL
+        SERVICE_URL=$(gcloud run services describe ${{ vars.GCP_SERVICE_NAME }} \
+          --region ${{ vars.GCP_REGION }} \
+          --project ${{ secrets.GCP_PROJECT_ID }} \
+          --format 'value(status.url)')
+        
+        # Run migration using Cloud Run Jobs (recommended) or direct container execution
+        gcloud run jobs create migrate-db-${{ github.run_number }} \
+          --image "${{ vars.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME }}:${{ github.run_number }}" \
+          --region ${{ vars.GCP_REGION }} \
+          --project ${{ secrets.GCP_PROJECT_ID }} \
+          --service-account ${{ secrets.GCP_SVC_ACCOUNT }} \
+          --set-env-vars FLASK_APP=app.py,FLASK_ENV=development,DATABASE_URL=DATABASE_MAIN_URL:latest,SECRET_KEY=SECRET_KEY:latest \
+          --command "flask" \
+          --args "db" \
+          --args "upgrade" \
+          --cpu 1 \
+          --memory 512Mi \
+          --max-retries 3 \
+          --parallelism 1 \
+          --tasks 1 
+          
+        
+        # Execute the migration job
+        gcloud run jobs execute migrate-db-${{ github.run_number }} \
+          --region ${{ vars.GCP_REGION }} \
+          --project ${{ secrets.GCP_PROJECT_ID }} \
+          --wait 
+        
+        # Clean up the migration job
+        gcloud run jobs delete migrate-db-${{ github.run_number }} \
+          --region ${{ vars.GCP_REGION }} \
+          --project ${{ secrets.GCP_PROJECT_ID }} \
+          --quiet 
+ 
+    - name: Assign custom service account to Cloud Run service
+      run: |
+        gcloud run services update ${{ vars.GCP_SERVICE_NAME }} \
+        --region ${{ vars.GCP_REGION }} \
+        --service-account ${{ secrets.GCP_SVC_ACCOUNT }}      
