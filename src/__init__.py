@@ -121,9 +121,10 @@ def create_app(config_name=None):
     register_login_manager(login_manager, cache, db)
 
     # Initialize database and prepopulate if not in test mode
-    with app.app_context():
-        if env != "test":
-            prepopulate_database(app)
+    # SHOULD NOT BE DONE IN PRODUCTION!!!!!
+    # with app.app_context():
+    #     if env != "test":
+    #         prepopulate_database(app)
 
     return app
 

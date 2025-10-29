@@ -10,7 +10,7 @@ def dev_only(f):
         if not current_app.config.get("DEBUG", False):
             abort(404)  # Return 404 in production
         return f(*args, **kwargs)
-
+git 
     return decorated_function
 
 

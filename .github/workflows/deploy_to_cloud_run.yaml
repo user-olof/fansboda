@@ -57,10 +57,10 @@ jobs:
           --project ${{ secrets.GCP_PROJECT_ID  }} \
           --service-account ${{ secrets.GCP_SVC_ACCOUNT }} \
           --allow-unauthenticated \
-          --set-env-vars FLASK_ENV=development \
+          --set-env-vars FLASK_ENV=development,HSTS_MAX_AGE=31536000 \
           --set-env-vars ALLOWED_EMAILS="${{ secrets.ALLOWED_EMAILS }}" \
           --update-secrets DATABASE_URL=DATABASE_MAIN_URL:latest,SECRET_KEY=SECRET_KEY:latest \
-          --set-env-vars="HSTS_MAX_AGE=31536000"
+          
 
 
     # Add this new step for database migration

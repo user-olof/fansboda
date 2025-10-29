@@ -158,10 +158,13 @@ class ProdConfig(Config):
     SESSION_TYPE = "filesystem"
     SESSION_FILE_DIR = "/tmp/flask_session"
     SESSION_PERMANENT = False
-    PERMANENT_SESSION_LIFETIME = timedelta(hours=24)
+    PERMANENT_SESSION_LIFETIME = timedelta(hours=2)
 
     SESSION_COOKIE_SECURE = True  # ensure that cookies are only sent over HTTPS
     SESSION_COOKIE_HTTPONLY = True  # mitigate the risk of XSS attacks by ensuring that cookies cannot be easily stolen via malicious scripts
+    SESSION_COOKIE_SAMESITE = "Lax"  # Add this!
+    SESSION_COOKIE_PATH = "/"  # Explicit path
+    SESSION_COOKIE_DOMAIN = None  # Don't share across subdomains unless needed
     REMEMBER_COOKIE_SECURE = True
     REMEMBER_COOKIE_DURATION = 300  # 5 minutes
 
