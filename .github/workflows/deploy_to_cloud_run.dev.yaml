@@ -10,8 +10,8 @@ jobs:
   deploy_to_cloud_run:
     runs-on: ubuntu-latest
     outputs:
-      image_uri: ${{ steps.build.outputs.image_uri }}
-      image_tag: ${{ steps.build.outputs.image_tag }}
+      image_uri_dev: ${{ steps.build.outputs.image_uri_dev }}
+      
 
     steps:
     - uses: actions/checkout@v4
@@ -36,18 +36,18 @@ jobs:
 
     - name: Build and Push Docker image
       run: |
-        IMAGE_URI="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME }}:${{ github.run_number }}"
-        docker build -t "$IMAGE_URI" .
-        docker push "$IMAGE_URI"
+        IMAGE_URI_DEV="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME_DEV }}:${{ github.run_number }}"
+        docker build -t "$IMAGE_URI_DEV" .
+        docker push "$IMAGE_URI_DEV"
 
         # Set outputs
-        echo "image_uri=$IMAGE_URI" >> $GITHUB_OUTPUT
-        echo "image_tag=${{ github.run_number }}" >> $GITHUB_OUTPUT
+        echo "image_uri_dev=$IMAGE_URI_DEV" >> $GITHUB_OUTPUT
+        
     
     - name: Deploy to Cloud Run
       run: |
-        gcloud beta run deploy ${{ vars.GCP_IMAGE_NAME }}  \
-          --image "${{ vars.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME }}:${{ github.run_number }}" \
+        gcloud beta run deploy ${{ vars.GCP_IMAGE_NAME_DEV }}  \
+          --image "${{ vars.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME_DEV }}:${{ github.run_number }}" \
           --platform managed \
           --region ${{ vars.GCP_REGION }} \
           --port 8080 \
@@ -67,14 +67,14 @@ jobs:
     - name: Run Database Migrations
       run: |
         # Get the service URL
-        SERVICE_URL=$(gcloud run services describe ${{ vars.GCP_SERVICE_NAME }} \
+        SERVICE_URL=$(gcloud run services describe ${{ vars.GCP_SERVICE_NAME_DEV }} \
           --region ${{ vars.GCP_REGION }} \
           --project ${{ secrets.GCP_PROJECT_ID }} \
           --format 'value(status.url)')
         
         # Run migration using Cloud Run Jobs (recommended) or direct container execution
-        gcloud run jobs create migrate-db-${{ github.run_number }} \
-          --image "${{ vars.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME }}:${{ github.run_number }}" \
+        gcloud run jobs create migrate-db-dev-${{ github.run_number }} \
+          --image "${{ vars.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME_DEV }}:${{ github.run_number }}" \
           --region ${{ vars.GCP_REGION }} \
           --project ${{ secrets.GCP_PROJECT_ID }} \
           --service-account ${{ secrets.GCP_SVC_ACCOUNT }} \
@@ -90,19 +90,19 @@ jobs:
           
         
         # Execute the migration job
-        gcloud run jobs execute migrate-db-${{ github.run_number }} \
+        gcloud run jobs execute migrate-db-dev-${{ github.run_number }} \
           --region ${{ vars.GCP_REGION }} \
           --project ${{ secrets.GCP_PROJECT_ID }} \
           --wait 
         
         # Clean up the migration job
-        gcloud run jobs delete migrate-db-${{ github.run_number }} \
+        gcloud run jobs delete migrate-db-dev-${{ github.run_number }} \
           --region ${{ vars.GCP_REGION }} \
           --project ${{ secrets.GCP_PROJECT_ID }} \
           --quiet 
  
     - name: Assign custom service account to Cloud Run service
       run: |
-        gcloud run services update ${{ vars.GCP_SERVICE_NAME }} \
+        gcloud run services update ${{ vars.GCP_SERVICE_NAME_DEV }} \
         --region ${{ vars.GCP_REGION }} \
         --service-account ${{ secrets.GCP_SVC_ACCOUNT }}      

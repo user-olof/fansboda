@@ -37,11 +37,11 @@ jobs:
           "https://api.github.com/repos/${{ github.repository }}/actions/runs/$WORKFLOW_RUN_ID/jobs")
         
         # Extract the image_uri from the job outputs
-        IMAGE_URI=$(echo "$RESPONSE" | jq -r '.jobs[] | select(.name == "deploy_production_to_cloud_run") | .steps[] | select(.name == "Build and Push Docker image") | .outputs.image_uri // empty')
+        IMAGE_URI=$(echo "$RESPONSE" | jq -r '.jobs[] | select(.name == "deploy_production_to_cloud_run") | .steps[] | select(.name == "Build and Push Docker image") | .outputs.image_uri_prod // empty')
         
         # Fallback: construct the IMAGE_URI if not found in outputs
         if [ -z "$IMAGE_URI" ] || [ "$IMAGE_URI" = "null" ]; then
-          IMAGE_URI="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME }}:${{ github.event.workflow_run.run_number }}"
+          IMAGE_URI="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME_PROD }}:${{ github.event.workflow_run.run_number }}"
         fi
         
         echo "image_uri=$IMAGE_URI" >> $GITHUB_OUTPUT
@@ -49,7 +49,7 @@ jobs:
 
     - name: Prepopulate Production Database
       run: |
-        gcloud run jobs create prepopulate-db-${{ github.run_number }} \
+        gcloud run jobs create prepopulate-db-prod-${{ github.run_number }} \
           --image "${{ steps.get_image_uri.outputs.image_uri }}" \
           --region ${{ vars.GCP_REGION }} \
           --project ${{ secrets.GCP_PROJECT_ID }} \
@@ -63,12 +63,12 @@ jobs:
           --parallelism 1 \
           --tasks 1
 
-        gcloud run jobs execute prepopulate-db-${{ github.run_number }} \
+        gcloud run jobs execute prepopulate-db-prod-${{ github.run_number }} \
           --region ${{ vars.GCP_REGION }} \
           --project ${{ secrets.GCP_PROJECT_ID }} \
           --wait
 
-        gcloud run jobs delete prepopulate-db-${{ github.run_number }} \
+        gcloud run jobs delete prepopulate-db-prod-${{ github.run_number }} \
           --region ${{ vars.GCP_REGION }} \
           --project ${{ secrets.GCP_PROJECT_ID }} \
           --quiet
