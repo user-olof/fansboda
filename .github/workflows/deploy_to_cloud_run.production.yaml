@@ -1,4 +1,4 @@
-name: 3. Deploy Production to Cloud Run
+name: 3b. Deploy Production to Cloud Run
 run-name: ${{ github.actor }} is deploying to Cloud Run  🚀
 on: 
   workflow_run:
@@ -20,12 +20,12 @@ jobs:
     - name: Authenticate with Google Cloud
       uses: google-github-actions/auth@v1
       with:
-        credentials_json: "${{ secrets.GCP_SVC_ACCOUNT_CREDS }}"
+        credentials_json: "${{ secrets.GCP_SVC_ACCOUNT_KEY }}"
       
     - name: Set up Google Cloud SDK
       uses: google-github-actions/setup-gcloud@v1
       with:
-        project_id: ${{ secrets.GCP_PROJECT_ID }}
+        project_id: ${{ vars.GCP_PROJECT_ID }}
       
     - name: Set up gcloud beta
       run: gcloud components install beta
@@ -36,7 +36,7 @@ jobs:
 
     - name: Build and Push Docker image
       run: |
-        IMAGE_URI_PROD="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME_PROD }}:${{ github.run_number }}"
+        IMAGE_URI_PROD="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME }}:${{ github.run_number }}"
         docker build -t "$IMAGE_URI_PROD" .
         docker push "$IMAGE_URI_PROD"
 
@@ -45,20 +45,20 @@ jobs:
     
     - name: Deploy to Cloud Run
       run: |
-        gcloud beta run deploy ${{ vars.GCP_IMAGE_NAME_PROD }}  \
-          --image "${{ vars.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME_PROD }}:${{ github.run_number }}" \
+        gcloud beta run deploy ${{ vars.GCP_IMAGE_NAME }}  \
+          --image "${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME }}:${{ github.run_number }}" \
           --platform managed \
           --region ${{ vars.GCP_REGION }} \
           --port 8080 \
           --memory 512Mi \
           --cpu 1 \
           --max-instances 1 \
-          --project ${{ secrets.GCP_PROJECT_ID  }} \
+          --project ${{ vars.GCP_PROJECT_ID  }} \
           --service-account ${{ secrets.GCP_SVC_ACCOUNT }} \
           --allow-unauthenticated \
-          --set-env-vars FLASK_ENV=production,HSTS_MAX_AGE=31536000 \
+          --set-env-vars FLASK_ENV=vars.FLASK_ENV,HSTS_MAX_AGE=31536000 \
           --set-env-vars ALLOWED_EMAILS="${{ secrets.ALLOWED_EMAILS }}" \
-          --update-secrets DATABASE_URL=DATABASE_PROD_URL:latest,SECRET_KEY=SECRET_KEY:latest \
+          --update-secrets DATABASE_URL=DATABASE_URL_PROD:latest,SECRET_KEY=SECRET_KEY:latest \
           
 
 
@@ -66,18 +66,18 @@ jobs:
     - name: Run Database Migrations
       run: |
         # Get the service URL
-        SERVICE_URL=$(gcloud run services describe ${{ vars.GCP_SERVICE_NAME_PROD }} \
+        SERVICE_URL=$(gcloud run services describe ${{ vars.GCP_SERVICE_NAME }} \
           --region ${{ vars.GCP_REGION }} \
-          --project ${{ secrets.GCP_PROJECT_ID }} \
+          --project ${{ vars.GCP_PROJECT_ID }} \
           --format 'value(status.url)')
         
         # Run migration using Cloud Run Jobs (recommended) or direct container execution
         gcloud run jobs create migrate-db-prod-${{ github.run_number }} \
-          --image "${{ vars.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME_PROD }}:${{ github.run_number }}" \
+          --image "${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME }}:${{ github.run_number }}" \
           --region ${{ vars.GCP_REGION }} \
-          --project ${{ secrets.GCP_PROJECT_ID }} \
+          --project ${{ vars.GCP_PROJECT_ID }} \
           --service-account ${{ secrets.GCP_SVC_ACCOUNT }} \
-          --set-env-vars FLASK_APP=app.py,FLASK_ENV=production,DATABASE_URL=DATABASE_PROD_URL:latest,SECRET_KEY=SECRET_KEY:latest \
+          --set-env-vars FLASK_APP=app.py,FLASK_ENV=vars.FLASK_ENV,DATABASE_URL=DATABASE_URL_PROD:latest,SECRET_KEY=SECRET_KEY:latest \
           --command "flask" \
           --args "db" \
           --args "upgrade" \
@@ -91,17 +91,17 @@ jobs:
         # Execute the migration job
         gcloud run jobs execute migrate-db-prod-${{ github.run_number }} \
           --region ${{ vars.GCP_REGION }} \
-          --project ${{ secrets.GCP_PROJECT_ID }} \
+          --project ${{ vars.GCP_PROJECT_ID }} \
           --wait 
         
         # Clean up the migration job
         gcloud run jobs delete migrate-db-prod-${{ github.run_number }} \
           --region ${{ vars.GCP_REGION }} \
-          --project ${{ secrets.GCP_PROJECT_ID }} \
+          --project ${{ vars.GCP_PROJECT_ID }} \
           --quiet 
  
     - name: Assign custom service account to Cloud Run service
       run: |
-        gcloud run services update ${{ vars.GCP_SERVICE_NAME_PROD }} \
+        gcloud run services update ${{ vars.GCP_SERVICE_NAME }} \
         --region ${{ vars.GCP_REGION }} \
         --service-account ${{ secrets.GCP_SVC_ACCOUNT }}      

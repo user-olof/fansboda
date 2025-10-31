@@ -1,9 +1,9 @@
 # In .github/workflows/deploy_to_cloud_run.yaml
-name: 4. Prepopulate Dev Database
+name: 4a. Prepopulate Dev Database
 run-name: ${{ github.actor }} is prepopulating the production database  🚀
 on: 
   workflow_run:
-      workflows: ["3. Deploy Dev to Cloud Run"] # Run the deploy after successful Build and Test
+      workflows: ["3a. Deploy Dev to Cloud Run"] # Run the deploy after successful Build and Test
       types:
         - completed     
 
@@ -18,12 +18,12 @@ jobs:
     - name: Authenticate with Google Cloud
       uses: google-github-actions/auth@v1
       with:
-        credentials_json: "${{ secrets.GCP_SVC_ACCOUNT_CREDS }}"
+        credentials_json: "${{ secrets.GCP_SVC_ACCOUNT_KEY }}"
 
     - name: Set up Google Cloud SDK
       uses: google-github-actions/setup-gcloud@v1
       with:
-        project_id: ${{ secrets.GCP_PROJECT_ID }}
+        project_id: ${{ vars.GCP_PROJECT_ID }}
 
     - name: Get IMAGE_URI from previous workflow
       id: get_image_uri
@@ -41,7 +41,7 @@ jobs:
         
         # Fallback: construct the IMAGE_URI if not found in outputs
         if [ -z "$IMAGE_URI" ] || [ "$IMAGE_URI" = "null" ]; then
-          IMAGE_URI="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME_DEV }}:${{ github.event.workflow_run.run_number }}"
+          IMAGE_URI="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME }}:${{ github.event.workflow_run.run_number }}"
         fi
         
         echo "image_uri=$IMAGE_URI" >> $GITHUB_OUTPUT
@@ -52,9 +52,9 @@ jobs:
         gcloud run jobs create prepopulate-db-dev-${{ github.run_number }} \
           --image "${{ steps.get_image_uri.outputs.image_uri }}" \
           --region ${{ vars.GCP_REGION }} \
-          --project ${{ secrets.GCP_PROJECT_ID }} \
+          --project ${{ vars.GCP_PROJECT_ID }} \
           --service-account ${{ secrets.GCP_SVC_ACCOUNT }} \
-          --set-env-vars FLASK_APP=app.py,FLASK_ENV=development,DATABASE_URL=DATABASE_MAIN_URL:latest,SECRET_KEY=SECRET_KEY:latest   \
+          --set-env-vars FLASK_APP=app.py,FLASK_ENV=vars.FLASK_ENV,DATABASE_URL=DATABASE_URL_DEV:latest,SECRET_KEY=SECRET_KEY:latest   \
           --command "python" \
           --args "scripts/prepopulate_development.py" \
           --cpu 1 \
@@ -65,10 +65,10 @@ jobs:
 
         gcloud run jobs execute prepopulate-db-dev-${{ github.run_number }} \
           --region ${{ vars.GCP_REGION }} \
-          --project ${{ secrets.GCP_PROJECT_ID }} \
+          --project ${{ vars.GCP_PROJECT_ID }} \
           --wait
 
         gcloud run jobs delete prepopulate-db-${{ github.run_number }} \
           --region ${{ vars.GCP_REGION }} \
-          --project ${{ secrets.GCP_PROJECT_ID }} \
+          --project ${{ vars.GCP_PROJECT_ID }} \
           --quiet
