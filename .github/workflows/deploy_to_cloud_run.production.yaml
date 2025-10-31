@@ -9,6 +9,7 @@ on:
 jobs:
   deploy_to_cloud_run:
     runs-on: ubuntu-latest
+    environment: prod
     outputs:
       image_uri: ${{ steps.build.outputs.image_uri_prod }}
 
