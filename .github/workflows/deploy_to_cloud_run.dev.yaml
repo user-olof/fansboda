@@ -57,7 +57,7 @@ jobs:
           --max-instances 1 \
           --project ${{ vars.GCP_PROJECT_ID  }} \
           --service-account ${{ secrets.GCP_SVC_ACCOUNT }} \
-          --allow-unauthenticated \
+          --ingress internal-and-cloud-load-balancing  \
           --set-env-vars FLASK_ENV=${{ vars.FLASK_ENV }},HSTS_MAX_AGE=31536000 \
           --set-env-vars ALLOWED_EMAILS="${{ secrets.ALLOWED_EMAILS }}" \
           --update-secrets DATABASE_URL=DATABASE_URL_DEV:latest,SECRET_KEY=SECRET_KEY:latest \
