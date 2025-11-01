@@ -264,7 +264,7 @@ def configure_talisman(app: Flask):
             # Production CSP - strict security
             talisman = Talisman(
                 app,
-                force_https=True,
+                force_https=False,
                 strict_transport_security=True,
                 strict_transport_security_max_age=31536000,
                 strict_transport_security_include_subdomains=True,
