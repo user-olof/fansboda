@@ -54,7 +54,7 @@ jobs:
           --region ${{ vars.GCP_REGION }} \
           --project ${{ vars.GCP_PROJECT_ID }} \
           --service-account ${{ secrets.GCP_SVC_ACCOUNT }} \
-          --set-env-vars FLASK_APP=app.py,FLASK_ENV=vars.FLASK_ENV,DATABASE_URL=DATABASE_URL_DEV:latest,SECRET_KEY=SECRET_KEY:latest   \
+          --set-env-vars FLASK_APP=app.py,FLASK_ENV=${{ vars.FLASK_ENV }},DATABASE_URL=DATABASE_URL_DEV:latest,SECRET_KEY=SECRET_KEY:latest   \
           --command "python" \
           --args "scripts/prepopulate_development.py" \
           --cpu 1 \
