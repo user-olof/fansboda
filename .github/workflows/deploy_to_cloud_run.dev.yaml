@@ -45,24 +45,31 @@ jobs:
         echo "image_uri_dev=$IMAGE_URI_DEV" >> $GITHUB_OUTPUT
         
     
-    - name: Deploy to Cloud Run
+    - name: Pull and Run Docker image to Compute Engine Instance
       run: |
-        gcloud beta run deploy ${{ vars.GCP_IMAGE_NAME }}  \
-          --image "${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME }}:${{ github.run_number }}" \
-          --platform managed \
-          --region ${{ vars.GCP_REGION }} \
-          --port 8080 \
-          --memory 512Mi \
-          --cpu 1 \
-          --max-instances 1 \
-          --project ${{ vars.GCP_PROJECT_ID  }} \
-          --service-account ${{ secrets.GCP_SVC_ACCOUNT }} \
-          --allow-unauthenticated  \
-          --ingress internal-and-cloud-load-balancing \
-          --set-env-vars FLASK_ENV=${{ vars.FLASK_ENV }},HSTS_MAX_AGE=31536000 \
-          --set-env-vars ALLOWED_EMAILS="${{ secrets.ALLOWED_EMAILS }}" \
-          --update-secrets DATABASE_URL=DATABASE_URL_DEV:latest,SECRET_KEY=SECRET_KEY:latest \
-          
+        gcloud compute ssh fansboda.dpdns.org --zone=us-central1-a \
+          --command "gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev --quiet && 
+             docker pull ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME }}:${{ github.run_number }} && 
+             docker run -d --name ${{ vars.GCP_IMAGE_NAME }} --restart always ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME }}:${{ github.run_number }}"
+    
+    # - name: Deploy to Cloud Run
+    #   run: |
+    #     gcloud beta run deploy ${{ vars.GCP_IMAGE_NAME }}  \
+    #       --image "${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME }}:${{ github.run_number }}" \
+    #       --platform managed \
+    #       --region ${{ vars.GCP_REGION }} \
+    #       --port 8080 \
+    #       --memory 512Mi \
+    #       --cpu 1 \
+    #       --max-instances 1 \
+    #       --project ${{ vars.GCP_PROJECT_ID  }} \
+    #       --service-account ${{ secrets.GCP_SVC_ACCOUNT }} \
+    #       --allow-unauthenticated  \
+    #       --ingress internal-and-cloud-load-balancing \
+    #       --set-env-vars FLASK_ENV=${{ vars.FLASK_ENV }},HSTS_MAX_AGE=31536000 \
+    #       --set-env-vars ALLOWED_EMAILS="${{ secrets.ALLOWED_EMAILS }}" \
+    #       --update-secrets DATABASE_URL=DATABASE_URL_DEV:latest,SECRET_KEY=SECRET_KEY:latest \
+
 
 
     # Add this new step for database migration

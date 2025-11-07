@@ -70,7 +70,7 @@ jobs:
           --project ${{ vars.GCP_PROJECT_ID }} \
           --wait
 
-        gcloud run jobs delete prepopulate-db-${{ github.run_number }} \
+        gcloud run jobs delete prepopulate-db-dev-${{ github.run_number }} \
           --region ${{ vars.GCP_REGION }} \
           --project ${{ vars.GCP_PROJECT_ID }} \
           --quiet

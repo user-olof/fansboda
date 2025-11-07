@@ -153,3 +153,6 @@ ssl/*.pfx
 *session.script
 /*session.tmp/*
 zap_scans/
+
+#ignore /tmp
+/tmp/
