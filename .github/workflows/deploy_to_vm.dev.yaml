@@ -46,9 +46,9 @@ jobs:
     - name: Pull and Run Docker image to Compute Engine Instance
       run: |
         gcloud compute ssh ${{ vars.GCP_VM_NAME }} --zone=us-central1-a \
-          --command "docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }} && 
-             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/${{ vars.DOCKER_IMAGE_NAME }}:latest && 
-             docker run -d --name ${{ vars.DOCKER_IMAGE_NAME }} --restart always ${{ secrets.DOCKERHUB_USERNAME }}/${{ vars.DOCKER_IMAGE_NAME }}:latest"
+          --command "docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_TOKEN }} && 
+             docker pull ${{ secrets.DOCKER_USERNAME }}/${{ vars.DOCKER_IMAGE_NAME }}:latest && 
+             docker run -d --name ${{ vars.DOCKER_IMAGE_NAME }} --restart always ${{ secrets.DOCKER_USERNAME }}/${{ vars.DOCKER_IMAGE_NAME }}:latest"
     
     # - name: Deploy to Cloud Run
     #   run: |
