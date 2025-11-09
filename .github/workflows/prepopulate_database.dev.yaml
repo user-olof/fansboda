@@ -1,9 +1,9 @@
 # In .github/workflows/deploy_to_cloud_run.yaml
-name: 4a. Prepopulate Dev Database
-run-name: ${{ github.actor }} is prepopulating the production database  🚀
+name: 5a. Prepopulate Dev Database
+run-name: ${{ github.actor }} is prepopulating the dev database  🚀
 on: 
   workflow_run:
-      workflows: ["3a. Deploy Dev to Cloud Run"] # Run the deploy after successful Build and Test
+      workflows: ["4a. Deploy Dev to VM"] # Run the deploy after successful Build and Test
       types:
         - completed     
 

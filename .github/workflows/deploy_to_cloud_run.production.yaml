@@ -1,8 +1,8 @@
-name: 3b. Deploy Production to Cloud Run
+name: 4b. Deploy Production to Cloud Run
 run-name: ${{ github.actor }} is deploying to Cloud Run - Production  🚀
 on: 
   workflow_run:
-      workflows: ["2. Build and Test"] # Run the deploy after successful Build and Test
+      workflows: ["3b. Push Image To Docker Hub"] # Run the deploy after successful Build and Test
       types:
         - completed     
 
