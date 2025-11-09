@@ -280,3 +280,12 @@ The test suite provides coverage for:
 - **Security compliance requirements**
 
 This comprehensive test suite ensures that the email whitelist security feature is robust, secure, and maintainable.
+
+
+
+
+
+docker build -t oloft/auth .
+docker tag oloft/auth oloft/auth:0.0.1
+docker login -u oloft
+docker push oloft/auth:0.0.1

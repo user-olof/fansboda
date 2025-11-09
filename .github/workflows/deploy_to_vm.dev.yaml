@@ -1,5 +1,5 @@
-name: 3a. Deploy Dev to Cloud Run
-run-name: ${{ github.actor }} is deploying to Cloud Run - Dev  🚀
+name: 3a. Deploy Dev to VM
+run-name: ${{ github.actor }} is deploying to VM - Dev  🚀
 on: 
   workflow_run:
       workflows: ["2. Build and Test"] # Run the deploy after successful Build and Test
@@ -7,7 +7,7 @@ on:
         - completed     
 
 jobs:
-  deploy_to_cloud_run:
+  deploy_to_vm:
     runs-on: ubuntu-latest
     environment: dev
     outputs:
@@ -17,7 +17,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    
+
     - name: Authenticate with Google Cloud
       uses: google-github-actions/auth@v1
       with:
@@ -28,29 +28,29 @@ jobs:
       with:
         project_id: ${{ vars.GCP_PROJECT_ID }}
       
-    - name: Set up gcloud beta
-      run: gcloud components install beta
+    # - name: Set up gcloud beta
+    #   run: gcloud components install beta
 
-    - name: Configure Docker to use gcloud as a credential helper
-      run: |
-        gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev
+    # - name: Configure Docker to use gcloud as a credential helper
+    #   run: |
+    #     gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev
 
-    - name: Build and Push Docker image
-      run: |
-        IMAGE_URI_DEV="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME }}:${{ github.run_number }}"
-        docker build -t "$IMAGE_URI_DEV" .
-        docker push "$IMAGE_URI_DEV"
+    # - name: Build and Push Docker image
+    #   run: |
+    #     IMAGE_URI_DEV="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME }}:${{ github.run_number }}"
+    #     docker build -t "$IMAGE_URI_DEV" .
+    #     docker push "$IMAGE_URI_DEV"
 
-        # Set outputs
-        echo "image_uri_dev=$IMAGE_URI_DEV" >> $GITHUB_OUTPUT
+    #     # Set outputs
+    #     echo "image_uri_dev=$IMAGE_URI_DEV" >> $GITHUB_OUTPUT
         
     
     - name: Pull and Run Docker image to Compute Engine Instance
       run: |
-        gcloud compute ssh fansboda.dpdns.org --zone=us-central1-a \
-          --command "gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev --quiet && 
-             docker pull ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME }}:${{ github.run_number }} && 
-             docker run -d --name ${{ vars.GCP_IMAGE_NAME }} --restart always ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME }}:${{ github.run_number }}"
+        gcloud compute ssh ${{ vars.GCP_VM_NAME }} --zone=us-central1-a \
+          --command "docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }} && 
+             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/${{ vars.DOCKER_IMAGE_NAME }}:latest && 
+             docker run -d --name ${{ vars.DOCKER_IMAGE_NAME }} --restart always ${{ secrets.DOCKERHUB_USERNAME }}/${{ vars.DOCKER_IMAGE_NAME }}:latest"
     
     # - name: Deploy to Cloud Run
     #   run: |
