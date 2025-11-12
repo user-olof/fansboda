@@ -71,46 +71,46 @@ jobs:
 
 
     # Add this new step for database migration
-    - name: Run Database Migrations
-      run: |
-        # Get the service URL
-        SERVICE_URL=$(gcloud run services describe ${{ vars.GCP_SERVICE_NAME }} \
-          --region ${{ vars.GCP_REGION }} \
-          --project ${{ vars.GCP_PROJECT_ID }} \
-          --format 'value(status.url)')
+    # - name: Run Database Migrations
+    #   run: |
+    #     # Get the service URL
+    #     SERVICE_URL=$(gcloud run services describe ${{ vars.GCP_SERVICE_NAME }} \
+    #       --region ${{ vars.GCP_REGION }} \
+    #       --project ${{ vars.GCP_PROJECT_ID }} \
+    #       --format 'value(status.url)')
         
-        # Run migration using Cloud Run Jobs (recommended) or direct container execution
-        gcloud run jobs create migrate-db-dev-${{ github.run_number }} \
-          --image "${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME }}:${{ github.run_number }}" \
-          --region ${{ vars.GCP_REGION }} \
-          --project ${{ vars.GCP_PROJECT_ID }} \
-          --service-account ${{ secrets.GCP_SVC_ACCOUNT }} \
-          --set-env-vars FLASK_APP=app.py,FLASK_ENV=${{ vars.FLASK_ENV }} \
-          --update-secrets DATABASE_URL=DATABASE_URL_DEV:latest,SECRET_KEY=SECRET_KEY:latest \
-          --command "flask" \
-          --args "db" \
-          --args "upgrade" \
-          --cpu 1 \
-          --memory 512Mi \
-          --max-retries 3 \
-          --parallelism 1 \
-          --tasks 1 
+    #     # Run migration using Cloud Run Jobs (recommended) or direct container execution
+    #     gcloud run jobs create migrate-db-dev-${{ github.run_number }} \
+    #       --image "${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME }}:${{ github.run_number }}" \
+    #       --region ${{ vars.GCP_REGION }} \
+    #       --project ${{ vars.GCP_PROJECT_ID }} \
+    #       --service-account ${{ secrets.GCP_SVC_ACCOUNT }} \
+    #       --set-env-vars FLASK_APP=app.py,FLASK_ENV=${{ vars.FLASK_ENV }} \
+    #       --update-secrets DATABASE_URL=DATABASE_URL_DEV:latest,SECRET_KEY=SECRET_KEY:latest \
+    #       --command "flask" \
+    #       --args "db" \
+    #       --args "upgrade" \
+    #       --cpu 1 \
+    #       --memory 512Mi \
+    #       --max-retries 3 \
+    #       --parallelism 1 \
+    #       --tasks 1 
           
         
-        # Execute the migration job
-        gcloud run jobs execute migrate-db-dev-${{ github.run_number }} \
-          --region ${{ vars.GCP_REGION }} \
-          --project ${{ vars.GCP_PROJECT_ID }} \
-          --wait 
+    #     # Execute the migration job
+    #     gcloud run jobs execute migrate-db-dev-${{ github.run_number }} \
+    #       --region ${{ vars.GCP_REGION }} \
+    #       --project ${{ vars.GCP_PROJECT_ID }} \
+    #       --wait 
         
-        # Clean up the migration job
-        gcloud run jobs delete migrate-db-dev-${{ github.run_number }} \
-          --region ${{ vars.GCP_REGION }} \
-          --project ${{ vars.GCP_PROJECT_ID }} \
-          --quiet 
+    #     # Clean up the migration job
+    #     gcloud run jobs delete migrate-db-dev-${{ github.run_number }} \
+    #       --region ${{ vars.GCP_REGION }} \
+    #       --project ${{ vars.GCP_PROJECT_ID }} \
+    #       --quiet 
  
-    - name: Assign custom service account to Cloud Run service
-      run: |
-        gcloud run services update ${{ vars.GCP_SERVICE_NAME }} \
-        --region ${{ vars.GCP_REGION }} \
-        --service-account ${{ secrets.GCP_SVC_ACCOUNT }}      
+    # - name: Assign custom service account to Cloud Run service
+    #   run: |
+    #     gcloud run services update ${{ vars.GCP_SERVICE_NAME }} \
+    #     --region ${{ vars.GCP_REGION }} \
+    #     --service-account ${{ secrets.GCP_SVC_ACCOUNT }}      
