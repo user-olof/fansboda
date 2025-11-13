@@ -1,7 +1,7 @@
 services:
   # Flask application
   web:
-    build: .
+    image: ${{ secrets.DOCKER_USERNAME }}/${{ vars.DOCKER_IMAGE_NAME }}:latest
     container_name: fansboda-web
     restart: unless-stopped
     environment:
@@ -12,7 +12,7 @@ services:
       - fansboda-network
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8080/" ]
-      interval: 30s
+      interval: 300s
       timeout: 10s
       retries: 3
       start_period: 40s
@@ -36,7 +36,7 @@ services:
       - fansboda-network
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost/" ]
-      interval: 30s
+      interval: 300s
       timeout: 10s
       retries: 3
 

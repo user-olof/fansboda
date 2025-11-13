@@ -41,14 +41,20 @@ jobs:
 
     #     # Set outputs
     #     echo "image_uri_dev=$IMAGE_URI_DEV" >> $GITHUB_OUTPUT
+
+    - name: Upload Docker Compose to Compute Engine Instance
+      run: |
+        gcloud compute scp docker-compose.dev.yml ${{ vars.GCP_VM_NAME }}:$HOME/docker-compose.dev.yml --zone=us-central1-a
         
     
     - name: Pull and Run Docker image to Compute Engine Instance
       run: |
         gcloud compute ssh ${{ vars.GCP_VM_NAME }} --zone=us-central1-a \
           --command "docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_TOKEN }} && 
-             sudo docker pull ${{ secrets.DOCKER_USERNAME }}/${{ vars.DOCKER_IMAGE_NAME }}:latest && 
-             sudo docker run -d --name ${{ vars.DOCKER_IMAGE_NAME }} --restart always ${{ secrets.DOCKER_USERNAME }}/${{ vars.DOCKER_IMAGE_NAME }}:latest"
+               docker compose -f docker-compose.dev.yml down && 
+              docker container prune -f && 
+              docker compose -f docker-compose.dev.yml pull && 
+              docker compose -f docker-compose.dev.yml up -d --build"
     
     # - name: Deploy to Cloud Run
     #   run: |
