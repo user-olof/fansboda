@@ -44,7 +44,7 @@ jobs:
 
     - name: Upload Docker Compose to Compute Engine Instance
       run: |
-        gcloud compute scp docker-compose.dev.yml ${{ vars.GCP_VM_NAME }}:$HOME/docker-compose.dev.yml --zone=us-central1-a
+        gcloud compute scp docker-compose.dev.yml ${{ vars.GCP_VM_NAME }}:home/docker-compose.dev.yml --zone=us-central1-a
         
     
     - name: Pull and Run Docker image to Compute Engine Instance
