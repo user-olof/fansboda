@@ -41,10 +41,14 @@ jobs:
 
     #     # Set outputs
     #     echo "image_uri_dev=$IMAGE_URI_DEV" >> $GITHUB_OUTPUT
+    - name: Create fansboda directory on VM
+      run: |
+        gcloud compute ssh ${{ vars.GCP_VM_NAME }} --zone=us-central1-a \
+          --command "mkdir -p ~/fansboda"
 
     - name: Upload Docker Compose to Compute Engine Instance
       run: |
-        gcloud compute scp docker-compose.dev.yml ${{ vars.GCP_VM_NAME }}:/home/docker-compose.dev.yml --zone=us-central1-a
+        gcloud compute scp docker-compose.dev.yml nginx.conf ./static ./certificates ${{ vars.GCP_VM_NAME }}:~/fansboda/ --zone=us-central1-a
         
     
     - name: Pull and Run Docker image to Compute Engine Instance

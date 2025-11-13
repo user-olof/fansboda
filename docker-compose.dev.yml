@@ -1,7 +1,7 @@
 services:
   # Flask application
   web:
-    image: ${{ secrets.DOCKER_USERNAME }}/${{ vars.DOCKER_IMAGE_NAME }}:latest
+    image: oloft/fansboda-dev:latest
     container_name: fansboda-web
     restart: unless-stopped
     environment:
@@ -43,4 +43,3 @@ services:
 networks:
   fansboda-network:
     driver: bridge
-
