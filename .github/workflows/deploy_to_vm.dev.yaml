@@ -56,11 +56,12 @@ jobs:
     - name: Pull and Run Docker image to Compute Engine Instance
       run: |
         gcloud compute ssh ${{ vars.GCP_VM_NAME }} --zone=us-central1-a \
-          --command "docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_TOKEN }} && 
-               docker compose -f docker-compose.dev.yml down && 
-              docker container prune -f && 
-              docker compose -f docker-compose.dev.yml pull && 
-              docker compose -f docker-compose.dev.yml up -d --build"
+          --command "cd ~/fansboda && 
+          docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_TOKEN }} && 
+          docker compose -f docker-compose.dev.yml down && 
+          docker container prune -f && 
+          docker compose -f docker-compose.dev.yml pull && 
+          docker compose -f docker-compose.dev.yml up -d --build"
     
     # - name: Deploy to Cloud Run
     #   run: |
