@@ -40,7 +40,22 @@ jobs:
     #     docker push "$IMAGE_URI_DEV"
 
     #     # Set outputs
-    #     echo "image_uri_dev=$IMAGE_URI_DEV" >> $GITHUB_OUTPUT
+        #     echo "image_uri_dev=$IMAGE_URI_DEV" >> $GITHUB_OUTPUT
+    - name: Ensure IAP firewall rule exists
+      run: |
+        # Check if IAP firewall rule exists
+        if ! gcloud compute firewall-rules describe allow-iap-ssh --project=${{ vars.GCP_PROJECT_ID }} 2>/dev/null; then
+          echo "Creating IAP SSH firewall rule..."
+          gcloud compute firewall-rules create allow-iap-ssh \
+            --allow tcp:22 \
+            --source-ranges 35.235.240.0/20 \
+            --description "Allow SSH from Identity-Aware Proxy" \
+            --direction INGRESS \
+            --project=${{ vars.GCP_PROJECT_ID }}
+        else
+          echo "IAP SSH firewall rule already exists"
+        fi
+
     - name: Create fansboda directory on VM
       run: |
         gcloud compute ssh ${{ vars.GCP_VM_NAME }} --zone=us-central1-a \
