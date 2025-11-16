@@ -41,6 +41,21 @@ services:
       timeout: 10s
       retries: 3
   
+   # Nginx for ACME challenge only (runs temporarily)
+  nginx-acme:
+    image: nginx:alpine
+    container_name: fansboda-nginx-acme
+    restart: "no"  # Only run when needed
+    ports:
+      - "80:80"  # Use different port to avoid conflict
+    volumes:
+      - ./nginx-acme.conf:/etc/nginx/nginx.conf:ro
+      - ./certbot-webroot:/var/www/certbot:ro
+    networks:
+      - fansboda-network
+    profiles:
+      - acme  # Only start with --profile acme
+  
     # Certbot for initial certificate
   certbot:
     image: certbot/certbot:latest
@@ -51,9 +66,11 @@ services:
       - ./certbot-webroot:/var/www/certbot:rw
     command: certonly --webroot --webroot-path=/var/www/certbot --email olof.thornell@gmail.com --agree-tos --no-eff-email -d dev.fansboda.dpdns.org
     depends_on:
-      - nginx
+      - nginx-acme
     networks:
       - fansboda-network
+    profiles:
+      - acme  # Only start with --profile acme
 
   # Certbot renewal service
   certbot-renew:

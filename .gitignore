@@ -156,3 +156,7 @@ zap_scans/
 
 #ignore /tmp
 /tmp/
+
+# ignore nginx ACME challenge
+.well-known/
+certbot-webroot/

@@ -48,7 +48,7 @@ jobs:
 
     - name: Upload Docker Compose to Compute Engine Instance
       run: |
-        gcloud compute scp docker-compose.dev.yml nginx.conf ${{ vars.GCP_VM_NAME }}:~/fansboda/ --zone=us-central1-a 2>/dev/null || true
+        gcloud compute scp docker-compose.dev.yml nginx.conf nginx-acme.conf ${{ vars.GCP_VM_NAME }}:~/fansboda/ --zone=us-central1-a 2>/dev/null || true
         gcloud compute scp --recurse static ${{ vars.GCP_VM_NAME }}:~/fansboda/ --zone=us-central1-a 2>/dev/null || true
       # gcloud compute scp --recurse certificates ${{ vars.GCP_VM_NAME }}:~/fansboda/ --zone=us-central1-a 2>/dev/null || true
         
