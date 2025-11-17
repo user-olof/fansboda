@@ -50,6 +50,7 @@ jobs:
           gcloud compute firewall-rules create allow-iap-ssh \
             --allow tcp:22 \
             --source-ranges 35.235.240.0/20 \
+            --target-tags  http-server,https-server \
             --description "Allow SSH from Identity-Aware Proxy" \
             --direction INGRESS \
             --project=${{ vars.GCP_PROJECT_ID }}
@@ -71,6 +72,10 @@ jobs:
         else
           echo "Default SSH firewall rule already exists"
         fi
+
+    - name: Wait for 10 seconds
+      run: |
+        sleep 10
 
     - name: Create fansboda directory on VM
       run: |
