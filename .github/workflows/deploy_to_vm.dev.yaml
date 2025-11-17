@@ -172,6 +172,3 @@ jobs:
     #     --region ${{ vars.GCP_REGION }} \
     #     --service-account ${{ secrets.GCP_SVC_ACCOUNT }}      
 
-
-gcloud compute firewall-rules delete allow-iap-ssh --project=fansboda-project --quiet
-gcloud compute firewall-rules create allow-iap-ssh --allow tcp:22 --source-ranges 35.235.240.0/20 --target-tags  http-server,https-server --description "Allow SSH from Identity-Aware Proxy" --direction INGRESS --project=fansboda-project --priority 1000
