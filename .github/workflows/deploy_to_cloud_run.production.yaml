@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: prod
     outputs:
-      image_uri: ${{ steps.build-and-push.outputs.image_uri_prod }}
+      image_uri: ${{ steps.build-and-push.outputs.image_uri }}
 
 
     steps:
