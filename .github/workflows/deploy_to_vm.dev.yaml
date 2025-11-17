@@ -42,20 +42,7 @@ jobs:
     #     # Set outputs
         #     echo "image_uri_dev=$IMAGE_URI_DEV" >> $GITHUB_OUTPUT
 
-    - name: Ensure IAP firewall rule exists
-      run: |
-        # Check if IAP firewall rule exists
-        if ! gcloud compute firewall-rules describe allow-iap-ssh --project=${{ vars.GCP_PROJECT_ID }} 2>/dev/null; then
-          echo "Creating IAP SSH firewall rule..."
-          gcloud compute firewall-rules create allow-iap-ssh \
-            --allow tcp:22 \
-            --source-ranges 35.235.240.0/20 \
-            --description "Allow SSH from Identity-Aware Proxy" \
-            --direction INGRESS \
-            --project=${{ vars.GCP_PROJECT_ID }}
-        else
-          echo "IAP SSH firewall rule already exists"
-        fi
+
 
     - name: Ensure general SSH firewall rule exists
       run: |
@@ -68,6 +55,7 @@ jobs:
             --description "Allow SSH from anywhere" \
             --direction INGRESS \
             --project=${{ vars.GCP_PROJECT_ID }}
+            --priority 1000
         else
           echo "Default SSH firewall rule already exists"
         fi
@@ -79,27 +67,23 @@ jobs:
     - name: Create fansboda directory on VM
       run: |
         gcloud compute ssh ${{ vars.GCP_VM_NAME }} --zone=us-central1-a  \
-          --tunnel-through-iap \
           --command "mkdir -p ~/fansboda ~/fansboda/certbot-webroot ~/fansboda/certificates"
 
     - name: Upload Docker Compose to Compute Engine Instance
       run: |
         gcloud compute scp docker-compose.dev.yml nginx.conf nginx-acme.conf ${{ vars.GCP_VM_NAME }}:~/fansboda/ \
-        --tunnel-through-iap \
-        --zone=us-central1-a \
-        2>/dev/null || true
+        --zone=us-central1-a 
+
 
         gcloud compute scp --recurse static ${{ vars.GCP_VM_NAME }}:~/fansboda/ \
-        --tunnel-through-iap \
-        --zone=us-central1-a \
-        2>/dev/null || true
+        --zone=us-central1-a 
+
       # gcloud compute scp --recurse certificates ${{ vars.GCP_VM_NAME }}:~/fansboda/ --zone=us-central1-a 2>/dev/null || true
         
     
     - name: Pull and Run Docker image to Compute Engine Instance
       run: |
         gcloud compute ssh ${{ vars.GCP_VM_NAME }} --zone=us-central1-a \
-          --tunnel-through-iap \
           --command "cd ~/fansboda && 
           docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_TOKEN }} && 
           docker compose -f docker-compose.dev.yml down && 
