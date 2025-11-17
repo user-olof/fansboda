@@ -1,9 +1,9 @@
-# In .github/workflows/deploy_to_cloud_run.yaml
+# In .github/workflows/prepopulate_database.production.yaml
 name: 5b. Prepopulate Production Database
 run-name: ${{ github.actor }} is prepopulating the production database  🚀
 on: 
   workflow_run:
-      workflows: ["4b. Deploy Production to VM"] # Run the deploy after successful Build and Test
+      workflows: ["4b. Deploy Production to Cloud Run"] # Run the deploy after successful deployment
       types:
         - completed     
 
@@ -38,7 +38,7 @@ jobs:
           "https://api.github.com/repos/${{ github.repository }}/actions/runs/$WORKFLOW_RUN_ID/jobs")
         
         # Extract the image_uri from the job outputs
-        IMAGE_URI=$(echo "$RESPONSE" | jq -r '.jobs[] | select(.name == "deploy_production_to_cloud_run") | .steps[] | select(.name == "Build and Push Docker image") | .outputs.image_uri_prod // empty')
+        IMAGE_URI=$(echo "$RESPONSE" | jq -r '.jobs[] | select(.name == "deploy_to_cloud_run") | .steps[] | select(.name == "Build and Push Docker image") | .outputs.image_uri // empty')
         
         # Fallback: construct the IMAGE_URI if not found in outputs
         if [ -z "$IMAGE_URI" ] || [ "$IMAGE_URI" = "null" ]; then

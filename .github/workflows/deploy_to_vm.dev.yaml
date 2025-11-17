@@ -40,7 +40,7 @@ jobs:
     #     docker push "$IMAGE_URI_DEV"
 
     #     # Set outputs
-        #     echo "image_uri_dev=$IMAGE_URI_DEV" >> $GITHUB_OUTPUT
+    #     echo "image_uri_dev=$IMAGE_URI_DEV" >> $GITHUB_OUTPUT
 
 
 
@@ -54,7 +54,7 @@ jobs:
             --source-ranges 0.0.0.0/0 \
             --description "Allow SSH from anywhere" \
             --direction INGRESS \
-            --project=${{ vars.GCP_PROJECT_ID }}
+            --project=${{ vars.GCP_PROJECT_ID }} \
             --priority 1000
         else
           echo "Default SSH firewall rule already exists"
@@ -72,15 +72,12 @@ jobs:
     - name: Upload Docker Compose to Compute Engine Instance
       run: |
         gcloud compute scp docker-compose.dev.yml nginx.conf nginx-acme.conf ${{ vars.GCP_VM_NAME }}:~/fansboda/ \
-        --zone=us-central1-a 
-
+          --zone=us-central1-a
 
         gcloud compute scp --recurse static ${{ vars.GCP_VM_NAME }}:~/fansboda/ \
-        --zone=us-central1-a 
+          --zone=us-central1-a
 
-      # gcloud compute scp --recurse certificates ${{ vars.GCP_VM_NAME }}:~/fansboda/ --zone=us-central1-a 2>/dev/null || true
-        
-    
+        # gcloud compute scp --recurse certificates ${{ vars.GCP_VM_NAME }}:~/fansboda/ --zone=us-central1-a 2>/dev/null || true
     - name: Pull and Run Docker image to Compute Engine Instance
       run: |
         gcloud compute ssh ${{ vars.GCP_VM_NAME }} --zone=us-central1-a \

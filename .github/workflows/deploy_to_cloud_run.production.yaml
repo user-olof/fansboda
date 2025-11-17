@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: prod
     outputs:
-      image_uri: ${{ steps.build.outputs.image_uri_prod }}
+      image_uri: ${{ steps.build-and-push.outputs.image_uri_prod }}
 
 
     steps:
@@ -36,13 +36,14 @@ jobs:
         gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev
 
     - name: Build and Push Docker image
+      id: build-and-push
       run: |
         IMAGE_URI_PROD="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME }}:${{ github.run_number }}"
         docker build -t "$IMAGE_URI_PROD" .
         docker push "$IMAGE_URI_PROD"
 
         # Set outputs
-        echo "image_uri_prod=$IMAGE_URI_PROD" >> $GITHUB_OUTPUT
+        echo "image_uri=$IMAGE_URI_PROD" >> $GITHUB_OUTPUT
     
     - name: Deploy to Cloud Run
       run: |
@@ -60,8 +61,7 @@ jobs:
           --ingress internal-and-cloud-load-balancing \
           --set-env-vars FLASK_ENV=${{ vars.FLASK_ENV }},HSTS_MAX_AGE=31536000 \
           --set-env-vars ALLOWED_EMAILS="${{ secrets.ALLOWED_EMAILS }}" \
-          --update-secrets DATABASE_URL=DATABASE_URL_PROD:latest,SECRET_KEY=SECRET_KEY:latest \
-          
+          --update-secrets DATABASE_URL=DATABASE_URL_PROD:latest,SECRET_KEY=SECRET_KEY:latest
 
 
     # Add this new step for database migration
