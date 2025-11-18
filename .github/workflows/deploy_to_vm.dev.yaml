@@ -55,12 +55,8 @@ jobs:
             --description "Allow SSH from IAP" \
             --direction INGRESS \
             --project=${{ vars.GCP_PROJECT_ID }} \
-<<<<<<< Current (Your changes)
-            --priority 1000
-=======
             --priority 1000 \
             --target-tags allow-iap-ssh
->>>>>>> Incoming (Background Agent changes)
         else
           echo "IAP SSH firewall rule already exists"
         fi
