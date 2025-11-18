@@ -31,7 +31,7 @@ jobs:
       run: |
         # For dev deployment, we use Docker Hub images, not GCP Artifact Registry
         # Construct the Docker Hub image URI
-        IMAGE_URI="${{ secrets.DOCKER_USERNAME }}/${{ vars.DOCKER_IMAGE_NAME }}:${{ github.event.workflow_run.run_number }}"
+        IMAGE_URI="${{ secrets.DOCKER_USERNAME }}/${{ vars.DOCKER_IMAGE_NAME }}:latest"
 
         echo "image_uri=$IMAGE_URI" >> $GITHUB_OUTPUT
         echo "Using IMAGE_URI: $IMAGE_URI"

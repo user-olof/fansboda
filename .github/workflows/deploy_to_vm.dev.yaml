@@ -81,21 +81,35 @@ jobs:
 
     - name: Create fansboda directory on VM
       run: |
-        gcloud compute ssh ${{ vars.GCP_VM_NAME }} --zone=us-central1-a  \
+        gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
+          --zone=us-central1-a \
+          --project=${{ vars.GCP_PROJECT_ID }} \
+          --tunnel-through-iap \
+          --quiet \
           --command "mkdir -p ~/fansboda ~/fansboda/certbot-webroot ~/fansboda/certificates"
 
     - name: Upload Docker Compose to Compute Engine Instance
       run: |
         gcloud compute scp docker-compose.dev.yml nginx.conf nginx-acme.conf ${{ vars.GCP_VM_NAME }}:~/fansboda/ \
-          --zone=us-central1-a
+          --zone=us-central1-a \
+          --project=${{ vars.GCP_PROJECT_ID }} \
+          --tunnel-through-iap \
+          --quiet
 
         gcloud compute scp --recurse static ${{ vars.GCP_VM_NAME }}:~/fansboda/ \
-          --zone=us-central1-a
+          --zone=us-central1-a \
+          --project=${{ vars.GCP_PROJECT_ID }} \
+          --tunnel-through-iap \
+          --quiet
 
         # gcloud compute scp --recurse certificates ${{ vars.GCP_VM_NAME }}:~/fansboda/ --zone=us-central1-a 2>/dev/null || true
     - name: Pull and Run Docker image to Compute Engine Instance
       run: |
-        gcloud compute ssh ${{ vars.GCP_VM_NAME }} --zone=us-central1-a \
+        gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
+          --zone=us-central1-a \
+          --project=${{ vars.GCP_PROJECT_ID }} \
+          --tunnel-through-iap \
+          --quiet \
           --command "cd ~/fansboda && 
           docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_TOKEN }} && 
           docker compose -f docker-compose.dev.yml down && 
