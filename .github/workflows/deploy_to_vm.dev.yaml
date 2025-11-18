@@ -1,0 +1,162 @@
+name: 4a. Deploy Dev to VM
+run-name: ${{ github.actor }} is deploying to VM - Dev  🚀
+on:
+  workflow_run:
+      workflows: ["3a. Push Image To Docker Hub"] # Run the deploy after successful Build and Test
+      types:
+        - completed
+
+jobs:
+  deploy_to_vm:
+    runs-on: ubuntu-latest
+    environment: dev
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Authenticate with Google Cloud
+      uses: google-github-actions/auth@v3
+      with:
+        credentials_json: "${{ secrets.GCP_SVC_ACCOUNT_KEY }}"
+
+    - name: Set up Google Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        project_id: ${{ vars.GCP_PROJECT_ID }}
+
+    - name: Check VM status and start if needed
+      run: |
+        echo "Checking VM status..."
+        VM_STATUS=$(gcloud compute instances describe ${{ vars.GCP_VM_NAME }} \
+          --zone=us-central1-a \
+          --project=${{ vars.GCP_PROJECT_ID }} \
+          --format="value(status)")
+
+        echo "VM status: $VM_STATUS"
+
+        if [ "$VM_STATUS" != "RUNNING" ]; then
+          echo "Starting VM..."
+          gcloud compute instances start ${{ vars.GCP_VM_NAME }} \
+            --zone=us-central1-a \
+            --project=${{ vars.GCP_PROJECT_ID }}
+          echo "Waiting for VM to start..."
+          sleep 30
+        else
+          echo "VM is already running"
+        fi
+
+    - name: Ensure IAP firewall rule exists
+      run: |
+        echo "Checking IAP firewall rule..."
+        if ! gcloud compute firewall-rules describe iap-allow-ssh \
+          --project=${{ vars.GCP_PROJECT_ID }} 2>/dev/null; then
+          echo "Creating IAP firewall rule..."
+          gcloud compute firewall-rules create iap-allow-ssh \
+            --allow tcp:22 \
+            --source-ranges 35.235.240.0/20 \
+            --description "Allow SSH through IAP" \
+            --direction INGRESS \
+            --project=${{ vars.GCP_PROJECT_ID }} \
+            --priority 1000
+        else
+          echo "IAP firewall rule already exists"
+        fi
+
+    - name: Wait for firewall rule propagation
+      run: |
+        echo "Waiting 30 seconds for firewall rules to propagate..."
+        sleep 30
+
+    - name: Test SSH connection with retry
+      run: |
+        echo "Testing SSH connection..."
+        MAX_RETRIES=3
+        RETRY_COUNT=0
+
+        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+          echo "SSH attempt $((RETRY_COUNT + 1)) of $MAX_RETRIES"
+          if gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
+            --zone=us-central1-a \
+            --project=${{ vars.GCP_PROJECT_ID }} \
+            --command "echo 'SSH connection successful'" \
+            --ssh-flag="-o ConnectTimeout=10" \
+            --ssh-flag="-o StrictHostKeyChecking=no"; then
+            echo "SSH connection test successful"
+            break
+          else
+            echo "SSH connection attempt $((RETRY_COUNT + 1)) failed"
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+              echo "Waiting 15 seconds before retry..."
+              sleep 15
+            fi
+          fi
+        done
+
+        if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+          echo "Failed to establish SSH connection after $MAX_RETRIES attempts"
+          exit 1
+        fi
+
+    - name: Create fansboda directory on VM
+      run: |
+        echo "Creating fansboda directories on VM..."
+        gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
+          --zone=us-central1-a \
+          --project=${{ vars.GCP_PROJECT_ID }} \
+          --command "mkdir -p ~/fansboda ~/fansboda/certbot-webroot ~/fansboda/certificates" \
+          --ssh-flag="-o ConnectTimeout=30" \
+          --ssh-flag="-o StrictHostKeyChecking=no"
+
+    - name: Upload Docker Compose and config files to VM
+      run: |
+        echo "Uploading configuration files to VM..."
+        gcloud compute scp docker-compose.dev.yml nginx.conf nginx-acme.conf ${{ vars.GCP_VM_NAME }}:~/fansboda/ \
+          --zone=us-central1-a \
+          --project=${{ vars.GCP_PROJECT_ID }} \
+          --ssh-flag="-o ConnectTimeout=30" \
+          --ssh-flag="-o StrictHostKeyChecking=no"
+
+    - name: Upload static files to VM
+      run: |
+        echo "Uploading static files to VM..."
+        gcloud compute scp --recurse static ${{ vars.GCP_VM_NAME }}:~/fansboda/ \
+          --zone=us-central1-a \
+          --project=${{ vars.GCP_PROJECT_ID }} \
+          --ssh-flag="-o ConnectTimeout=30" \
+          --ssh-flag="-o StrictHostKeyChecking=no"
+
+    - name: Pull and Run Docker containers on VM
+      run: |
+        echo "Deploying application on VM..."
+        gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
+          --zone=us-central1-a \
+          --project=${{ vars.GCP_PROJECT_ID }} \
+          --command "cd ~/fansboda &&
+          echo 'Logging into Docker Hub...' &&
+          docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_TOKEN }} &&
+          echo 'Stopping existing containers...' &&
+          docker compose -f docker-compose.dev.yml down &&
+          echo 'Cleaning up containers...' &&
+          docker container prune -f &&
+          echo 'Pulling latest images...' &&
+          docker compose -f docker-compose.dev.yml pull &&
+          echo 'Starting containers...' &&
+          docker compose -f docker-compose.dev.yml up -d --build" \
+          --ssh-flag="-o ConnectTimeout=30" \
+          --ssh-flag="-o StrictHostKeyChecking=no"
+
+    - name: Verify deployment
+      run: |
+        echo "Verifying deployment..."
+        gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
+          --zone=us-central1-a \
+          --project=${{ vars.GCP_PROJECT_ID }} \
+          --command "cd ~/fansboda &&
+          echo 'Checking container status...' &&
+          docker compose -f docker-compose.dev.yml ps &&
+          echo 'Checking application health...' &&
+          timeout 30 bash -c 'until curl -f http://localhost:8080/health 2>/dev/null; do sleep 5; done' && echo 'Application is healthy' || echo 'Health check timed out'" \
+          --ssh-flag="-o ConnectTimeout=30" \
+          --ssh-flag="-o StrictHostKeyChecking=no"
