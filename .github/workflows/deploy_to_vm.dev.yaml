@@ -42,6 +42,21 @@ jobs:
     #     # Set outputs
     #     echo "image_uri_dev=$IMAGE_URI_DEV" >> $GITHUB_OUTPUT
 
+    - name: Ensure IAP firewall rule exists
+      run: |
+        # Check if IAP firewall rule exists
+        if ! gcloud compute firewall-rules describe iap-allow-ssh --project=${{ vars.GCP_PROJECT_ID }} 2>/dev/null; then
+          echo "Creating IAP firewall rule..."
+          gcloud compute firewall-rules create iap-allow-ssh \
+            --allow tcp:22 \
+            --source-ranges 35.235.240.0/20 \
+            --description "Allow SSH from anywhere" \
+            --direction INGRESS \
+            --project=${{ vars.GCP_PROJECT_ID }} \
+            --priority 1000
+        else
+          echo "Default SSH firewall rule already exists"
+        fi
 
 
     - name: Ensure general SSH firewall rule exists
