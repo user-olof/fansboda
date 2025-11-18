@@ -44,28 +44,36 @@ jobs:
 
     - name: Ensure IAP firewall rule exists
       run: |
-        # Check if IAP firewall rule exists
+        NETWORK="${{ vars.GCP_VPC_NETWORK }}"
+        NETWORK=${NETWORK:-default}
         if ! gcloud compute firewall-rules describe iap-allow-ssh --project=${{ vars.GCP_PROJECT_ID }} 2>/dev/null; then
-          echo "Creating IAP firewall rule..."
+          echo "Creating IAP firewall rule on network ${NETWORK}..."
           gcloud compute firewall-rules create iap-allow-ssh \
+            --network="${NETWORK}" \
             --allow tcp:22 \
             --source-ranges 35.235.240.0/20 \
-            --description "Allow SSH from anywhere" \
+            --description "Allow SSH from IAP" \
             --direction INGRESS \
             --project=${{ vars.GCP_PROJECT_ID }} \
+<<<<<<< Current (Your changes)
             --priority 1000
+=======
+            --priority 1000 \
             --target-tags allow-iap-ssh
+>>>>>>> Incoming (Background Agent changes)
         else
-          echo "Default SSH firewall rule already exists"
+          echo "IAP SSH firewall rule already exists"
         fi
 
 
     - name: Ensure general SSH firewall rule exists
       run: |
-        # Check if default SSH firewall rule exists
+        NETWORK="${{ vars.GCP_VPC_NETWORK }}"
+        NETWORK=${NETWORK:-default}
         if ! gcloud compute firewall-rules describe default-allow-ssh --project=${{ vars.GCP_PROJECT_ID }} 2>/dev/null; then
-          echo "Creating default SSH firewall rule..."
+          echo "Creating default SSH firewall rule on network ${NETWORK}..."
           gcloud compute firewall-rules create default-allow-ssh \
+            --network="${NETWORK}" \
             --allow tcp:22 \
             --source-ranges 0.0.0.0/0 \
             --description "Allow SSH from anywhere" \
@@ -75,6 +83,14 @@ jobs:
         else
           echo "Default SSH firewall rule already exists"
         fi
+
+    - name: Tag VM to match firewall rule
+      run: |
+        gcloud compute instances add-tags ${{ vars.GCP_VM_NAME }} \
+          --zone=us-central1-a \
+          --project=${{ vars.GCP_PROJECT_ID }} \
+          --tags=allow-iap-ssh \
+          --quiet
 
     - name: Wait for 10 seconds
       run: |
