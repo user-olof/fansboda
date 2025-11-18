@@ -1,0 +1,155 @@
+name: 4a. Deploy Dev to VM
+run-name: ${{ github.actor }} is deploying to VM - Dev  🚀
+on:
+  workflow_run:
+      workflows: ["3a. Push Image To Docker Hub"] # Run the deploy after successful Build and Test
+      types:
+        - completed
+
+jobs:
+  deploy_to_vm:
+    runs-on: ubuntu-latest
+    environment: dev
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Authenticate with Google Cloud
+      uses: google-github-actions/auth@v3
+      with:
+        credentials_json: "${{ secrets.GCP_SVC_ACCOUNT_KEY }}"
+
+    - name: Set up Google Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        project_id: ${{ vars.GCP_PROJECT_ID }}
+
+    - name: Ensure IAP firewall rule exists
+      run: |
+        # Check if IAP firewall rule exists
+        if ! gcloud compute firewall-rules describe iap-allow-ssh --project=${{ vars.GCP_PROJECT_ID }} --verbosity=debug 2>/dev/null; then
+          echo "Creating IAP firewall rule..."
+          gcloud compute firewall-rules create iap-allow-ssh \
+            --allow tcp:22 \
+            --source-ranges 35.235.240.0/20 \
+            --description "Allow SSH from IAP" \
+            --direction INGRESS \
+            --project=${{ vars.GCP_PROJECT_ID }} \
+            --priority 1000 \
+            --verbosity=debug
+        else
+          echo "IAP SSH firewall rule already exists"
+        fi
+
+    - name: Ensure general SSH firewall rule exists
+      run: |
+        # Check if default SSH firewall rule exists
+        if ! gcloud compute firewall-rules describe default-allow-ssh --project=${{ vars.GCP_PROJECT_ID }} --verbosity=debug 2>/dev/null; then
+          echo "Creating default SSH firewall rule..."
+          gcloud compute firewall-rules create default-allow-ssh \
+            --allow tcp:22 \
+            --source-ranges 0.0.0.0/0 \
+            --description "Allow SSH from anywhere" \
+            --direction INGRESS \
+            --project=${{ vars.GCP_PROJECT_ID }} \
+            --priority 1000 \
+            --verbosity=debug
+        else
+          echo "Default SSH firewall rule already exists"
+        fi
+
+    - name: Wait for firewall rules to propagate
+      run: |
+        echo "Waiting 30 seconds for firewall rules to propagate..."
+        sleep 30
+
+    - name: Wait for VM to be running
+      run: |
+        echo "Checking VM status..."
+        for i in {1..10}; do
+          STATUS=$(gcloud compute instances describe ${{ vars.GCP_VM_NAME }} \
+            --zone=us-central1-a \
+            --project=${{ vars.GCP_PROJECT_ID }} \
+            --format="value(status)" \
+            --verbosity=debug)
+          if [ "$STATUS" = "RUNNING" ]; then
+            echo "VM is running"
+            break
+          else
+            echo "VM status: $STATUS, waiting 10 seconds... (attempt $i/10)"
+            sleep 10
+          fi
+        done
+        if [ "$STATUS" != "RUNNING" ]; then
+          echo "VM did not reach RUNNING state after 10 attempts"
+          exit 1
+        fi
+
+    - name: Create fansboda directory on VM
+      run: |
+        echo "Attempting to create directories on VM..."
+        for i in {1..5}; do
+          if gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
+            --zone=us-central1-a \
+            --tunnel-through-iap \
+            --verbosity=debug \
+            --command "mkdir -p ~/fansboda ~/fansboda/certbot-webroot ~/fansboda/certificates"; then
+            echo "Successfully created directories"
+            break
+          else
+            echo "SSH attempt $i failed, retrying in 10 seconds..."
+            sleep 10
+          fi
+        done
+
+    - name: Upload Docker Compose to Compute Engine Instance
+      run: |
+        echo "Uploading files to VM..."
+        for i in {1..5}; do
+          if gcloud compute scp docker-compose.dev.yml nginx.conf nginx-acme.conf ${{ vars.GCP_VM_NAME }}:~/fansboda/ \
+            --zone=us-central1-a \
+            --tunnel-through-iap \
+            --verbosity=debug; then
+            echo "Successfully uploaded docker-compose files"
+            break
+          else
+            echo "SCP attempt $i failed, retrying in 10 seconds..."
+            sleep 10
+          fi
+        done
+
+        for i in {1..5}; do
+          if gcloud compute scp --recurse static ${{ vars.GCP_VM_NAME }}:~/fansboda/ \
+            --zone=us-central1-a \
+            --tunnel-through-iap \
+            --verbosity=debug; then
+            echo "Successfully uploaded static files"
+            break
+          else
+            echo "SCP static attempt $i failed, retrying in 10 seconds..."
+            sleep 10
+          fi
+        done
+
+    - name: Pull and Run Docker image to Compute Engine Instance
+      run: |
+        echo "Deploying application on VM..."
+        for i in {1..5}; do
+          if gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
+            --zone=us-central1-a \
+            --tunnel-through-iap \
+            --verbosity=debug \
+            --command "cd ~/fansboda && \
+            docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_TOKEN }} && \
+            docker compose -f docker-compose.dev.yml down && \
+            docker container prune -f && \
+            docker compose -f docker-compose.dev.yml pull && \
+            docker compose -f docker-compose.dev.yml up -d --build"; then
+            echo "Successfully deployed application"
+            break
+          else
+            echo "SSH deployment attempt $i failed, retrying in 10 seconds..."
+            sleep 10
+          fi
+        done
