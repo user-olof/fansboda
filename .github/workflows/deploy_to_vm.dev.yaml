@@ -54,6 +54,7 @@ jobs:
             --direction INGRESS \
             --project=${{ vars.GCP_PROJECT_ID }} \
             --priority 1000
+            --target-tags allow-iap-ssh
         else
           echo "Default SSH firewall rule already exists"
         fi
