@@ -99,7 +99,7 @@ jobs:
             --project=${{ vars.GCP_PROJECT_ID }} \
             --tunnel-through-iap \
             --quiet \
-            --command "sudo usermod -aG docker $USER && sudo newgrp docker"
+            --command "sudo usermod -aG docker ${{ secrets.GCP_SVC_ACCOUNT }} && sudo newgrp docker"
         
 
     - name: Create fansboda directory on VM
