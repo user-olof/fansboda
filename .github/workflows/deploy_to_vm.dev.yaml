@@ -29,9 +29,9 @@ jobs:
     # - name: Set up gcloud beta
     #   run: gcloud components install beta
 
-    # - name: Configure Docker to use gcloud as a credential helper
-    #   run: |
-    #     gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev
+    - name: Configure Docker to use gcloud as a credential helper
+      run: |
+        gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev
 
     # - name: Build and Push Docker image
     #   run: |

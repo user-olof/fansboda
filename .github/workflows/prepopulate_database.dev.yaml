@@ -2,10 +2,8 @@
 name: 5a. Prepopulate Dev Database
 run-name: ${{ github.actor }} is prepopulating the dev database  🚀
 on: 
-  workflow_run:
-      workflows: ["4a. Deploy Dev to VM"] # Run the deploy after successful Build and Test
-      types:
-        - completed     
+ workflow_dispatch:
+ branches: [ dev ]   
 
 jobs:
   prepopulate_database:

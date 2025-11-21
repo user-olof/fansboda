@@ -2,10 +2,8 @@
 name: 5b. Prepopulate Production Database
 run-name: ${{ github.actor }} is prepopulating the production database  🚀
 on: 
-  workflow_run:
-      workflows: ["4b. Deploy Production to Cloud Run"] # Run the deploy after successful deployment
-      types:
-        - completed     
+  workflow_dispatch:
+    branches: [ main ]
 
 jobs:
   prepopulate_database:
