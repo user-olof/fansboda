@@ -92,6 +92,16 @@ jobs:
     #   run: |
     #     sleep 10
 
+    - name: Map Service Account to Docker group on VM
+      run: |
+        gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
+            --zone=us-central1-a \
+            --project=${{ vars.GCP_PROJECT_ID }} \
+            --tunnel-through-iap \
+            --quiet \
+            --command "sudo usermod -aG docker $USER"
+        
+
     - name: Create fansboda directory on VM
       run: |
         gcloud compute ssh ${{ vars.GCP_VM_NAME }} \

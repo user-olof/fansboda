@@ -1,5 +1,5 @@
 # In .github/workflows/prepopulate_database.production.yaml
-name: 5b. Prepopulate Production Database
+name: Prepopulate Production Database
 run-name: ${{ github.actor }} is prepopulating the production database  🚀
 on: 
   workflow_dispatch:
