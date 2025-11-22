@@ -25,6 +25,9 @@ def get_database_uri(env_name="dev"):
         if not neon_database_url:
             neon_database_url = _get_secret_from_gcp("DATABASE_URL")
             if not neon_database_url:
+                neon_database_url = _get_secret_from_gcp("DATABASE_URL_DEV")
+
+            if not neon_database_url:
                 raise ValueError(
                     "DATABASE_URL environment variable must be set for development. "
                     "Get your connection string from https://neon.tech"
