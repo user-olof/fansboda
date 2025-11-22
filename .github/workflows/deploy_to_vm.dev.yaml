@@ -92,14 +92,14 @@ jobs:
     #   run: |
     #     sleep 10
 
-    - name: Map Service Account to Docker group on VM
-      run: |
-        gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
-            --zone=us-central1-a \
-            --project=${{ vars.GCP_PROJECT_ID }} \
-            --tunnel-through-iap \
-            --quiet \
-            --command "sudo usermod -aG docker ${{ secrets.GCP_SVC_ACCOUNT }} && sudo newgrp docker"
+    # - name: Map Service Account to Docker group on VM
+    #   run: |
+    #     gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
+    #         --zone=us-central1-a \
+    #         --project=${{ vars.GCP_PROJECT_ID }} \
+    #         --tunnel-through-iap \
+    #         --quiet \
+    #         --command "sudo usermod -aG docker ${{ secrets.GCP_SVC_ACCOUNT }} && sudo newgrp docker"
         
 
     - name: Create fansboda directory on VM
@@ -126,6 +126,16 @@ jobs:
           --quiet
 
         # gcloud compute scp --recurse certificates ${{ vars.GCP_VM_NAME }}:~/fansboda/ --zone=us-central1-a 2>/dev/null || true
+
+    - name: Configure Docker Hub authentication on VM
+      run: |
+        gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
+          --zone=us-central1-a \
+          --project=${{ vars.GCP_PROJECT_ID }} \
+          --tunnel-through-iap \
+          --quiet \
+          --command "echo '${{ secrets.DOCKER_TOKEN }}' | docker login -u '${{ secrets.DOCKER_USERNAME }}' --password-stdin"
+
     - name: Pull and Run Docker image to Compute Engine Instance
       run: |
         gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
@@ -134,7 +144,6 @@ jobs:
           --tunnel-through-iap \
           --quiet \
           --command "cd ~/fansboda && 
-          docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_TOKEN }} && 
           docker compose -f docker-compose.dev.yml down && 
           docker container prune -f && 
           docker compose -f docker-compose.dev.yml pull && 
