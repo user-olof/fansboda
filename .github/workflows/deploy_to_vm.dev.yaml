@@ -148,6 +148,15 @@ jobs:
           docker container prune -f && 
           docker compose -f docker-compose.dev.yml pull && 
           docker compose -f docker-compose.dev.yml up -d --build"
+
+    - name: Check web container logs
+      run: |
+        gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
+          --zone=us-central1-a \
+          --project=${{ vars.GCP_PROJECT_ID }} \
+          --tunnel-through-iap \
+          --quiet \
+          --command "cd ~/fansboda && docker logs fansboda-web 2>&1 | tail -50"
     
     # - name: Deploy to Cloud Run
     #   run: |
