@@ -22,23 +22,27 @@ def get_database_uri(env_name="dev"):
     elif env_name == "dev":
         # Use Neon serverless PostgreSQL
         neon_database_url = os.getenv("DATABASE_URL")
+        if neon_database_url:
+            return neon_database_url
+
+        neon_database_url = _get_secret_from_gcp("DATABASE_URL_DEV")
         if not neon_database_url:
-            neon_database_url = _get_secret_from_gcp("DATABASE_URL_DEV")
-            if not neon_database_url:
-                raise ValueError(
-                    "DATABASE_URL_DEV environment variable must be set for development. "
-                    "Get your connection string from https://neon.tech"
-                )
+            raise ValueError(
+                "DATABASE_URL_DEV environment variable must be set for development. "
+                "Get your connection string from https://neon.tech"
+            )
         return neon_database_url
     elif env_name == "prod":
-        neon_database_url = os.getenv("DATABASE_URL_PROD")
+        neon_database_url = os.getenv("DATABASE_URL")
+        if neon_database_url:
+            return neon_database_url
+        
+        neon_database_url = _get_secret_from_gcp("DATABASE_URL_PROD") 
         if not neon_database_url:
-            neon_database_url = _get_secret_from_gcp("DATABASE_URL_PROD")
-            if not neon_database_url:
-                raise ValueError(
-                    "DATABASE_URL_PROD environment variable must be set for production. "
-                    "Get your connection string from https://neon.tech"
-                )
+            raise ValueError(
+                "DATABASE_URL_PROD environment variable must be set for production. "
+                "Get your connection string from https://neon.tech"
+            )
         return neon_database_url
     else:
         raise ValueError(f"Invalid environment name: {env_name}")
