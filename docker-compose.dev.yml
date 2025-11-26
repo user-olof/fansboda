@@ -9,6 +9,7 @@ services:
       - GOOGLE_APPLICATION_CREDENTIALS=/app/secrets/GCP_SVC_ACCOUNT_KEY.json
     volumes:
       - ./static:/app/static:ro # Mount static files for nginx
+      - ./secrets/GCP_SVC_ACCOUNT_KEY.json:/app/secrets/GCP_SVC_ACCOUNT_KEY.json:ro  # Add this
     networks:
       - fansboda-network
     healthcheck:
