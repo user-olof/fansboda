@@ -14,10 +14,10 @@ services:
       - fansboda-network
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8080/health" ]
-      interval: 300s
+      interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 90s
 
   # Nginx reverse proxy
   nginx:
@@ -34,7 +34,7 @@ services:
       - ./certbot-webroot:/var/www/certbot:ro # Mount certbot webroot for ACME challenge
     depends_on:
       web:
-        condition: service_healthy
+        # condition: service_healthy
     networks:
       - fansboda-network
     healthcheck:
