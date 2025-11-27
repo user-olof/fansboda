@@ -6,8 +6,12 @@ services:
     restart: unless-stopped
     environment:
       - FLASK_ENV=development
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/secrets/GCP_SVC_ACCOUNT_KEY.json
+      - GOOGLE_CLOUD_PROJECT=fansboda-project-dev
+      - GOOGLE_CLOUD_REGION=us-central1
     volumes:
       - ./static:/app/static:ro # Mount static files for nginx
+      - ./secrets/GCP_SVC_ACCOUNT_KEY.json:/app/secrets/GCP_SVC_ACCOUNT_KEY.json:ro # Mount GCP service account key
     networks:
       - fansboda-network
     healthcheck:
