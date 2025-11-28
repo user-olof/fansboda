@@ -127,15 +127,34 @@ jobs:
 
         # gcloud compute scp --recurse certificates ${{ vars.GCP_VM_NAME }}:~/fansboda/ --zone=us-central1-a 2>/dev/null || true
 
-    - name: Upload service account key and create .env file
+    - name: Upload service account key to VM
       run: |
-        # Upload service account key
+        # Create directory first
+        gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
+          --zone=us-central1-a \
+          --project=${{ vars.GCP_PROJECT_ID }} \
+          --tunnel-through-iap \
+          --quiet \
+          --command "mkdir -p ~/fansboda/secrets"
+        
+        # Create temp file
         echo '${{ secrets.GCP_SVC_ACCOUNT_KEY }}' > /tmp/gcp-key.json
-        gcloud compute scp /tmp/gcp-key.json ${{ vars.GCP_VM_NAME }}:~/fansboda/secrets/GCP_SVC_ACCOUNT_KEY.json \
+        
+        # Upload (note: no ~ in the destination path for scp)
+        gcloud compute scp /tmp/gcp-key.json ${{ vars.GCP_VM_NAME }}:fansboda/secrets/GCP_SVC_ACCOUNT_KEY.json \
           --zone=us-central1-a \
           --project=${{ vars.GCP_PROJECT_ID }} \
           --tunnel-through-iap \
           --quiet
+        
+        # Set permissions
+        gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
+          --zone=us-central1-a \
+          --project=${{ vars.GCP_PROJECT_ID }} \
+          --tunnel-through-iap \
+          --quiet \
+          --command "chmod 600 ~/fansboda/secrets/GCP_SVC_ACCOUNT_KEY.json"
+        
         rm /tmp/gcp-key.json
         
         # Create .env file
