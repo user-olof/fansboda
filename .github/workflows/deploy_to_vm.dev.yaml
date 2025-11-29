@@ -129,6 +129,9 @@ jobs:
 
     - name: Upload service account key and create .env file
       run: |
+        # Encode the secret to base64
+        ENCODED_KEY=$(echo -n '${{ secrets.GCP_SVC_ACCOUNT_KEY }}' | base64 -w 0)
+        
         gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
           --zone=us-central1-a \
           --project=${{ vars.GCP_PROJECT_ID }} \
@@ -136,11 +139,9 @@ jobs:
           --quiet \
           --command "cd ~/fansboda && 
           mkdir -p secrets && 
-          cat > secrets/GCP_SVC_ACCOUNT_KEY.json << 'KEYEOF'
-        ${{ secrets.GCP_SVC_ACCOUNT_KEY }}
-        KEYEOF
-        chmod 600 secrets/GCP_SVC_ACCOUNT_KEY.json &&
-        cat > .env << 'ENVEOF'
+          echo '$ENCODED_KEY' | base64 -d > secrets/GCP_SVC_ACCOUNT_KEY.json &&
+          chmod 600 secrets/GCP_SVC_ACCOUNT_KEY.json &&
+          cat > .env << 'ENVEOF'
         DATABASE_URL=${{ secrets.DATABASE_URL }}
         SECRET_KEY=${{ secrets.SECRET_KEY }}
         ALLOWED_EMAILS=${{ secrets.ALLOWED_EMAILS }}
