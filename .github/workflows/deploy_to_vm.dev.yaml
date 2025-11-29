@@ -137,18 +137,18 @@ jobs:
           --command "cd ~/fansboda && 
           mkdir -p secrets && 
           cat > secrets/GCP_SVC_ACCOUNT_KEY.json << 'KEYEOF'
-${{ secrets.GCP_SVC_ACCOUNT_KEY }}
-KEYEOF
-chmod 600 secrets/GCP_SVC_ACCOUNT_KEY.json &&
-cat > .env << 'ENVEOF'
-DATABASE_URL=${{ secrets.DATABASE_URL }}
-SECRET_KEY=${{ secrets.SECRET_KEY }}
-ALLOWED_EMAILS=${{ secrets.ALLOWED_EMAILS }}
-GOOGLE_APPLICATION_CREDENTIALS=/fansboda/secrets/GCP_SVC_ACCOUNT_KEY.json
-GOOGLE_CLOUD_PROJECT=${{ vars.GCP_PROJECT_ID }}
-GOOGLE_CLOUD_REGION=${{ vars.GCP_REGION }}
-FLASK_ENV=${{ vars.FLASK_ENV }}
-ENVEOF"
+        ${{ secrets.GCP_SVC_ACCOUNT_KEY }}
+        KEYEOF
+        chmod 600 secrets/GCP_SVC_ACCOUNT_KEY.json &&
+        cat > .env << 'ENVEOF'
+        DATABASE_URL=${{ secrets.DATABASE_URL }}
+        SECRET_KEY=${{ secrets.SECRET_KEY }}
+        ALLOWED_EMAILS=${{ secrets.ALLOWED_EMAILS }}
+        GOOGLE_APPLICATION_CREDENTIALS=/fansboda/secrets/GCP_SVC_ACCOUNT_KEY.json
+        GOOGLE_CLOUD_PROJECT=${{ vars.GCP_PROJECT_ID }}
+        GOOGLE_CLOUD_REGION=${{ vars.GCP_REGION }}
+        FLASK_ENV=${{ vars.FLASK_ENV }}
+        ENVEOF"
 
     - name: Configure Docker Hub authentication on VM
       run: |
