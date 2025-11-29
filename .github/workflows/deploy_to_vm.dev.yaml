@@ -127,7 +127,7 @@ jobs:
 
         # gcloud compute scp --recurse certificates ${{ vars.GCP_VM_NAME }}:~/fansboda/ --zone=us-central1-a 2>/dev/null || true
 
-    - name: Upload service account key to VM
+    - name: Create .env file on VM
       run: |
         # Create directory first
         gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
@@ -136,26 +136,6 @@ jobs:
           --tunnel-through-iap \
           --quiet \
           --command "mkdir -p ~/fansboda/secrets"
-        
-        # Create temp file
-        echo '${{ secrets.GCP_SVC_ACCOUNT_KEY }}' > /tmp/gcp-key.json
-        
-        # Upload (note: no ~ in the destination path for scp)
-        gcloud compute scp /tmp/gcp-key.json ${{ vars.GCP_VM_NAME }}:fansboda/secrets/GCP_SVC_ACCOUNT_KEY.json \
-          --zone=us-central1-a \
-          --project=${{ vars.GCP_PROJECT_ID }} \
-          --tunnel-through-iap \
-          --quiet
-        
-        # Set permissions
-        gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
-          --zone=us-central1-a \
-          --project=${{ vars.GCP_PROJECT_ID }} \
-          --tunnel-through-iap \
-          --quiet \
-          --command "chmod 600 ~/fansboda/secrets/GCP_SVC_ACCOUNT_KEY.json"
-        
-        rm /tmp/gcp-key.json
         
         # Create .env file
         gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
@@ -167,7 +147,6 @@ jobs:
         DATABASE_URL=${{ secrets.DATABASE_URL }}
         SECRET_KEY=${{ secrets.SECRET_KEY }}
         ALLOWED_EMAILS=${{ secrets.ALLOWED_EMAILS }}
-        GOOGLE_APPLICATION_CREDENTIALS=/home/\$(whoami)/fansboda/secrets/GCP_SVC_ACCOUNT_KEY.json
         GOOGLE_CLOUD_PROJECT=${{ vars.GCP_PROJECT_ID }}
         GOOGLE_CLOUD_REGION=${{ vars.GCP_REGION }}
         FLASK_ENV=${{ vars.FLASK_ENV }}
@@ -190,10 +169,6 @@ jobs:
           --tunnel-through-iap \
           --quiet \
           --command "cd ~/fansboda && 
-          export GCP_SVC_ACCOUNT_KEY=${{ secrets.GCP_SVC_ACCOUNT_KEY }} &&
-          export GCP_PROJECT_ID=${{ vars.GCP_PROJECT_ID }} &&
-          export GCP_REGION=${{ vars.GCP_REGION }} &&
-          export FLASK_ENV=${{ vars.FLASK_ENV }} &&
           docker compose -f docker-compose.dev.yml down && 
           docker container prune -f && 
           docker compose -f docker-compose.dev.yml pull && 
