@@ -138,7 +138,7 @@ jobs:
           mkdir -p secrets && 
           cat > secrets/GCP_SVC_ACCOUNT_KEY.json << 'KEYEOF'
         ${{ secrets.GCP_SVC_ACCOUNT_KEY }}
-        KEYEOF
+        KEYEOF &&
         chmod 600 secrets/GCP_SVC_ACCOUNT_KEY.json &&
         cat > .env << 'ENVEOF'
         DATABASE_URL=${{ secrets.DATABASE_URL }}
