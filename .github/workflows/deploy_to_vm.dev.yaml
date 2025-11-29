@@ -127,47 +127,24 @@ jobs:
 
         # gcloud compute scp --recurse certificates ${{ vars.GCP_VM_NAME }}:~/fansboda/ --zone=us-central1-a 2>/dev/null || true
 
-    - name: Upload service account key to VM
+    - name: Upload service account key and create .env file
       run: |
-        # Create directory first
         gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
           --zone=us-central1-a \
           --project=${{ vars.GCP_PROJECT_ID }} \
           --tunnel-through-iap \
           --quiet \
-          --command "mkdir -p ~/fansboda/secrets"
-        
-        # Create temp file
-        echo '${{ secrets.GCP_SVC_ACCOUNT_KEY }}' > /tmp/GCP_SVC_ACCOUNT_KEY.json
-        
-        # Upload (note: no ~ in the destination path for scp)
-        gcloud compute scp /tmp/GCP_SVC_ACCOUNT_KEY.json ${{ vars.GCP_VM_NAME }}:~/fansboda/secrets/ \
-          --zone=us-central1-a \
-          --project=${{ vars.GCP_PROJECT_ID }} \
-          --tunnel-through-iap \
-          --quiet
-        
-        # Set permissions
-        gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
-          --zone=us-central1-a \
-          --project=${{ vars.GCP_PROJECT_ID }} \
-          --tunnel-through-iap \
-          --quiet \
-          --command "chmod 600 ~/fansboda/secrets/GCP_SVC_ACCOUNT_KEY.json"
-        
-        rm /tmp/gcp-key.json
-        
-        # Create .env file
-        gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
-          --zone=us-central1-a \
-          --project=${{ vars.GCP_PROJECT_ID }} \
-          --tunnel-through-iap \
-          --quiet \
-          --command "cd ~/fansboda && cat > .env << 'ENVEOF'
+          --command "cd ~/fansboda && 
+          mkdir -p secrets && 
+          cat > secrets/GCP_SVC_ACCOUNT_KEY.json << 'KEYEOF'
+        ${{ secrets.GCP_SVC_ACCOUNT_KEY }}
+        KEYEOF
+        chmod 600 secrets/GCP_SVC_ACCOUNT_KEY.json &&
+        cat > .env << 'ENVEOF'
         DATABASE_URL=${{ secrets.DATABASE_URL }}
         SECRET_KEY=${{ secrets.SECRET_KEY }}
         ALLOWED_EMAILS=${{ secrets.ALLOWED_EMAILS }}
-        GOOGLE_APPLICATION_CREDENTIALS=/home/\$(whoami)/fansboda/secrets/GCP_SVC_ACCOUNT_KEY.json
+        GOOGLE_APPLICATION_CREDENTIALS=/fansboda/secrets/GCP_SVC_ACCOUNT_KEY.json
         GOOGLE_CLOUD_PROJECT=${{ vars.GCP_PROJECT_ID }}
         GOOGLE_CLOUD_REGION=${{ vars.GCP_REGION }}
         FLASK_ENV=${{ vars.FLASK_ENV }}
