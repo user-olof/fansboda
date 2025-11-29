@@ -141,7 +141,7 @@ jobs:
         echo '${{ secrets.GCP_SVC_ACCOUNT_KEY }}' > /tmp/GCP_SVC_ACCOUNT_KEY.json
         
         # Upload (note: no ~ in the destination path for scp)
-        gcloud compute scp /tmp/GCP_SVC_ACCOUNT_KEY.json ${{ vars.GCP_VM_NAME }}:fansboda/secrets/ \
+        gcloud compute scp /tmp/GCP_SVC_ACCOUNT_KEY.json ${{ vars.GCP_VM_NAME }}:~/fansboda/secrets/ \
           --zone=us-central1-a \
           --project=${{ vars.GCP_PROJECT_ID }} \
           --tunnel-through-iap \
@@ -190,10 +190,6 @@ jobs:
           --tunnel-through-iap \
           --quiet \
           --command "cd ~/fansboda && 
-          export GCP_SVC_ACCOUNT_KEY=${{ secrets.GCP_SVC_ACCOUNT_KEY }} &&
-          export GCP_PROJECT_ID=${{ vars.GCP_PROJECT_ID }} &&
-          export GCP_REGION=${{ vars.GCP_REGION }} &&
-          export FLASK_ENV=${{ vars.FLASK_ENV }} &&
           docker compose -f docker-compose.dev.yml down && 
           docker container prune -f && 
           docker compose -f docker-compose.dev.yml pull && 
