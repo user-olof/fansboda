@@ -139,9 +139,9 @@ jobs:
           --quiet \
           --command "cd ~/fansboda && 
           mkdir -p secrets &&
-          chmod 755 secrets &&
+          sudo chmod 755 secrets &&
           echo '$ENCODED_KEY' | base64 -d > secrets/GCP_SVC_ACCOUNT_KEY.json &&
-          chmod 600 secrets/GCP_SVC_ACCOUNT_KEY.json &&
+          sudo chmod 600 secrets/GCP_SVC_ACCOUNT_KEY.json &&
           cat > .env << 'ENVEOF'
         DATABASE_URL=${{ secrets.DATABASE_URL }}
         SECRET_KEY=${{ secrets.SECRET_KEY }}
