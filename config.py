@@ -21,24 +21,28 @@ def get_database_uri(env_name="dev"):
         return "sqlite:///:memory:"
     elif env_name == "dev":
         # Use Neon serverless PostgreSQL
-        neon_database_url = os.getenv("DATABASE_MAIN_URL")
+        neon_database_url = os.getenv("DATABASE_URL")
+        if neon_database_url:
+            return neon_database_url
+
+        neon_database_url = _get_secret_from_gcp("DATABASE_URL_DEV")
         if not neon_database_url:
-            neon_database_url = _get_secret_from_gcp("DATABASE_MAIN_URL")
-            if not neon_database_url:
-                raise ValueError(
-                    "DATABASE_URL environment variable must be set for development. "
-                    "Get your connection string from https://neon.tech"
-                )
+            raise ValueError(
+                "DATABASE_URL_DEV environment variable must be set for development. "
+                "Get your connection string from https://neon.tech"
+            )
         return neon_database_url
     elif env_name == "prod":
-        neon_database_url = os.getenv("DATABASE_PROD_URL")
+        neon_database_url = os.getenv("DATABASE_URL")
+        if neon_database_url:
+            return neon_database_url
+        
+        neon_database_url = _get_secret_from_gcp("DATABASE_URL_PROD") 
         if not neon_database_url:
-            neon_database_url = _get_secret_from_gcp("DATABASE_PROD_URL")
-            if not neon_database_url:
-                raise ValueError(
-                    "DATABASE_URL environment variable must be set for production. "
-                    "Get your connection string from https://neon.tech"
-                )
+            raise ValueError(
+                "DATABASE_URL_PROD environment variable must be set for production. "
+                "Get your connection string from https://neon.tech"
+            )
         return neon_database_url
     else:
         raise ValueError(f"Invalid environment name: {env_name}")
@@ -128,7 +132,7 @@ class DevConfig(Config):
 class ProdConfig(Config):
     """Production configuration."""
 
-    SSL_CONTEXT = None  # gunicorn and NGINX
+    # SSL_CONTEXT = None  # gunicorn and NGINX
     SECRET_KEY = os.getenv("SECRET_KEY")
     SQLALCHEMY_DATABASE_URI = get_database_uri("prod")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
@@ -153,11 +157,13 @@ class ProdConfig(Config):
     CACHE_TYPE = "SimpleCache"
     CACHE_DEFAULT_TIMEOUT = 300
     CACHE_NO_NULL_WARNING = True
+    WTF_CSRF_ENABLED = True
+    PERMANENT_SESSION_LIFETIME = 300
+    REMEMBER_COOKIE_DURATION = 300  # 5 minutes
 
     # Use filesystem for sessions (cost saving)
-    SESSION_TYPE = "filesystem"
-    SESSION_FILE_DIR = "/tmp/flask_session"
-    SESSION_PERMANENT = False
+    SESSION_TYPE = "cookie"
+    SESSION_PERMANENT = True
     PERMANENT_SESSION_LIFETIME = timedelta(hours=2)
 
     SESSION_COOKIE_SECURE = True  # ensure that cookies are only sent over HTTPS
@@ -167,5 +173,3 @@ class ProdConfig(Config):
     SESSION_COOKIE_DOMAIN = None  # Don't share across subdomains unless needed
     REMEMBER_COOKIE_SECURE = True
     REMEMBER_COOKIE_DURATION = 300  # 5 minutes
-
-    WTF_CSRF_ENABLED = True

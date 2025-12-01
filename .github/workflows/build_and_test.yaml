@@ -8,11 +8,8 @@ on:
 
 jobs:
   build_and_test:
-
     runs-on: ubuntu-latest
-
-
-
+    environment: dev
     steps:
     - uses: actions/checkout@v4
 
@@ -42,8 +39,8 @@ jobs:
     - name: Run pytest with coverage
       env:
         PYTHONPATH: .
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        FLASK_ENV: test
       run: |
         pip install pytest pytest-cov
         pytest --junitxml=junit/test-results.xml --cov=src --cov-report=xml --cov-report=html --cache-clear
-    
-        

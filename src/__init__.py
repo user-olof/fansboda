@@ -76,9 +76,14 @@ def create_app(config_name=None):
     if env == "test":
         app.config.from_object("config.TestConfig")
         app.env = "test"
-    else:
+    elif env == "production":
+        app.config.from_object("config.ProdConfig")
+        app.env = "production"
+    elif env == "development":
         app.config.from_object("config.DevConfig")
         app.env = "development"
+    else:
+        raise ValueError(f"Invalid environment: {env}")
 
     # Initialize extensions with app context
     db.init_app(app)
@@ -259,7 +264,7 @@ def configure_talisman(app: Flask):
             # Production CSP - strict security
             talisman = Talisman(
                 app,
-                force_https=True,
+                force_https=False,
                 strict_transport_security=True,
                 strict_transport_security_max_age=31536000,
                 strict_transport_security_include_subdomains=True,

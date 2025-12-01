@@ -7,6 +7,11 @@ from src.route_protection import dev_only
 home_bp = Blueprint("home", __name__)
 
 
+@home_bp.route("/health")
+def health():
+    return "OK", 200
+
+
 @home_bp.route("/")
 @home_bp.route("/index")
 @allowed_user_required
