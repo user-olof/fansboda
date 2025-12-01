@@ -1,17 +1,15 @@
-name: 3a. Push Image To Docker Hub in Dev
-run-name: ${{ github.actor }} is pushing image to Docker Hub - Dev  🚀
+name: 3b. Push Image To Docker Hub in Production
+run-name: ${{ github.actor }} is pushing image to Docker Hub - Production  🚀
 
 on:
-  workflow_run:
-      workflows: ["2. Build and Test"] # Run the deploy after successful Build and Test
-      types:
-        - completed  
+  push:
+    branches: [ main ]
 
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    environment: dev
+    environment: prod
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     permissions:

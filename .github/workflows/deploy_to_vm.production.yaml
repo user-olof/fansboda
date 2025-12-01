@@ -1,0 +1,250 @@
+name: 4b. Deploy Production to VM
+run-name: ${{ github.actor }} is deploying to VM - Production  🚀
+on: 
+  workflow_run:
+      workflows: ["3b. Push Image To Docker Hub"] # Run the deploy after successful Build and Test
+      types:
+        - completed     
+
+jobs:
+  deploy_to_vm:
+    runs-on: ubuntu-latest
+    environment: prod
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+
+    - name: Authenticate with Google Cloud
+      uses: google-github-actions/auth@v3
+      with:
+        credentials_json: "${{ secrets.GCP_SVC_ACCOUNT_KEY }}"
+      
+    - name: Set up Google Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        project_id: ${{ vars.GCP_PROJECT_ID }}
+      
+    # - name: Set up gcloud beta
+    #   run: gcloud components install beta
+
+    - name: Configure Docker to use gcloud as a credential helper
+      run: |
+        gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev
+
+    # - name: Build and Push Docker image
+    #   run: |
+    #     IMAGE_URI_DEV="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME }}:${{ github.run_number }}"
+    #     docker build -t "$IMAGE_URI_DEV" .
+    #     docker push "$IMAGE_URI_DEV"
+
+    #     # Set outputs
+    #     echo "image_uri_dev=$IMAGE_URI_DEV" >> $GITHUB_OUTPUT
+
+    # - name: Ensure IAP firewall rule exists
+    #   run: |
+    #     NETWORK="${{ vars.GCP_VPC_NETWORK }}"
+    #     NETWORK=${NETWORK:-default}
+    #     if ! gcloud compute firewall-rules describe iap-allow-ssh --project=${{ vars.GCP_PROJECT_ID }} 2>/dev/null; then
+    #       echo "Creating IAP firewall rule on network ${NETWORK}..."
+    #       gcloud compute firewall-rules create iap-allow-ssh \
+    #         --network="${NETWORK}" \
+    #         --allow tcp:22 \
+    #         --source-ranges 35.235.240.0/20 \
+    #         --description "Allow SSH from IAP" \
+    #         --direction INGRESS \
+    #         --project=${{ vars.GCP_PROJECT_ID }} \
+    #         --priority 1000 \
+    #         --target-tags allow-iap-ssh
+    #     else
+    #       echo "IAP SSH firewall rule already exists"
+    #     fi
+
+
+    # - name: Ensure general SSH firewall rule exists
+    #   run: |
+    #     NETWORK="${{ vars.GCP_VPC_NETWORK }}"
+    #     NETWORK=${NETWORK:-default}
+    #     if ! gcloud compute firewall-rules describe default-allow-ssh --project=${{ vars.GCP_PROJECT_ID }} 2>/dev/null; then
+    #       echo "Creating default SSH firewall rule on network ${NETWORK}..."
+    #       gcloud compute firewall-rules create default-allow-ssh \
+    #         --network="${NETWORK}" \
+    #         --allow tcp:22 \
+    #         --source-ranges 0.0.0.0/0 \
+    #         --description "Allow SSH from anywhere" \
+    #         --direction INGRESS \
+    #         --project=${{ vars.GCP_PROJECT_ID }} \
+    #         --priority 1000
+    #     else
+    #       echo "Default SSH firewall rule already exists"
+    #     fi
+
+    # - name: Tag VM to match firewall rule
+    #   run: |
+    #     gcloud compute instances add-tags ${{ vars.GCP_VM_NAME }} \
+    #       --zone=us-central1-a \
+    #       --project=${{ vars.GCP_PROJECT_ID }} \
+    #       --tags=allow-iap-ssh \
+    #       --quiet
+
+    # - name: Wait for 10 seconds
+    #   run: |
+    #     sleep 10
+
+    # - name: Map Service Account to Docker group on VM
+    #   run: |
+    #     gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
+    #         --zone=us-central1-a \
+    #         --project=${{ vars.GCP_PROJECT_ID }} \
+    #         --tunnel-through-iap \
+    #         --quiet \
+    #         --command "sudo usermod -aG docker ${{ secrets.GCP_SVC_ACCOUNT }} && sudo newgrp docker"
+        
+
+    - name: Create fansboda directory on VM
+      run: |
+        gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
+          --zone=us-central1-a \
+          --project=${{ vars.GCP_PROJECT_ID }} \
+          --tunnel-through-iap \
+          --quiet \
+          --command "mkdir -p ~/fansboda ~/fansboda/certbot-webroot ~/fansboda/certificates"
+
+    - name: Upload Docker Compose to Compute Engine Instance
+      run: |
+        gcloud compute scp docker-compose.production.yml nginx.conf nginx-acme.conf ${{ vars.GCP_VM_NAME }}:~/fansboda/ \
+          --zone=us-central1-a \
+          --project=${{ vars.GCP_PROJECT_ID }} \
+          --tunnel-through-iap \
+          --quiet
+
+        gcloud compute scp --recurse static ${{ vars.GCP_VM_NAME }}:~/fansboda/ \
+          --zone=us-central1-a \
+          --project=${{ vars.GCP_PROJECT_ID }} \
+          --tunnel-through-iap \
+          --quiet
+
+        # gcloud compute scp --recurse certificates ${{ vars.GCP_VM_NAME }}:~/fansboda/ --zone=us-central1-a 2>/dev/null || true
+
+    - name: Upload service account key and create .env file
+      run: |
+        # Encode the secret to base64
+        ENCODED_KEY=$(echo -n '${{ secrets.GCP_SVC_ACCOUNT_KEY }}' | base64 -w 0)
+        
+        gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
+          --zone=us-central1-a \
+          --project=${{ vars.GCP_PROJECT_ID }} \
+          --tunnel-through-iap \
+          --quiet \
+          --command "cd ~/fansboda && 
+          mkdir -p secrets &&
+          sudo chmod 777 secrets &&
+          echo '$ENCODED_KEY' | base64 -d > secrets/GCP_SVC_ACCOUNT_KEY.json &&
+          sudo chmod 600 secrets/GCP_SVC_ACCOUNT_KEY.json &&
+          cat > .env << 'ENVEOF'
+        DATABASE_URL=${{ secrets.DATABASE_URL }}
+        SECRET_KEY=${{ secrets.SECRET_KEY }}
+        ALLOWED_EMAILS=${{ secrets.ALLOWED_EMAILS }}
+        GOOGLE_APPLICATION_CREDENTIALS=/fansboda/secrets/GCP_SVC_ACCOUNT_KEY.json
+        GOOGLE_CLOUD_PROJECT=${{ vars.GCP_PROJECT_ID }}
+        GOOGLE_CLOUD_REGION=${{ vars.GCP_REGION }}
+        FLASK_ENV=${{ vars.FLASK_ENV }}
+        ENVEOF"
+
+    - name: Configure Docker Hub authentication on VM
+      run: |
+        gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
+          --zone=us-central1-a \
+          --project=${{ vars.GCP_PROJECT_ID }} \
+          --tunnel-through-iap \
+          --quiet \
+          --command "echo '${{ secrets.DOCKER_TOKEN }}' | docker login -u '${{ secrets.DOCKER_USERNAME }}' --password-stdin"
+
+    - name: Pull and Run Docker image to Compute Engine Instance
+      run: |
+        gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
+          --zone=us-central1-a \
+          --project=${{ vars.GCP_PROJECT_ID }} \
+          --tunnel-through-iap \
+          --quiet \
+          --command "cd ~/fansboda && 
+          docker compose -f docker-compose.production.yml down && 
+          docker container prune -f && 
+          docker compose -f docker-compose.production.yml pull && 
+          docker compose -f docker-compose.production.yml up -d --build"
+
+    - name: Check web container logs
+      run: |
+        gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
+          --zone=us-central1-a \
+          --project=${{ vars.GCP_PROJECT_ID }} \
+          --tunnel-through-iap \
+          --quiet \
+          --command "cd ~/fansboda && docker logs fansboda-web 2>&1 | tail -50"
+    
+    # - name: Deploy to Cloud Run
+    #   run: |
+    #     gcloud beta run deploy ${{ vars.GCP_IMAGE_NAME }}  \
+    #       --image "${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME }}:${{ github.run_number }}" \
+    #       --platform managed \
+    #       --region ${{ vars.GCP_REGION }} \
+    #       --port 8080 \
+    #       --memory 512Mi \
+    #       --cpu 1 \
+    #       --max-instances 1 \
+    #       --project ${{ vars.GCP_PROJECT_ID  }} \
+    #       --service-account ${{ secrets.GCP_SVC_ACCOUNT }} \
+    #       --allow-unauthenticated  \
+    #       --ingress internal-and-cloud-load-balancing \
+    #       --set-env-vars FLASK_ENV=${{ vars.FLASK_ENV }},HSTS_MAX_AGE=31536000 \
+    #       --set-env-vars ALLOWED_EMAILS="${{ secrets.ALLOWED_EMAILS }}" \
+    #       --update-secrets DATABASE_URL=DATABASE_URL_DEV:latest,SECRET_KEY=SECRET_KEY:latest \
+
+
+
+    # Add this new step for database migration
+    # - name: Run Database Migrations
+    #   run: |
+    #     # Get the service URL
+    #     SERVICE_URL=$(gcloud run services describe ${{ vars.GCP_SERVICE_NAME }} \
+    #       --region ${{ vars.GCP_REGION }} \
+    #       --project ${{ vars.GCP_PROJECT_ID }} \
+    #       --format 'value(status.url)')
+        
+    #     # Run migration using Cloud Run Jobs (recommended) or direct container execution
+    #     gcloud run jobs create migrate-db-dev-${{ github.run_number }} \
+    #       --image "${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_REPO }}/${{ vars.GCP_IMAGE_NAME }}:${{ github.run_number }}" \
+    #       --region ${{ vars.GCP_REGION }} \
+    #       --project ${{ vars.GCP_PROJECT_ID }} \
+    #       --service-account ${{ secrets.GCP_SVC_ACCOUNT }} \
+    #       --set-env-vars FLASK_APP=app.py,FLASK_ENV=${{ vars.FLASK_ENV }} \
+    #       --update-secrets DATABASE_URL=DATABASE_URL_DEV:latest,SECRET_KEY=SECRET_KEY:latest \
+    #       --command "flask" \
+    #       --args "db" \
+    #       --args "upgrade" \
+    #       --cpu 1 \
+    #       --memory 512Mi \
+    #       --max-retries 3 \
+    #       --parallelism 1 \
+    #       --tasks 1 
+          
+        
+    #     # Execute the migration job
+    #     gcloud run jobs execute migrate-db-dev-${{ github.run_number }} \
+    #       --region ${{ vars.GCP_REGION }} \
+    #       --project ${{ vars.GCP_PROJECT_ID }} \
+    #       --wait 
+        
+    #     # Clean up the migration job
+    #     gcloud run jobs delete migrate-db-dev-${{ github.run_number }} \
+    #       --region ${{ vars.GCP_REGION }} \
+    #       --project ${{ vars.GCP_PROJECT_ID }} \
+    #       --quiet 
+ 
+    # - name: Assign custom service account to Cloud Run service
+    #   run: |
+    #     gcloud run services update ${{ vars.GCP_SERVICE_NAME }} \
+    #     --region ${{ vars.GCP_REGION }} \
+    #     --service-account ${{ secrets.GCP_SVC_ACCOUNT }}      
+
