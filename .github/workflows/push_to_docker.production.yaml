@@ -2,23 +2,40 @@ name: 3b. Push Image To Docker Hub in Production
 run-name: ${{ github.actor }} is pushing image to Docker Hub - Production  🚀
 
 on:
-  push:
-    branches: [ main ]
+  workflow_dispatch:
+    # No branch restriction - can be triggered from any branch
 
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
     environment: prod
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    # Removed the workflow_run condition since this is workflow_dispatch
 
     permissions:
       contents: read
       packages: write
 
     steps:
-      - name: Checkout
+      - name: Fetch all tags
+        run: git fetch --tags
+
+      - name: Get latest release tag
+        id: get_latest_tag
+        run: |
+          # Get the latest tag (sorted by version, not alphabetically)
+          LATEST_TAG=$(git tag -l --sort=-version:refname | head -n 1)
+          if [ -z "$LATEST_TAG" ]; then
+            echo "Error: No release tags found"
+            exit 1
+          fi
+          echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "Latest release tag: $LATEST_TAG"
+
+      - name: Checkout latest release
         uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.get_latest_tag.outputs.tag }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
