@@ -28,19 +28,19 @@ echo -e "${BLUE}=== Creating Release $VERSION ===${NC}"
 echo ""
 
 # Step 1: Ensure dev is pushed
-if false; then
+if true; then
 echo -e "${GREEN}Step 1: Pushing dev branch to origin...${NC}"
 git push -u origin dev
 echo ""
 fi
 # Step 2: Update remotes
-if false; then
+if true; then
 echo -e "${GREEN}Step 2: Updating remote information...${NC}"
 git remote update
 echo ""
 fi
 # Step 3: Pull latest dev
-if false; then
+if true; then
 echo -e "${GREEN}Step 3: Pulling latest changes from origin/dev...${NC}"
 git pull origin dev
 echo ""
@@ -51,19 +51,19 @@ fi
 # echo ""
 
 # Step 5: Create release branch from origin/dev
-if false; then
+if true; then
 echo -e "${GREEN}Step 5: Creating release branch $RELEASE_BRANCH from origin/dev...${NC}"
 git checkout -b "$RELEASE_BRANCH" origin/dev
 echo ""
 fi
 # Step 6: Push release branch to remote 
-if false; then
+if true; then
 echo -e "${GREEN}Step 6: Pushing release branch to origin...${NC}"
 git push origin "$RELEASE_BRANCH"
 echo ""
 fi
 # Step 7: Pause for PR review
-if false; then
+if true; then
 echo -e "${YELLOW}========================================${NC}"
 echo -e "${YELLOW}⏸️  PAUSE: Manual Step Required${NC}"
 echo -e "${YELLOW}========================================${NC}"
