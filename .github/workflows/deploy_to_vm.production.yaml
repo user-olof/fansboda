@@ -1,4 +1,4 @@
-name: 4b. Deploy Production to VM
+name: 7. Deploy Production to VM
 run-name: ${{ github.actor }} is deploying to VM - Production  🚀
 on: 
   workflow_run:
