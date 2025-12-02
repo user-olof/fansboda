@@ -111,6 +111,22 @@ echo -e "${GREEN}Step 15: Pushing tags to origin...${NC}"
 git push origin --tags
 echo ""
 
+# Step 15.5: Create GitHub Release as draft
+echo -e "${GREEN}Step 15.5: Creating GitHub Release (draft)...${NC}"
+if command -v gh &> /dev/null; then
+    gh release create "$VERSION" \
+        --title "Release $VERSION" \
+        --notes "Release $VERSION" \
+        --draft
+    echo -e "${GREEN}✓ GitHub Release created as DRAFT${NC}"
+    echo -e "${YELLOW}You can now edit and publish it in the GitHub UI${NC}"
+else
+    echo -e "${YELLOW}Warning: GitHub CLI (gh) not found.${NC}"
+    echo "Install it with: brew install gh (macOS) or see https://cli.github.com/"
+    echo "Or create the release manually in GitHub UI"
+fi
+echo ""
+
 # Step 16: Checkout dev
 echo -e "${GREEN}Step 16: Switching to dev branch...${NC}"
 git checkout dev

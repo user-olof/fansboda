@@ -1,8 +1,8 @@
-name: 4a. Deploy Dev to VM
+name: 4. Deploy Dev to VM
 run-name: ${{ github.actor }} is deploying to VM - Dev  🚀
 on: 
   workflow_run:
-      workflows: ["3a. Push Image To Docker Hub"] # Run the deploy after successful Build and Test
+      workflows: ["3. Push Image To Docker Hub in Dev"] # Run the deploy after successful Build and Test
       types:
         - completed     
 

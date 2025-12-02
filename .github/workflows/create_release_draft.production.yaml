@@ -1,0 +1,27 @@
+name: 5. Create Release Draft in Production
+run-name: ${{ github.actor }} is creating a release draft in Production  🚀
+
+on:
+  workflow_dispatch:
+
+jobs:
+  create_release_draft:
+    runs-on: ubuntu-latest
+    environment: prod
+    
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+    
+    # get the latest release tag
+      - name: Get Latest Release Tag
+        run: |
+          git fetch --tags
+          LATEST_TAG=$(git tag -l --sort=-version:refname | head -n 1)
+          echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_OUTPUT
+      
+    # create release draft using the scripts/create-release.sh script
+      - name: Create Release Draft
+        run: |
+          ./scripts/create-release.sh ${{ github.event.release.tag_name }}

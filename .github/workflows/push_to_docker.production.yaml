@@ -1,8 +1,12 @@
-name: 3b. Push Image To Docker Hub in Production
+name: 6. Push Image To Docker Hub in Production
 run-name: ${{ github.actor }} is pushing image to Docker Hub - Production  🚀
 
 on:
+  # run when a release has been drafted
+  release:
+    types: [drafted]
   workflow_dispatch:
+
     # No branch restriction - can be triggered from any branch
 
 
