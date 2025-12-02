@@ -1,4 +1,4 @@
-name: 3a. Push Image To Docker Hub in Dev
+name: 3. Push Image To Docker Hub in Dev
 run-name: ${{ github.actor }} is pushing image to Docker Hub - Dev  🚀
 
 on:
