@@ -54,4 +54,4 @@ jobs:
 
       - name: Create Release Draft
         run: |
-          ./scripts/create-release.sh ${{ steps.increase_latest_tag.outputs.INCREASED_LATEST_TAG }}
+          ./scripts/create-release-draft.sh ${{ steps.increase_latest_tag.outputs.INCREASED_LATEST_TAG }}

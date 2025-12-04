@@ -46,9 +46,9 @@ git pull origin dev
 echo ""
 fi
 # Step 4: Show all branches
-# echo -e "${GREEN}Step 4: Current branch status...${NC}"
-# git branch -avv
-# echo ""
+echo -e "${GREEN}Step 4: Current branch status...${NC}"
+git branch -avv
+echo ""
 
 # Step 5: Create release branch from origin/dev
 if true; then
@@ -78,46 +78,70 @@ read -p "Press Enter to continue after the PR is approved and merged (or Ctrl+C 
 echo ""
 fi
 # Step 8: Checkout master
+if true; then
 echo -e "${GREEN}Step 8: Switching to master branch...${NC}"
 git checkout main
 echo ""
-
+fi  
 # Step 9: Show current branch
+if true; then
 echo -e "${GREEN}Step 9: Current branch status...${NC}"
 git branch
 echo ""
-
+fi
 # Step 10: Pull latest master
+if true; then
 echo -e "${GREEN}Step 10: Pulling latest changes from origin/master...${NC}"
 git pull origin main
 echo ""
-
+fi  
 # Step 11: Merge release branch into master
+if true; then
 echo -e "${GREEN}Step 11: Merging $RELEASE_BRANCH into master...${NC}"
 git merge "$RELEASE_BRANCH" -m "Release $VERSION: Merge $RELEASE_BRANCH into master"
 echo ""
-
+fi
 # Step 12: Create release tag
-echo -e "${GREEN}Step 12: Creating release tag $VERSION...${NC}"
-git tag -a "$VERSION" -m "Release $VERSION"
-echo ""
+if true; then
+    echo -e "${GREEN}Step 12: Creating release tag $VERSION...${NC}"
+    
+    if git tag -l | grep "$VERSION"; then
+        echo -e "${YELLOW}Tag $VERSION already exists. Skipping...${NC}"
+    else
+        git tag -a "$VERSION" -m "Release $VERSION"
+        echo "Tag $VERSION created"      
+    fi
+    echo ""
+fi
 
 # Step 13: Show tags
+if true; then
 echo -e "${GREEN}Step 13: Current tags...${NC}"
 git tag
 echo ""
-
+fi
 # Step 14: Push master
+if true; then
 echo -e "${GREEN}Step 14: Pushing master to origin...${NC}"
 git push origin main
 echo ""
-
+fi
 # Step 15: Push tags
+if true; then
 echo -e "${GREEN}Step 15: Pushing tags to origin...${NC}"
 git push origin --tags
 echo ""
+fi
 
-# Step 15.5: Create GitHub Release as draft
+# Step 15.1: Check GitHub account status
+if true; then
+echo -e "${GREEN}Step 15.1: Checking GitHub account status...${NC}"
+gh auth status
+echo ""
+fi
+
+# Step 15.2: Create GitHub Release as draft
+if true; then
 echo -e "${GREEN}Step 15.5: Creating GitHub Release (draft)...${NC}"
 if command -v gh &> /dev/null; then
     gh release create "$VERSION" \
@@ -128,50 +152,59 @@ if command -v gh &> /dev/null; then
     echo -e "${YELLOW}You can now edit and publish it in the GitHub UI${NC}"
 else
     echo -e "${YELLOW}Warning: GitHub CLI (gh) not found.${NC}"
-    echo "Install it with: brew install gh (macOS) or see https://cli.github.com/"
+    echo 'Install it with: brew install gh (macOS) or see https://cli.github.com/'
     echo "Or create the release manually in GitHub UI"
 fi
 echo ""
-
+fi
 # Step 16: Checkout dev
+if true; then
 echo -e "${GREEN}Step 16: Switching to dev branch...${NC}"
 git checkout dev
 echo ""
-
+fi
 # Step 17: Show current branch
+if true; then
 echo -e "${GREEN}Step 17: Current branch status...${NC}"
 git branch
 echo ""
-
+fi
 # Step 18: Merge release branch into dev
+if true; then
 echo -e "${GREEN}Step 18: Merging $RELEASE_BRANCH into dev...${NC}"
 git merge "$RELEASE_BRANCH" -m "Release $VERSION: Merge $RELEASE_BRANCH into dev"
 echo ""
-
+fi
 # Step 19: Push dev
+if true; then
 echo -e "${GREEN}Step 19: Pushing dev to origin...${NC}"
 git push origin dev
 echo ""
-
+fi
 # Step 20: Delete local release branch
+if true; then
 echo -e "${GREEN}Step 20: Deleting local release branch...${NC}"
 git branch -D "$RELEASE_BRANCH"
 echo ""
-
+fi
 # Step 21: Show current branches
+if true; then
 echo -e "${GREEN}Step 21: Current branch status...${NC}"
 git branch
 echo ""
-
+fi  
 # Step 22: Delete remote release branch
+if true; then
 echo -e "${GREEN}Step 22: Deleting remote release branch...${NC}"
 git push origin :"$RELEASE_BRANCH"
 echo ""
-
+fi
 # Step 23: Final branch status
+if true; then
 echo -e "${GREEN}Step 23: Final branch status...${NC}"
 git branch -avv
 echo ""
+fi
 
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}✅ Release $VERSION completed successfully!${NC}"
