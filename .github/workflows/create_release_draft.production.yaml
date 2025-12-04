@@ -52,6 +52,11 @@ jobs:
           echo "INCREASED_LATEST_TAG=$INCREASED_TAG" >> $GITHUB_OUTPUT
           echo "Increased tag: $LATEST_TAG -> $INCREASED_TAG"
 
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+      
       - name: Create Release Draft
         run: |
-          ./scripts/create-release-draft.sh ${{ steps.increase_latest_tag.outputs.INCREASED_LATEST_TAG }}
+          ./scripts/create-release-in-workflow.sh ${{ steps.increase_latest_tag.outputs.INCREASED_LATEST_TAG }}
