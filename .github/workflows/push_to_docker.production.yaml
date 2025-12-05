@@ -4,8 +4,11 @@ run-name: ${{ github.actor }} is pushing image to Docker Hub - Production  🚀
 on:
   # run when a release has been drafted
   workflow_dispatch:
-
-
+    inputs:
+      version:
+        description: "Version to build and push"
+        required: true
+        default: "latest"
 
 jobs:
   build-and-push:
