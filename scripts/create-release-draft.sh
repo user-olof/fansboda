@@ -27,6 +27,18 @@ RELEASE_BRANCH="release/$VERSION"
 echo -e "${BLUE}=== Creating Release $VERSION ===${NC}"
 echo ""
 
+# Step 0: Check that you are logged into GitHub
+if true; then
+    echo -e "${GREEN}Step 0: Checking GitHub account status...${NC}"
+    if ! gh auth status; then
+        GITHUB_TOKEN=$(cat secrets/GH_TOKEN_BASIC)
+        echo $GITHUB_TOKEN | gh auth login --with-token
+        echo "Logged in to GitHub"
+        echo ""
+    fi
+fi
+echo ""
+
 # Step 1: Ensure dev is pushed
 if true; then
 echo -e "${GREEN}Step 1: Pushing dev branch to origin...${NC}"
