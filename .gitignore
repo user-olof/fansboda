@@ -160,3 +160,6 @@ zap_scans/
 # ignore nginx ACME challenge
 .well-known/
 certbot-webroot/
+
+# ignore backup files
+*.bak
