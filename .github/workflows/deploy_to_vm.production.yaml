@@ -9,7 +9,7 @@ on:
 jobs:
   deploy_to_vm:
     runs-on: ubuntu-latest
-    environment: prod
+    environment: PROD
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
@@ -29,10 +29,6 @@ jobs:
     - name: Configure Docker to use gcloud as a credential helper
       run: |
         gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev   
-
-    - name: Authenticate with service account key
-      run: |
-        gcloud auth activate-service-account --key-file='${{ secrets.GCP_SVC_ACCOUNT_KEY }}'
 
     - name: Create fansboda directory on VM
       run: |
