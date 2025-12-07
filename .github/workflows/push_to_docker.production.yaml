@@ -13,7 +13,7 @@ on:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    environment: prod
+    environment: PROD
     # Removed the workflow_run condition since this is workflow_dispatch
 
     permissions:
