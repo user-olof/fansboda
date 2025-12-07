@@ -26,7 +26,7 @@ services:
       - "80:80" # HTTP - redirects to HTTPS
       - "443:443" # HTTPS - main application
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx.production.conf:/etc/nginx/nginx.conf:ro
       - ./static:/var/www/static:ro
       - ./certificates:/etc/nginx/ssl:ro
       - ./certbot-webroot:/var/www/certbot:ro
