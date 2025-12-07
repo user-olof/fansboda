@@ -96,7 +96,7 @@ def create_app(config_name=None):
 
     CORS(
         app,
-        origins=[],  # No external origins allowed
+        origins=["https://www.fansboda.dpdns.org", "https://fansboda.dpdns.org"],  # No external origins allowed
         methods=["GET", "POST"],  # Only allow necessary methods
         allow_headers=["Content-Type", "Authorization"],
         supports_credentials=True,
