@@ -9,23 +9,22 @@
 {% block content %}
 <div class="container mt-5">
     <div class="row">
-        <div class="col-12" style="margin-top: 20px;">
+        <div class="col-12 hero-container">
             <!-- Welcome Header -->
             <div class="jumbotron text-white rounded p-5 mb-4 hero-background">
                 <div class="container-fluid py-5">
                     <h1 class="display-5 fw-bold">
                         <i class="bi bi-house-heart me-3"></i>V&auml;lkommen till F&auml;nsboda!
                     </h1>
-                    <p class="col-md-8 fs-4">
-                        Hello, <strong>{{ current_user.email }}</strong>! You have successfully logged in.
-                    </p>
+
                 </div>
             </div>
         </div>
     </div>
+    <!-- ... rest of the content ... -->
 
     <!-- Centered Form Section -->
-    <div class="row justify-content-center">
+    <div class="row justify-content-center form-section">
         <div class="col-12 col-md-8 col-lg-6">
             <div class="card shadow-sm">
                 <div class="card-header bg-light">
@@ -36,10 +35,12 @@
                 <div class="card-body">
                     <form>
                         <!-- Electricity - Metallen (Editable) -->
-                        <div class="form-floating mb-3">
-                            <input type="number" class="form-control" name="electricity_bill" id="floatingInput"
-                                placeholder="1000" min="0" step="0.01">
-                            <label for="floatingInput">Elr&auml;kning - Metallen</label>
+                        <div class="mb-3 electricity-input-wrapper">
+                            <div class="form-floating" style="flex: 1;">
+                                <input type="number" class="form-control" name="electricity_bill" id="floatingInput"
+                                    placeholder="1000" min="0" step="0.01">
+                                <label for="floatingInput">Elr&auml;kning - Metallen</label>
+                            </div>
                         </div>
 
                         <!-- Telekom (Calculated) -->

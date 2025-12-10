@@ -76,7 +76,7 @@ def login():
         user.reset_login_attempts()
         login_user(user, remember=form.remember_me.data)
 
-        flash("Login successful!")
+        flash(f"Welcome back, {user.email}! You have successfully logged in!")
         return redirect(url_for("home.index"))
 
     return render_template("login.html", title="Login", form=form)
