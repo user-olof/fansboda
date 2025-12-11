@@ -21,11 +21,13 @@ class TestRoutes:
             db.session.commit()
 
             # Login and access index
-            # with patch("src.models.user.User.is_allowed", return_value=True):
-            auth.login()
-            response = client.get("/")
-            assert response.status_code == 200
-            assert b"You have successfully logged in" in response.data
+            resp = auth.login(follow_redirects=False)
+            assert resp.status_code == 302
+            assert "/" in resp.location
+            with client.session_transaction() as sess:
+                flashes = sess.get("_flashes", [])
+                messages = [m for _, m in flashes]
+                assert any("Welcome back" in m for m in messages)
 
     def test_users_route(self, client):
         """Test users route."""
