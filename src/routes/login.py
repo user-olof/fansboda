@@ -12,6 +12,7 @@ from flask import (
 )
 from flask_login import current_user, login_user, logout_user, login_required
 import sqlalchemy as sa
+from sqlalchemy import func
 from src.models.user import User
 from src.forms.loginform import LoginForm
 from src.forms.signupform import SignupForm
@@ -31,7 +32,7 @@ def login():
         # Find the user in the database
         try:
             user = db.session.scalar(
-                sa.select(User).where(User.email == form.email.data)
+                sa.select(User).where(func.lower(User.email) == func.lower(form.email.data))
             )
         except Exception as e:
             print(f"Error: {e}")
@@ -102,7 +103,7 @@ def signup():
 
         from src import db
 
-        if db.session.query(User).filter_by(email=form.email.data).first() is not None:
+        if db.session.scalar(sa.select(User).where(func.lower(User.email) == func.lower(form.email.data))) is not None:
             flash("Email already exists")
             return redirect(url_for("login.signup"))
 
