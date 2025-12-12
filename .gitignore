@@ -163,3 +163,9 @@ certbot-webroot/
 
 # ignore backup files
 *.bak
+
+# scripts to ignore
+scripts/delete-cache-firefox.sh
+scripts/delete-ssh-keys.sh
+scripts/ssh-to-vm.sh
+scripts/create-release-in-workflow.sh
