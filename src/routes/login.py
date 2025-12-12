@@ -32,7 +32,9 @@ def login():
         # Find the user in the database
         try:
             user = db.session.scalar(
-                sa.select(User).where(func.lower(User.email) == func.lower(form.email.data))
+                sa.select(User).where(
+                    func.lower(User.email) == func.lower(form.email.data)
+                )
             )
         except Exception as e:
             print(f"Error: {e}")
@@ -95,15 +97,33 @@ def signup():
     form = SignupForm()
     if form.validate_on_submit():
 
-        # first check if the user is allowed to sign up
-        allowed_emails = current_app.config["ALLOWED_EMAILS"]
-        if form.email.data not in allowed_emails:
+        # first check if the user is allowed to sign up (case-insensitive comparison)
+        allowed_emails = current_app.config.get("ALLOWED_EMAILS", [])
+        # Normalize allowed emails to lowercase and strip whitespace
+        normalized_allowed_emails = set()
+        for email in allowed_emails:
+            if email and email.strip():
+                normalized_allowed_emails.add(email.lower().strip())
+
+        # Normalize the form email for comparison
+        normalized_form_email = (
+            form.email.data.lower().strip() if form.email.data else ""
+        )
+
+        if normalized_form_email not in normalized_allowed_emails:
             flash("Access denied. You are not authorized to use this application.")
             return redirect(url_for("login.signup"))
 
         from src import db
 
-        if db.session.scalar(sa.select(User).where(func.lower(User.email) == func.lower(form.email.data))) is not None:
+        if (
+            db.session.scalar(
+                sa.select(User).where(
+                    func.lower(User.email) == func.lower(form.email.data)
+                )
+            )
+            is not None
+        ):
             flash("Email already exists")
             return redirect(url_for("login.signup"))
 
