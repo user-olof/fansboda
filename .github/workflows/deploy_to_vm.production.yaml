@@ -99,9 +99,11 @@ jobs:
           --quiet \
           --command "cd ~/fansboda && 
           docker compose -f docker-compose.production.yml down && 
+          docker system prune -a --volumes -f && 
           docker container prune -f && 
           docker compose -f docker-compose.production.yml pull && 
-          docker compose -f docker-compose.production.yml up -d --build"
+          docker compose -f docker-compose.production.yml run --rm web flask db upgrade &&
+          docker compose -f docker-compose.production.yml up -d"
 
 
     

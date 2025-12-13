@@ -3,6 +3,17 @@ from flask_login import UserMixin
 from flask import current_app
 from sqlalchemy.ext.hybrid import hybrid_property
 from datetime import datetime, timedelta, timezone
+import enum
+
+
+class Role(str, enum.Enum):
+    """User roles for access control."""
+
+    USER = "user"
+    ADMIN = "admin"
+
+    def __str__(self):
+        return self.value
 
 
 class User(UserMixin, db.Model):
@@ -13,13 +24,16 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     _password_hash = db.Column(db.String)
 
+    # Role-based access control
+    role = db.Column(db.Enum(Role), default=Role.USER, nullable=False)
+
     # Lockout fields
     failed_login_attempts = db.Column(db.Integer, default=0)
     locked_until = db.Column(db.DateTime, nullable=True)
     last_failed_login = db.Column(db.DateTime, nullable=True)
 
     def __repr__(self):
-        return f"<User {self.email}>"
+        return f"<User {self.email} ({self.role})>"
 
     @hybrid_property
     def password_hash(self):
@@ -68,6 +82,16 @@ class User(UserMixin, db.Model):
                 normalized.add(email.lower().strip())
 
         return normalized
+
+    def has_role(self, role):
+        """Check if user has a specific role."""
+        if isinstance(role, str):
+            role = Role(role)
+        return self.role == role
+
+    def is_admin(self):
+        """Check if user is an admin."""
+        return self.role == Role.ADMIN
 
     def is_locked_out(self):
         """Check if user is currently locked out."""

@@ -169,3 +169,4 @@ scripts/delete-cache-firefox.sh
 scripts/delete-ssh-keys.sh
 scripts/ssh-to-vm.sh
 scripts/create-release-in-workflow.sh
+scripts/assign_admin_role.py

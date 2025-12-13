@@ -4,11 +4,6 @@ services:
     image: oloft/fansboda-dev:latest
     container_name: fansboda-web
     restart: unless-stopped
-    # environment:
-    #   - FLASK_ENV=${FLASK_ENV}
-    #   - GOOGLE_APPLICATION_CREDENTIALS=${GCP_SVC_ACCOUNT_KEY}
-    #   - GOOGLE_CLOUD_PROJECT=${GCP_PROJECT_ID}
-    #   - GOOGLE_CLOUD_REGION=${GCP_REGION}
     env_file:
       - .env
     volumes:
