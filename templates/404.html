@@ -4,68 +4,43 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet"
-    integrity="sha384-rbsA2VBKQhggwzxH7pPCaAqO46MgnOM80zW1RWuH61DGLwZJEdK2Kadq2F9CUG65" crossorigin="anonymous">
+  <title>404 - Page Not Found</title>
+
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  
+  <!-- Custom 404 CSS -->
   <link href="{{ url_for('static', filename='css/404.css') }}" rel="stylesheet" />
-  <title>404</title>
 </head>
 
 <body>
-  <nav class="navbar navbar-expand-lg">
-    <div class="moon"></div>
-    <div class="moon__crater moon__crater1"></div>
-    <div class="moon__crater moon__crater2"></div>
-    <div class="moon__crater moon__crater3"></div>
-
-    <div class="star star1"></div>
-    <div class="star star2"></div>
-    <div class="star star3"></div>
-    <div class="star star4"></div>
-    <div class="star star5"></div>
-
-    <div class="error">
-      <div class="error__title">404</div>
-      <div class="error__subtitle">Developer currently unavailable</div>
-      <div class="error__description">{{ message }}</div>
-      <!-- <button class="error__button error__button--active">HOME</button>
-      <button class="error__button">CONTACT</button> -->
-    </div>
-
-    <div class="astronaut">
-      <div class="astronaut__backpack"></div>
-      <div class="astronaut__body"></div>
-      <div class="astronaut__body__chest"></div>
-      <div class="astronaut__arm-left1"></div>
-      <div class="astronaut__arm-left2"></div>
-      <div class="astronaut__arm-right1"></div>
-      <div class="astronaut__arm-right2"></div>
-      <div class="astronaut__arm-thumb-left"></div>
-      <div class="astronaut__arm-thumb-right"></div>
-      <div class="astronaut__leg-left"></div>
-      <div class="astronaut__leg-right"></div>
-      <div class="astronaut__foot-left"></div>
-      <div class="astronaut__foot-right"></div>
-      <div class="astronaut__wrist-left"></div>
-      <div class="astronaut__wrist-right"></div>
-
-      <div class="astronaut__cord">
-        <canvas id="cord" height="500px" width="500px"></canvas>
+  <div class="error-404-container">
+    <div class="error-404-content">
+      <!-- Large 404 with icon -->
+      <div class="error-404-number">
+        <span class="error-404-digit">4</span>
+        <div class="error-404-icon">
+          <i class="bi bi-exclamation-lg"></i>
+        </div>
+        <span class="error-404-digit">4</span>
       </div>
 
-      <div class="astronaut__head">
-        <canvas id="visor" width="60px" height="60px"></canvas>
-        <div class="astronaut__head-visor-flare1"></div>
-        <div class="astronaut__head-visor-flare2"></div>
+      <!-- Error messages -->
+      <h1 class="error-404-title">Oops! You're lost.</h1>
+      <p class="error-404-message">The page you are looking for was not found.</p>
+
+      <!-- Back to Home button -->
+      <a href="{{ url_for('home.index') }}" class="error-404-button">Back to Home</a>
+
+      <!-- Footer with divider and scroll to top -->
+      <div class="error-404-footer">
+        <hr class="error-404-divider">
+        <button class="error-404-scroll-top" onclick="window.scrollTo({top: 0, behavior: 'smooth'})" aria-label="Scroll to top">
+          <i class="bi bi-arrow-up"></i>
+        </button>
       </div>
     </div>
-  </nav>
-
-
-
-
+  </div>
 </body>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.min.js"
-  integrity="sha384-cuYeSxntonz0PPNlHhBs68uyIAVpIIOZZ5JqeqvYYIcEL727kskC66kF92t6Xl2V" crossorigin="anonymous"></script>
-<script src="{{ url_for('static', filename='js/scripts.js') }}" type="text/JavaScript"></script>
 
 </html>

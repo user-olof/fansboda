@@ -12,6 +12,7 @@ from flask import (
 )
 from flask_login import current_user, login_user, logout_user, login_required
 import sqlalchemy as sa
+from sqlalchemy import func
 from src.models.user import User
 from src.forms.loginform import LoginForm
 from src.forms.signupform import SignupForm
@@ -31,7 +32,9 @@ def login():
         # Find the user in the database
         try:
             user = db.session.scalar(
-                sa.select(User).where(User.email == form.email.data)
+                sa.select(User).where(
+                    func.lower(User.email) == func.lower(form.email.data)
+                )
             )
         except Exception as e:
             print(f"Error: {e}")
@@ -76,7 +79,7 @@ def login():
         user.reset_login_attempts()
         login_user(user, remember=form.remember_me.data)
 
-        flash("Login successful!")
+        flash(f"Welcome back, {user.email}! You have successfully logged in!")
         return redirect(url_for("home.index"))
 
     return render_template("login.html", title="Login", form=form)
@@ -94,15 +97,33 @@ def signup():
     form = SignupForm()
     if form.validate_on_submit():
 
-        # first check if the user is allowed to sign up
-        allowed_emails = current_app.config["ALLOWED_EMAILS"]
-        if form.email.data not in allowed_emails:
+        # first check if the user is allowed to sign up (case-insensitive comparison)
+        allowed_emails = current_app.config.get("ALLOWED_EMAILS", [])
+        # Normalize allowed emails to lowercase and strip whitespace
+        normalized_allowed_emails = set()
+        for email in allowed_emails:
+            if email and email.strip():
+                normalized_allowed_emails.add(email.lower().strip())
+
+        # Normalize the form email for comparison
+        normalized_form_email = (
+            form.email.data.lower().strip() if form.email.data else ""
+        )
+
+        if normalized_form_email not in normalized_allowed_emails:
             flash("Access denied. You are not authorized to use this application.")
             return redirect(url_for("login.signup"))
 
         from src import db
 
-        if db.session.query(User).filter_by(email=form.email.data).first() is not None:
+        if (
+            db.session.scalar(
+                sa.select(User).where(
+                    func.lower(User.email) == func.lower(form.email.data)
+                )
+            )
+            is not None
+        ):
             flash("Email already exists")
             return redirect(url_for("login.signup"))
 

@@ -127,7 +127,7 @@ class AuthActions:
         self._client = client
 
     def login(
-        self, email="test@example.com", password="testpass"
+        self, email="test@example.com", password="testpass", follow_redirects=True
     ):  # Changed from username to email
         return self._client.post(
             "/login",
@@ -135,7 +135,7 @@ class AuthActions:
                 "email": email,
                 "password": password,
             },  # Changed from username to email
-            follow_redirects=True,
+            follow_redirects=follow_redirects,
         )
 
     def logout(self):

@@ -3,6 +3,22 @@
     margin: 0 auto;
 }
 
+/* Position login form closer to navbar */
+.container-fluid.bg-gradient-primary {
+    padding-top: 20px !important;
+}
+
+.login-form-wrapper {
+    margin-top: 0;
+}
+
+/* ... rest of the existing CSS ... */
+
+/* Login form - Same font sizes for all screens */
+.login-form-container {
+    margin: 0 auto;
+}
+
 /* Login form - Smaller font sizes for all screens */
 
 /* Icon sizing - Reduced */

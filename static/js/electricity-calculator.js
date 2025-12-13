@@ -80,12 +80,14 @@ $(document).ready(function () {
     function addClearButton() {
         if ($('.clear-btn').length === 0) {
             const clearButton = $(`
-                <button type="button" class="btn btn-outline-secondary btn-sm mt-2 clear-btn">
+                <button type="button" class="btn btn-outline-secondary btn-sm clear-btn">
                     <i class="bi bi-x-circle me-1"></i>Ta bort
                 </button>
             `);
 
-            $('#floatingInput').closest('.form-floating').after(clearButton);
+            // Add button to the wrapper div
+            const wrapper = $('#floatingInput').closest('.electricity-input-wrapper');
+            wrapper.append(clearButton);
 
             clearButton.on('click', function () {
                 $('#floatingInput').val('').removeClass('is-valid is-invalid');
