@@ -63,7 +63,7 @@ services:
     volumes:
       - ./certificates:/etc/letsencrypt:rw
       - ./certbot-webroot:/var/www/certbot:rw
-    command: certonly --webroot --webroot-path=/var/www/certbot --email olof.thornell@gmail.com --agree-tos --no-eff-email -d www.fansboda.dpdns.org
+    command: certonly --webroot --webroot-path=/var/www/certbot --email olof.thornell@gmail.com --agree-tos --no-eff-email -d www.fansboda.dpdns.org -d fansboda.dpdns.org
     depends_on:
       - nginx-acme
     networks:
