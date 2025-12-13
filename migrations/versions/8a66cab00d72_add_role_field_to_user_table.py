@@ -18,22 +18,56 @@ depends_on = None
 
 
 def upgrade():
-    # For PostgreSQL
-    op.execute("CREATE TYPE role AS ENUM ('user', 'admin')")
-    op.add_column(
-        "user",
-        sa.Column(
-            "role",
-            sa.Enum("user", "admin", name="role"),
-            nullable=False,
-            server_default="user",
-        ),
-    )
+    # Detect database type
+    bind = op.get_bind()
+    is_postgresql = bind.dialect.name == "postgresql"
 
-    # For SQLite/MySQL (simpler)
-    # op.add_column('user', sa.Column('role', sa.String(20), nullable=False, server_default='user'))
+    if is_postgresql:
+        # PostgreSQL: Use ENUM type
+        # Check if type already exists (for safety)
+        connection = bind.connect()
+        result = connection.execute(
+            sa.text("SELECT 1 FROM pg_type WHERE typname = 'role'")
+        )
+        type_exists = result.fetchone() is not None
+        connection.close()
+
+        if not type_exists:
+            op.execute("CREATE TYPE role AS ENUM ('user', 'admin')")
+
+        op.add_column(
+            "user",
+            sa.Column(
+                "role",
+                sa.Enum("user", "admin", name="role", create_type=False),
+                nullable=False,
+                server_default="user",
+            ),
+        )
+    else:
+        # SQLite/MySQL: Use String type
+        op.add_column(
+            "user",
+            sa.Column("role", sa.String(20), nullable=False, server_default="user"),
+        )
 
 
 def downgrade():
+    # Detect database type
+    bind = op.get_bind()
+    is_postgresql = bind.dialect.name == "postgresql"
+
+    # Drop column first
     op.drop_column("user", "role")
-    op.execute("DROP TYPE role")  # PostgreSQL only
+
+    if is_postgresql:
+        # PostgreSQL: Drop ENUM type if it exists
+        connection = bind.connect()
+        result = connection.execute(
+            sa.text("SELECT 1 FROM pg_type WHERE typname = 'role'")
+        )
+        type_exists = result.fetchone() is not None
+        connection.close()
+
+        if type_exists:
+            op.execute("DROP TYPE role")
