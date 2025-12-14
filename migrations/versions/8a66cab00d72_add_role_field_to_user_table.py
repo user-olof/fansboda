@@ -30,22 +30,22 @@ def upgrade():
         type_exists = result.fetchone() is not None
 
         if not type_exists:
-            op.execute("CREATE TYPE role AS ENUM ('user', 'admin')")
+            op.execute("CREATE TYPE role AS ENUM ('USER', 'ADMIN')")
 
         op.add_column(
             "user",
             sa.Column(
                 "role",
-                sa.Enum("user", "admin", name="role", create_type=False),
+                sa.Enum("USER", "ADMIN", name="role", create_type=False),
                 nullable=False,
-                server_default="user",
+                server_default="USER",
             ),
         )
     else:
         # SQLite/MySQL: Use String type
         op.add_column(
             "user",
-            sa.Column("role", sa.String(20), nullable=False, server_default="user"),
+            sa.Column("role", sa.String(20), nullable=False, server_default="USER"),
         )
 
 
