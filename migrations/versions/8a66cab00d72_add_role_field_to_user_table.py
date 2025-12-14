@@ -25,12 +25,9 @@ def upgrade():
     if is_postgresql:
         # PostgreSQL: Use ENUM type
         # Check if type already exists (for safety)
-        connection = bind.connect()
-        result = connection.execute(
-            sa.text("SELECT 1 FROM pg_type WHERE typname = 'role'")
-        )
+        # bind is already a connection, use it directly
+        result = bind.execute(sa.text("SELECT 1 FROM pg_type WHERE typname = 'role'"))
         type_exists = result.fetchone() is not None
-        connection.close()
 
         if not type_exists:
             op.execute("CREATE TYPE role AS ENUM ('user', 'admin')")
@@ -62,12 +59,9 @@ def downgrade():
 
     if is_postgresql:
         # PostgreSQL: Drop ENUM type if it exists
-        connection = bind.connect()
-        result = connection.execute(
-            sa.text("SELECT 1 FROM pg_type WHERE typname = 'role'")
-        )
+        # bind is already a connection, use it directly
+        result = bind.execute(sa.text("SELECT 1 FROM pg_type WHERE typname = 'role'"))
         type_exists = result.fetchone() is not None
-        connection.close()
 
         if type_exists:
             op.execute("DROP TYPE role")
