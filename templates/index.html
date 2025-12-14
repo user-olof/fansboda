@@ -48,8 +48,13 @@
                             <label for="telecomFormControlInput" class="form-label">
                                 Telekom <small class="text-muted">(20%)</small>
                             </label>
-                            <input type="text" class="form-control bg-light" id="telecomFormControlInput"
-                                placeholder="0.00" readonly>
+                            <div class="d-flex gap-2">
+                                <input type="text" class="form-control bg-light" id="telecomFormControlInput"
+                                    placeholder="0.00" readonly>
+                                <button type="button" class="btn btn-primary" onclick="sendEmail('telekom')">
+                                    <i class="bi bi-envelope me-1"></i>Skicka email
+                                </button>
+                            </div>
                         </div>
 
                         <!-- Johan och Emil's Bilservice (Calculated) -->
@@ -57,8 +62,13 @@
                             <label for="johanOchEmilBilserviceControlInput" class="form-label">
                                 Johan och Emil's Bilservice <small class="text-muted">(51,2%)</small>
                             </label>
-                            <input type="text" class="form-control bg-light" id="johanOchEmilBilserviceControlInput"
-                                placeholder="0.00" readonly>
+                            <div class="d-flex gap-2">
+                                <input type="text" class="form-control bg-light" id="johanOchEmilBilserviceControlInput"
+                                    placeholder="0.00" readonly>
+                                <button type="button" class="btn btn-primary" onclick="sendEmail('johanOchEmilBilservice')">
+                                    <i class="bi bi-envelope me-1"></i>Skicka email
+                                </button>
+                            </div>
                         </div>
 
                         <!-- JA Bilservice (Calculated) -->
@@ -66,8 +76,13 @@
                             <label for="jaBilserviceControlInput" class="form-label">
                                 JA Bilservice <small class="text-muted">(9,6%)</small>
                             </label>
-                            <input type="text" class="form-control bg-light" id="jaBilserviceControlInput"
-                                placeholder="0.00" readonly>
+                            <div class="d-flex gap-2">
+                                <input type="text" class="form-control bg-light" id="jaBilserviceControlInput"
+                                    placeholder="0.00" readonly>
+                                <button type="button" class="btn btn-primary" onclick="sendEmail('jaBilservice')">
+                                    <i class="bi bi-envelope me-1"></i>Skicka email
+                                </button>
+                            </div>
                         </div>
 
                         <!-- TK Mätservice (Calculated) -->
@@ -75,8 +90,13 @@
                             <label for="tkMatserviceControlInput" class="form-label">
                                 TK M&auml;tservice <small class="text-muted">(19,2%)</small>
                             </label>
-                            <input type="text" class="form-control bg-light" id="tkMatserviceControlInput"
-                                placeholder="0.00" readonly>
+                            <div class="d-flex gap-2">
+                                <input type="text" class="form-control bg-light" id="tkMatserviceControlInput"
+                                    placeholder="0.00" readonly>
+                                <button type="button" class="btn btn-primary" onclick="sendEmail('tkMatservice')">
+                                    <i class="bi bi-envelope me-1"></i>Skicka email
+                                </button>
+                            </div>
                         </div>
                     </form>
                 </div>
@@ -96,4 +116,22 @@
 {% block scripts %}
 <!-- Electricity Calculator Script -->
 <script src="{{ url_for('static', filename='js/electricity-calculator.js') }}"></script>
+<script>
+    function sendEmail(service) {
+        // Get the amount from the corresponding input field
+        const inputMap = {
+            'telekom': 'telecomFormControlInput',
+            'johanOchEmilBilservice': 'johanOchEmilBilserviceControlInput',
+            'jaBilservice': 'jaBilserviceControlInput',
+            'tkMatservice': 'tkMatserviceControlInput'
+        };
+        
+        const inputId = inputMap[service];
+        const amount = document.getElementById(inputId).value;
+        
+        // TODO: Implement email sending functionality
+        console.log(`Sending email for ${service} with amount: ${amount}`);
+        alert(`Skickar email för ${service} med belopp: ${amount}`);
+    }
+</script>
 {% endblock %}

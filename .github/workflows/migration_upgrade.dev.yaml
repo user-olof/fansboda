@@ -1,0 +1,36 @@
+name: 9. Migrate Upgrade Dev
+run-name: ${{ github.actor }} is migrating upgrade  🚀
+on: 
+  workflow_dispatch:
+    branches: [ dev ]
+
+jobs:
+  migrate_upgrade:
+    runs-on: ubuntu-latest
+    environment: DEV
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Authenticate with Google Cloud
+      uses: google-github-actions/auth@v3
+      with:
+        credentials_json: "${{ secrets.GCP_SVC_ACCOUNT_KEY }}"
+      
+    - name: Set up Google Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        project_id: ${{ vars.GCP_PROJECT_ID }}
+
+    - name: Configure Docker to use gcloud as a credential helper
+      run: |
+        gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev
+
+    - name: Run Database Migrations
+      run: |
+        gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
+          --zone=us-central1-a \
+          --project=${{ vars.GCP_PROJECT_ID }} \
+          --tunnel-through-iap \
+          --quiet \
+          --command "cd ~/fansboda && docker compose -f docker-compose.dev.yml run --rm web flask db upgrade"
