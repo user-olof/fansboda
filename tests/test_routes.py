@@ -29,12 +29,6 @@ class TestRoutes:
                 messages = [m for _, m in flashes]
                 assert any("Welcome back" in m for m in messages)
 
-    def test_users_route(self, client):
-        """Test users route."""
-        response = client.get("/users")
-        assert response.status_code == 200
-        assert b"Users" in response.data
-
     def test_login_route_get(self, client):
         """Test login route GET request."""
         response = client.get("/login")

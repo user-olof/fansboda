@@ -32,6 +32,14 @@ class User(UserMixin, db.Model):
     locked_until = db.Column(db.DateTime, nullable=True)
     last_failed_login = db.Column(db.DateTime, nullable=True)
 
+    def __init__(self, email, role=Role.USER):
+        self.email = email
+        self.role = role
+        self.failed_login_attempts = 0
+        self.locked_until = None
+        self.last_failed_login = None
+        self._password_hash = None
+
     def __repr__(self):
         return f"<User {self.email} ({self.role})>"
 

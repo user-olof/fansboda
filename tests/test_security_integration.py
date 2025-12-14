@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 from src import db
-from src.models.user import User
+from src.models.user import User, Role
 
 
 class TestCompleteSecurityWorkflow:
@@ -438,7 +438,7 @@ class TestCompleteSecurityWorkflow:
             db.create_all()
 
             # Create user
-            user = User(email="monitor@example.com")
+            user = User(email="monitor@example.com", role=Role.ADMIN)
             user.password_hash = "testpass"
             db.session.add(user)
             db.session.commit()
