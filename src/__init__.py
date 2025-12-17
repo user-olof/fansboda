@@ -213,7 +213,7 @@ def configure_talisman(app: Flask):
                     "worker-src": "'self'",
                     "manifest-src": "'self'",
                 },
-                content_security_policy_nonce_in=["script-src", "style-src"],
+                content_security_policy_nonce_in=["script-src"],
                 referrer_policy="strict-origin-when-cross-origin",
             )
         elif app.env == "development":
@@ -257,7 +257,7 @@ def configure_talisman(app: Flask):
                     "worker-src": "'self'",
                     "manifest-src": "'self'",
                 },
-                content_security_policy_nonce_in=["script-src", "style-src"],
+                content_security_policy_nonce_in=["script-src"],
                 referrer_policy="strict-origin-when-cross-origin",
             )
         else:
@@ -277,7 +277,8 @@ def configure_talisman(app: Flask):
                         "https://code.jquery.com",
                     ],
                     "style-src": [
-                        "'self'",
+                        "'self'",  
+                        "'unsafe-inline'",  # Needed for inline styles
                         "https://cdn.jsdelivr.net",
                         "https://fonts.googleapis.com",
                     ],
@@ -302,7 +303,7 @@ def configure_talisman(app: Flask):
                     "worker-src": "'self'",
                     "manifest-src": "'self'",
                 },
-                content_security_policy_nonce_in=["script-src", "style-src"],
+                content_security_policy_nonce_in=["script-src"],
                 referrer_policy="strict-origin-when-cross-origin",
             )
 

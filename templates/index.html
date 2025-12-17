@@ -51,7 +51,7 @@
                             <div class="d-flex gap-2">
                                 <input type="text" class="form-control bg-light" id="telecomFormControlInput"
                                     placeholder="0.00" readonly>
-                                <button type="button" class="btn btn-primary" onclick="sendEmail('telekom')">
+                                <button type="button" class="btn btn-primary" data-service="telekom">
                                     <i class="bi bi-envelope me-1"></i>Skicka email
                                 </button>
                             </div>
@@ -65,7 +65,7 @@
                             <div class="d-flex gap-2">
                                 <input type="text" class="form-control bg-light" id="johanOchEmilBilserviceControlInput"
                                     placeholder="0.00" readonly>
-                                <button type="button" class="btn btn-primary" onclick="sendEmail('johanOchEmilBilservice')">
+                                <button type="button" class="btn btn-primary" data-service="johanOchEmilBilservice">
                                     <i class="bi bi-envelope me-1"></i>Skicka email
                                 </button>
                             </div>
@@ -79,7 +79,7 @@
                             <div class="d-flex gap-2">
                                 <input type="text" class="form-control bg-light" id="jaBilserviceControlInput"
                                     placeholder="0.00" readonly>
-                                <button type="button" class="btn btn-primary" onclick="sendEmail('jaBilservice')">
+                                <button type="button" class="btn btn-primary" data-service="jaBilservice">
                                     <i class="bi bi-envelope me-1"></i>Skicka email
                                 </button>
                             </div>
@@ -93,7 +93,7 @@
                             <div class="d-flex gap-2">
                                 <input type="text" class="form-control bg-light" id="tkMatserviceControlInput"
                                     placeholder="0.00" readonly>
-                                <button type="button" class="btn btn-primary" onclick="sendEmail('tkMatservice')">
+                                <button type="button" class="btn btn-primary" data-service="tkMatservice">
                                     <i class="bi bi-envelope me-1"></i>Skicka email
                                 </button>
                             </div>
@@ -116,8 +116,14 @@
 {% block scripts %}
 <!-- Electricity Calculator Script -->
 <script src="{{ url_for('static', filename='js/electricity-calculator.js') }}"></script>
-<script>
-    function sendEmail(service) {
+<script nonce="{{ csp_nonce() }}">
+    function sendEmail(service, event) {
+        // Prevent default if event exists
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+
         // Get the amount from the corresponding input field
         const inputMap = {
             'telekom': 'telecomFormControlInput',
@@ -125,13 +131,104 @@
             'jaBilservice': 'jaBilserviceControlInput',
             'tkMatservice': 'tkMatserviceControlInput'
         };
-        
+
         const inputId = inputMap[service];
-        const amount = document.getElementById(inputId).value;
-        
-        // TODO: Implement email sending functionality
-        console.log(`Sending email for ${service} with amount: ${amount}`);
-        alert(`Skickar email för ${service} med belopp: ${amount}`);
+        if (!inputId) {
+            console.error('Invalid service:', service);
+            alert('Ogiltig tjänst');
+            return;
+        }
+
+        const inputElement = document.getElementById(inputId);
+        if (!inputElement) {
+            console.error('Input element not found:', inputId);
+            alert('Kunde inte hitta input-fält');
+            return;
+        }
+
+        const amount = inputElement.value;
+
+        if (!amount || amount === '0.00' || amount === '') {
+            alert('Inget belopp att skicka');
+            return;
+        }
+
+        // Get the button that triggered this (from event or closest button)
+        const button = event ? (event.target.closest('button') || event.target) : null;
+        if (!button) {
+            console.error('Button not found');
+            return;
+        }
+
+        const originalText = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Skickar...';
+
+        // Get CSRF token from meta tag
+        const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+        const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : null;
+
+        if (!csrfToken) {
+            console.error('CSRF token not found!');
+            alert('CSRF-token saknas. Ladda om sidan och försök igen.');
+            button.disabled = false;
+            button.innerHTML = originalText;
+            return;
+        }
+
+        // Send request to backend
+        const headers = {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        };
+
+        fetch('/send-email', {
+            method: 'POST',
+            headers: headers,
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                service: service,
+                amount: amount
+            })
+        })
+            .then(response => {
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    if (response.status === 400) {
+                        throw new Error('CSRF-token ogiltig. Ladda om sidan och försök igen.');
+                    }
+                    throw new Error(`Serverfel: HTTP ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    alert('Email skickad!');
+                } else {
+                    alert('Fel vid skickande av email: ' + (data.error || 'Okänt fel'));
+                }
+            })
+            .catch(error => {
+                console.error('Error sending email:', error);
+                alert('Fel vid skickande av email: ' + error.message);
+            })
+            .finally(() => {
+                // Re-enable button
+                button.disabled = false;
+                button.innerHTML = originalText;
+            });
     }
+
+    // Attach event listeners when DOM is ready
+    document.addEventListener('DOMContentLoaded', function () {
+        // Find all email buttons and attach click handlers
+        const emailButtons = document.querySelectorAll('button[data-service]');
+        emailButtons.forEach(button => {
+            button.addEventListener('click', function (event) {
+                const service = this.getAttribute('data-service');
+                sendEmail(service, event);
+            });
+        });
+    });
 </script>
 {% endblock %}
