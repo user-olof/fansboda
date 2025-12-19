@@ -69,11 +69,78 @@ def _validate_and_refresh_credentials(creds):
     return None
 
 
+def _authenticate_with_service_account():
+    """
+    Authenticate using service account with domain-wide delegation.
+
+    Returns:
+        Credentials object if successful, None otherwise
+    """
+    service_account_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    gmail_sender_email = os.getenv("GMAIL_SENDER_EMAIL")
+
+    if not service_account_path or not os.path.exists(service_account_path):
+        return None
+
+    try:
+        service_account_creds = service_account.Credentials.from_service_account_file(
+            service_account_path, scopes=SCOPES
+        )
+
+        if gmail_sender_email:
+            creds = service_account_creds.with_subject(gmail_sender_email)
+            current_app.logger.info(
+                f"Using service account with DWD to impersonate {gmail_sender_email}"
+            )
+            return creds
+        else:
+            current_app.logger.warning(
+                "GMAIL_SENDER_EMAIL not set. Service account requires domain-wide delegation "
+                "and user impersonation for Gmail API."
+            )
+            return None
+    except Exception as e:
+        current_app.logger.warning(f"Service account auth failed: {e}")
+        return None
+
+
+def _authenticate_with_oauth_flow(credentials_path, token_path):
+    """
+    Authenticate using OAuth flow.
+
+    Args:
+        credentials_path: Path to credentials.json file
+        token_path: Path to save token.pickle file
+
+    Returns:
+        Credentials object if successful
+
+    Raises:
+        ValueError: If OAuth flow fails
+    """
+    if not os.path.exists(credentials_path):
+        raise ValueError(
+            "Could not authenticate with Gmail API. Please ensure credentials.json exists and is valid."
+        )
+
+    try:
+        flow = InstalledAppFlow.from_client_secrets_file(credentials_path, SCOPES)
+        creds = flow.run_local_server(port=8080)
+
+        # Save credentials for next run
+        with open(token_path, "wb") as token:
+            pickle.dump(creds, token)
+
+        return creds
+    except Exception as e:
+        current_app.logger.error(f"OAuth flow failed: {e}")
+        raise ValueError(
+            "Could not authenticate with Gmail API. Please ensure credentials.json exists and is valid."
+        ) from e
+
+
 def get_gmail_service():
     """Get authenticated Gmail service instance."""
-    creds = None
-
-    # Path to token file (stores user access/refresh tokens)
     token_path = os.path.join(os.path.dirname(__file__), "..", "..", "token.pickle")
     credentials_path = os.path.join(
         os.path.dirname(__file__), "..", "..", "credentials.json"
@@ -81,61 +148,15 @@ def get_gmail_service():
 
     # Try to load existing token
     creds = _load_existing_token(token_path)
-
-    # Validate and refresh if needed
     creds = _validate_and_refresh_credentials(creds)
 
     # If no valid credentials, try service account or OAuth
     if not creds:
-        # Try service account first (for server-to-server with DWD)
-        service_account_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-        gmail_sender_email = os.getenv("GMAIL_SENDER_EMAIL")
-
-        if service_account_path and os.path.exists(service_account_path):
-            try:
-                # Load service account credentials
-                service_account_creds = (
-                    service_account.Credentials.from_service_account_file(
-                        service_account_path, scopes=SCOPES
-                    )
-                )
-
-                # If GMAIL_SENDER_EMAIL is set, impersonate that user (Domain-Wide Delegation)
-                if gmail_sender_email:
-                    creds = service_account_creds.with_subject(gmail_sender_email)
-                    current_app.logger.info(
-                        f"Using service account with DWD to impersonate {gmail_sender_email}"
-                    )
-                else:
-                    # Without impersonation, service account won't work for Gmail API
-                    current_app.logger.warning(
-                        "GMAIL_SENDER_EMAIL not set. Service account requires domain-wide delegation "
-                        "and user impersonation for Gmail API."
-                    )
-                    creds = None
-            except Exception as e:
-                current_app.logger.warning(f"Service account auth failed: {e}")
-                creds = None
-
-        # Fall back to OAuth flow if service account doesn't work
+        creds = _authenticate_with_service_account()
         creds = _validate_and_refresh_credentials(creds)
-        if not creds:
-            if os.path.exists(credentials_path):
-                try:
-                    flow = InstalledAppFlow.from_client_secrets_file(
-                        credentials_path, SCOPES
-                    )
-                    # In production/Docker, this won't work - need stored credentials
-                    creds = flow.run_local_server(port=8080)
 
-                    # Save credentials for next run
-                    with open(token_path, "wb") as token:
-                        pickle.dump(creds, token)
-                except Exception as e:
-                    current_app.logger.error(f"OAuth flow failed: {e}")
-                    raise ValueError(
-                        "Could not authenticate with Gmail API. Please ensure credentials.json exists and is valid."
-                    )
+        if not creds:
+            creds = _authenticate_with_oauth_flow(credentials_path, token_path)
 
     # Final validation check
     creds = _validate_and_refresh_credentials(creds)

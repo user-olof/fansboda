@@ -314,7 +314,7 @@ class TestCompleteSecurityWorkflow:
             db.create_all()
 
             # Create user
-            user = User(email="allowed@example.com")
+            user = User(email="allowed@example.com", role=Role.USER)
             user.password_hash = "testpass"
             db.session.add(user)
             db.session.commit()
@@ -322,9 +322,8 @@ class TestCompleteSecurityWorkflow:
             # Get initial session ID
             initial_response = client.get("/login")
             if len(client._cookies) > 0:
-                initial_session_id = client._cookies.get(
-                    ("localhost", "/", "session")
-                ).key
+                session_cookie = client._cookies.get(("localhost", "/", "session"))
+                initial_session_id = session_cookie.value if session_cookie else None
             else:
                 initial_session_id = None
 
@@ -335,7 +334,8 @@ class TestCompleteSecurityWorkflow:
             assert login_response.status_code == 302
 
             # Session ID should change after login
-            new_session_id = client._cookies.get(("localhost", "/", "session")).key
+            session_cookie = client._cookies.get(("localhost", "/", "session"))
+            new_session_id = session_cookie.value if session_cookie else None
             assert initial_session_id != new_session_id
 
     def test_database_connection_failure_during_login(self, client, app):
