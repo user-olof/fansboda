@@ -146,7 +146,7 @@ jobs:
         DATABASE_URL=${{ secrets.DATABASE_URL }}
         SECRET_KEY=${{ secrets.SECRET_KEY }}
         ALLOWED_EMAILS=${{ secrets.ALLOWED_EMAILS }}
-        GOOGLE_APPLICATION_CREDENTIALS=/fansboda/secrets/GCP_SVC_ACCOUNT_KEY.json
+        GOOGLE_APPLICATION_CREDENTIALS=secrets/GCP_SVC_ACCOUNT_KEY.json
         GOOGLE_CLOUD_PROJECT=${{ vars.GCP_PROJECT_ID }}
         GOOGLE_CLOUD_REGION=${{ vars.GCP_REGION }}
         GMAIL_SENDER_EMAIL=${{ secrets.GMAIL_SENDER_EMAIL }}
