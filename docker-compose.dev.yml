@@ -8,6 +8,7 @@ services:
       - .env
     volumes:
       - ./static:/app/static:ro # Mount static files for nginx
+      - ./secrets:/fansboda/secrets:ro # Mount secrets directory
     networks:
       - fansboda-network
     healthcheck:
@@ -31,7 +32,8 @@ services:
       - ./certificates:/etc/nginx/ssl:ro # Mount SSL certificates
       - ./certbot-webroot:/var/www/certbot:ro # Mount certbot webroot for ACME challenge
     depends_on:
-      web:  # condition: service_healthy
+      web:
+        # condition: service_healthy
         condition: service_healthy
     networks:
       - fansboda-network

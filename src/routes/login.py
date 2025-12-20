@@ -51,7 +51,7 @@ def login():
             flash(
                 f"Account locked due to too many failed attempts. Try again in {remaining_minutes} minutes."
             )
-            return render_template("temporary_closed.html")
+            return redirect(url_for("errorhandler.four_oh_four"))
 
         # Check if password is correct
         if not user.authenticate(form.password.data):
@@ -62,7 +62,7 @@ def login():
                 flash(
                     "Account locked due to too many failed attempts. Try again in 24 hours."
                 )
-                return render_template("temporary_closed.html")
+                return redirect(url_for("errorhandler.four_oh_four"))
             else:
                 attempts_left = 5 - user.failed_login_attempts
                 flash(
@@ -83,11 +83,6 @@ def login():
         return redirect(url_for("home.index"))
 
     return render_template("login.html", title="Login", form=form)
-
-
-# @login_bp.route("/signup", methods=["GET", "POST"])
-# def signup():
-#     return "SIGNUP ROUTE IS WORKING - THIS IS A TEST"
 
 
 @login_bp.route("/signup", methods=["GET", "POST"])
