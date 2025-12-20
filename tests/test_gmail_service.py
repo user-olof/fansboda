@@ -113,7 +113,7 @@ class TestValidateAndRefreshCredentials:
             mock_logger = mocker.patch("flask.current_app.logger")
 
             # Mock Request class
-            mock_request = mocker.patch("src.services.gmail_service.Request")
+            mocker.patch("src.services.gmail_service.Request")
 
             result = _validate_and_refresh_credentials(mock_creds)
 
