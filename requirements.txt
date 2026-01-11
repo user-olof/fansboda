@@ -38,9 +38,10 @@ redis==6.4.0
 scrypt==0.9.4
 SQLAlchemy==2.0.43
 typing_extensions==4.15.0
-Werkzeug==3.1.4
+Werkzeug==3.1.5
 wheel==0.45.1
 WTForms==3.2.1
 zipp==3.23.0
 google-cloud-secret-manager==2.24.0
 
+urllib3>=2.6.3 # not directly required, pinned by Snyk to avoid a vulnerability
