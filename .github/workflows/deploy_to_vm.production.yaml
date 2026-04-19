@@ -1,6 +1,8 @@
 name: 7. Deploy Production to VM
 run-name: ${{ github.actor }} is deploying to VM - Production  🚀
 on: 
+  workflow_dispatch:
+    branches: [ prod ]
   workflow_run:
       workflows: ["6. Push Image To Docker Hub in Production"] # Run the deploy after successful Build and Test
       types:

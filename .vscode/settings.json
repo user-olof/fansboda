@@ -3,5 +3,7 @@
         "tests"
     ],
     "python.testing.unittestEnabled": false,
-    "python.testing.pytestEnabled": true
+    "python.testing.pytestEnabled": true,
+    "snyk.advanced.organization": "58e20661-9736-41af-bd17-a28af92e4a8f",
+    "snyk.advanced.autoSelectOrganization": true
 }
