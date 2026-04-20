@@ -89,7 +89,7 @@ def create_app(config_name=None):
     db.init_app(app)
     bcrypt.init_app(app)
     login_manager.init_app(app)
-    login_manager.login_view = "login.login"  # Updated for blueprint
+    login_manager.login_view = "login.show_login_form"
     csrf.init_app(app)
     cache.init_app(app)
     # Session(app)

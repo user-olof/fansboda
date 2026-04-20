@@ -15,7 +15,7 @@ def allowed_user_required(f):
                 "Access denied. You are not authorized to use this application.",
                 "error",
             )
-            return redirect(url_for("login.login"))
+            return redirect(url_for("login.show_login_form"))
         return f(*args, **kwargs)
 
     return decorated_function
@@ -37,7 +37,7 @@ def admin_required(f):
         # Check if user is authenticated and allowed (email whitelist)
         if not current_user.is_authenticated or not current_user.is_allowed():
             flash("Access denied. You are not authorized.", "error")
-            return redirect(url_for("login.login"))
+            return redirect(url_for("login.show_login_form"))
 
         # Check if user has admin role
         if not current_user.is_admin():
@@ -65,7 +65,7 @@ def role_required(*required_roles):
             # Check if user is authenticated and allowed
             if not current_user.is_authenticated or not current_user.is_allowed():
                 flash("Access denied. You are not authorized.", "error")
-                return redirect(url_for("login.login"))
+                return redirect(url_for("login.show_login_form"))
 
             # Check if user has one of the required roles
             if current_user.role not in required_roles:

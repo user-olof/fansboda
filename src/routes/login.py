@@ -159,7 +159,7 @@ def logout():
         session.clear()
 
         logout_user()
-    return redirect(url_for("login.login"))
+    return redirect(url_for("login.show_login_form"))
 
 
 # This needs to be registered with the app, not the blueprint

@@ -56,7 +56,8 @@ class TestRoutes:
         response = client.post(
             "/login", data={"email": "nonexistent", "password": "wrongpass"}
         )
-        assert response.status_code == 200
+        assert response.status_code == 302
+        assert "/login" in response.location
 
     def test_login_redirect_when_already_authenticated(self, client, auth):
         """Test that login redirects to index when already authenticated."""

@@ -5,6 +5,7 @@ This module tests end-to-end security scenarios combining multiple components.
 """
 
 from unittest.mock import patch
+from urllib.parse import urlparse
 
 import pytest
 from src import db
@@ -263,9 +264,10 @@ class TestCompleteSecurityWorkflow:
                 )
                 # Should not crash or allow access
                 assert login_response.status_code in [200, 302]
-                # Should not redirect to protected area
+                # Should not redirect to the dashboard (path "/"); /login is OK
                 if login_response.status_code == 302:
-                    assert "/" not in login_response.location
+                    path = urlparse(login_response.location).path
+                    assert path != "/"
 
     def test_concurrent_login_attempts(self, client, app):
         """Test handling of rapid sequential login attempts (simulating concurrent behavior)."""
