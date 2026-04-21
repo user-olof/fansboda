@@ -144,7 +144,7 @@ jobs:
           --quiet \
           --command "cd ~/fansboda && 
           docker system prune -a --volumes -f && 
-          docker container prune -f 
+          docker container prune -f" 
 
     - name: Upload service account key and create .env file
       run: |
