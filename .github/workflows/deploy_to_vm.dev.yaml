@@ -196,7 +196,7 @@ jobs:
           docker compose -f docker-compose.dev.yml down && 
           docker compose -f docker-compose.dev.yml pull &&
           docker compose -f docker-compose.dev.yml run --rm web flask db upgrade && 
-          docker compose -f docker-compose.dev.yml up -d"
+          docker compose -f docker-compose.dev.yml up -d --profile acme"
 
     - name: Check web container logs
       run: |
