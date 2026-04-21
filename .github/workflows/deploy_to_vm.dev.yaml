@@ -117,6 +117,8 @@ jobs:
           --quiet \
           --command "mkdir -p ~/fansboda ~/fansboda/certbot-webroot ~/fansboda/certificates"
 
+
+
     - name: Upload Docker Compose to Compute Engine Instance
       run: |
         gcloud compute scp docker-compose.dev.yml nginx.conf nginx-acme.conf ${{ vars.GCP_VM_NAME }}:~/fansboda/ \
@@ -132,6 +134,17 @@ jobs:
           --quiet
 
         # gcloud compute scp --recurse certificates ${{ vars.GCP_VM_NAME }}:~/fansboda/ --zone=us-central1-a 2>/dev/null || true
+    
+    - name: Cleanup containers on VM
+      run:  |
+        gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
+          --zone=us-central1-a \
+          --project=${{ vars.GCP_PROJECT_ID }} \
+          --tunnel-through-iap \
+          --quiet \
+          --command "cd ~/fansboda && 
+          docker system prune -a --volumes -f && 
+          docker container prune -f 
 
     - name: Upload service account key and create .env file
       run: |
@@ -181,8 +194,6 @@ jobs:
           --quiet \
           --command "cd ~/fansboda && 
           docker compose -f docker-compose.dev.yml down && 
-          docker system prune -a --volumes -f && 
-          docker container prune -f && 
           docker compose -f docker-compose.dev.yml pull &&
           docker compose -f docker-compose.dev.yml run --rm web flask db upgrade && 
           docker compose -f docker-compose.dev.yml up -d"
