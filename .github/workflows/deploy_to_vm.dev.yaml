@@ -106,7 +106,16 @@ jobs:
     #         --tunnel-through-iap \
     #         --quiet \
     #         --command "sudo usermod -aG docker ${{ secrets.GCP_SVC_ACCOUNT }} && sudo newgrp docker"
-        
+    - name: Cleanup containers on VM
+      run:  |
+        gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
+          --zone=us-central1-a \
+          --project=${{ vars.GCP_PROJECT_ID }} \
+          --tunnel-through-iap \
+          --quiet \
+          --command "cd ~/fansboda && 
+          docker system prune -a --volumes -f && 
+          docker container prune -f"  
 
     - name: Create fansboda directory on VM
       run: |
@@ -135,16 +144,7 @@ jobs:
 
         # gcloud compute scp --recurse certificates ${{ vars.GCP_VM_NAME }}:~/fansboda/ --zone=us-central1-a 2>/dev/null || true
     
-    - name: Cleanup containers on VM
-      run:  |
-        gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
-          --zone=us-central1-a \
-          --project=${{ vars.GCP_PROJECT_ID }} \
-          --tunnel-through-iap \
-          --quiet \
-          --command "cd ~/fansboda && 
-          docker system prune -a --volumes -f && 
-          docker container prune -f" 
+
 
     - name: Upload service account key and create .env file
       run: |
