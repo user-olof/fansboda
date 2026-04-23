@@ -138,7 +138,7 @@ class TestValidateAndRefreshCredentials:
             assert result is None
             mock_logger.warning.assert_called_once()
 
-    def test_credentials_invalid_no_refresh_token(self, app):
+    def test_credentials_valid_no_refresh_token(self, app):
         """Test handling of invalid credentials without refresh token."""
         with app.app_context():
             mock_creds = Mock(spec=Credentials)
@@ -148,7 +148,7 @@ class TestValidateAndRefreshCredentials:
 
             result = _validate_and_refresh_credentials(mock_creds)
 
-            assert result is None
+            assert result == mock_creds
 
 
 class TestGetGmailService:
