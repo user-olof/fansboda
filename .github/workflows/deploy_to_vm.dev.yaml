@@ -150,7 +150,7 @@ jobs:
       run: |
         # Encode the secret to base64
         ENCODED_GCP_KEY=$(echo -n '${{ secrets.GCP_SVC_ACCOUNT_KEY }}' | base64 -w 0)
-        ENCODED_GMAIL_KEY = $(echo -n '${{ secrets.GMAIL_SENDER_SA_KEY }}' | base64 -w 0)
+        ENCODED_GMAIL_KEY=$(echo -n '${{ secrets.GMAIL_SENDER_SA_KEY }}' | base64 -w 0)
 
         gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
           --zone=us-central1-a \
