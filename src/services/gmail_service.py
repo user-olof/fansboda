@@ -76,18 +76,18 @@ def _authenticate_with_service_account():
     Returns:
         Credentials object if successful, None otherwise
     """
-    service_account_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    service_account_path = os.getenv("GMAIL_APPLICATION_CREDENTIALS")
     gmail_sender_email = os.getenv("GMAIL_SENDER_EMAIL")
 
     current_app.logger.info(
         f"Attempting service account authentication. "
-        f"GOOGLE_APPLICATION_CREDENTIALS={service_account_path}, "
+        f"GMAIL_APPLICATION_CREDENTIALS={service_account_path}, "
         f"GMAIL_SENDER_EMAIL={'set' if gmail_sender_email else 'not set'}"
     )
 
     if not service_account_path:
         current_app.logger.warning(
-            "GOOGLE_APPLICATION_CREDENTIALS environment variable not set"
+            "GMAIL_APPLICATION_CREDENTIALS environment variable not set"
         )
         return None
 
