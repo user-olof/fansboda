@@ -33,6 +33,19 @@ jobs:
       run: |
         gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev   
 
+
+    - name: Cleanup containers on VM
+      run:  |
+        gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
+          --zone=us-central1-a \
+          --project=${{ vars.GCP_PROJECT_ID }} \
+          --tunnel-through-iap \
+          --quiet \
+          --command "cd ~/fansboda && 
+          docker system prune -a --volumes -f && 
+          docker container prune -f"  
+
+
     - name: Create fansboda directory on VM
       run: |
         gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
@@ -101,8 +114,6 @@ jobs:
           --quiet \
           --command "cd ~/fansboda && 
           docker compose -f docker-compose.production.yml down && 
-          docker system prune -a --volumes -f && 
-          docker container prune -f && 
           docker compose -f docker-compose.production.yml pull && 
           docker compose -f docker-compose.production.yml run --rm web flask db upgrade &&
           docker compose -f docker-compose.production.yml up -d"
