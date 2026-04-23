@@ -56,14 +56,13 @@ def _validate_and_refresh_credentials(creds):
         return creds
 
     # Try to refresh if expired and has refresh token
-    if creds.expired:
-        try:
-            creds.refresh(Request())
-            current_app.logger.info("Credentials refreshed successfully")
-            return creds
-        except Exception as e:
-            current_app.logger.warning(f"Could not refresh token: {e}")
-            return None
+    try:
+        creds.refresh(Request())
+        current_app.logger.info("Credentials refreshed successfully")
+        return creds
+    except Exception as e:
+        current_app.logger.warning(f"Could not refresh token: {e}")
+        return None
 
     # Credentials are invalid and cannot be refreshed
     return None
