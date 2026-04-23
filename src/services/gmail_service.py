@@ -56,7 +56,7 @@ def _validate_and_refresh_credentials(creds):
         return creds
 
     # Try to refresh if expired and has refresh token
-    if creds.expired and creds.refresh_token:
+    if creds.expired:
         try:
             creds.refresh(Request())
             current_app.logger.info("Credentials refreshed successfully")
