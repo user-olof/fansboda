@@ -3,10 +3,14 @@ run-name: ${{ github.actor }} is deploying to VM - Production  🚀
 on: 
   workflow_dispatch:
     branches: [ prod ]
+
   workflow_run:
       workflows: ["6. Push Image To Docker Hub in Production"] # Run the deploy after successful Build and Test
       types:
         - completed     
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   deploy_to_vm:
@@ -71,10 +75,24 @@ jobs:
 
       # gcloud compute scp --recurse certificates ${{ vars.GCP_VM_NAME }}:~/fansboda/ --zone=us-central1-a 2>/dev/null || true
 
+    - name: Create .env locally
+      run:  |
+        cat > .env <<EOF
+        DATABASE_URL=${{ secrets.DATABASE_URL }}
+        SECRET_KEY=${{ secrets.SECRET_KEY }}
+        ALLOWED_EMAILS=${{ secrets.ALLOWED_EMAILS }}
+        GOOGLE_APPLICATION_CREDENTIALS=/fansboda/secrets/GCP_SVC_ACCOUNT_KEY.json
+        GMAIL_APPLICATION_CREDENTIALS=/fansboda/secrets/GMAIL_SENDER_SA_KEY.json
+        GOOGLE_CLOUD_PROJECT=${{ vars.GCP_PROJECT_ID }}
+        GOOGLE_CLOUD_REGION=${{ vars.GCP_REGION }}
+        FLASK_ENV=${{ vars.FLASK_ENV }}
+        EOF
+
     - name: Upload service account key and create .env file
       run: |
         # Encode the service account key to base64
-        ENCODED_KEY=$(echo -n '${{ secrets.GCP_SVC_ACCOUNT_KEY }}' | base64 -w 0)
+        ENCODED_GCP_KEY=$(echo -n '${{ secrets.GCP_SVC_ACCOUNT_KEY }}' | base64 -w 0)
+        ENCODED_GMAIL_KEY=$(echo -n '${{ secrets.GMAIL_SENDER_SA_KEY }}' | base64 -w 0)
         
         gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
           --zone=us-central1-a \
@@ -84,17 +102,10 @@ jobs:
           --command "cd ~/fansboda && 
           mkdir -p secrets &&
           sudo chmod 700 secrets &&
-          echo '$ENCODED_KEY' | base64 -d > secrets/GCP_SVC_ACCOUNT_KEY.json &&
+          echo '$ENCODED_GCP_KEY' | base64 -d > secrets/GCP_SVC_ACCOUNT_KEY.json &&
           sudo chmod 600 secrets/GCP_SVC_ACCOUNT_KEY.json &&
-          cat > .env << 'ENVEOF'
-        DATABASE_URL=${{ secrets.DATABASE_URL }}
-        SECRET_KEY=${{ secrets.SECRET_KEY }}
-        ALLOWED_EMAILS=${{ secrets.ALLOWED_EMAILS }}
-        GOOGLE_APPLICATION_CREDENTIALS=/fansboda/secrets/GCP_SVC_ACCOUNT_KEY.json
-        GOOGLE_CLOUD_PROJECT=${{ vars.GCP_PROJECT_ID }}
-        GOOGLE_CLOUD_REGION=${{ vars.GCP_REGION }}
-        FLASK_ENV=${{ vars.FLASK_ENV }}
-        ENVEOF"
+          echo '$ENCODED_GMAIL_KEY' | base64 -d > secrets/GMAIL_SENDER_SA_KEY.json &&
+          sudo chmod 600 secrets/GMAIL_SENDER_SA_KEY.json"
 
     - name: Configure Docker Hub authentication on VM
       run: |

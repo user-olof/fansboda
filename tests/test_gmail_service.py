@@ -203,7 +203,7 @@ class TestGetGmailService:
             mocker.patch.dict(
                 os.environ,
                 {
-                    "GOOGLE_APPLICATION_CREDENTIALS": "/path/to/service_account.json",
+                    "GMAIL_APPLICATION_CREDENTIALS": "/path/to/service_account.json",
                     "GMAIL_SENDER_EMAIL": "sender@example.com",
                 },
             )
