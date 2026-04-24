@@ -1,11 +1,9 @@
 """
 Comprehensive test suite for Gmail service.
 
-This module tests all Gmail service functionality including:
-- Token loading and validation
-- Credential refresh
-- Service account authentication
-- OAuth flow authentication
+This module tests Gmail service functionality including:
+- Credential refresh for service-account creds
+- Service account authentication (only supported path in ``get_gmail_service``)
 - Email sending with success and error cases
 """
 
@@ -19,68 +17,11 @@ from googleapiclient.errors import HttpError
 from email import message_from_bytes
 
 from src.services.gmail_service import (
-    _load_existing_token,
     _validate_and_refresh_credentials,
     get_gmail_service,
     send_email,
     SCOPES,
 )
-
-
-class TestLoadExistingToken:
-    """Test cases for _load_existing_token function."""
-
-    def test_load_existing_token_success(self, mocker, app):
-        """Test successfully loading an existing token."""
-        with app.app_context():
-            mock_creds = Mock(spec=Credentials)
-            mock_creds.valid = True
-            token_path = "/fake/path/token.pickle"
-
-            # Mock os.path.exists to return True
-            mocker.patch("os.path.exists", return_value=True)
-            # Mock pickle.load
-            mocker.patch("builtins.open", mock_open())
-            mock_pickle_load = mocker.patch(
-                "src.services.gmail_service.pickle.load", return_value=mock_creds
-            )
-
-            result = _load_existing_token(token_path)
-
-            assert result == mock_creds
-            mock_pickle_load.assert_called_once()
-
-    def test_load_existing_token_file_not_exists(self, mocker, app):
-        """Test loading token when file doesn't exist."""
-        with app.app_context():
-            token_path = "/fake/path/token.pickle"
-
-            # Mock os.path.exists to return False
-            mocker.patch("os.path.exists", return_value=False)
-
-            result = _load_existing_token(token_path)
-
-            assert result is None
-
-    def test_load_existing_token_load_error(self, mocker, app):
-        """Test handling of pickle load errors."""
-        with app.app_context():
-            token_path = "/fake/path/token.pickle"
-            mock_logger = mocker.patch("flask.current_app.logger")
-
-            # Mock os.path.exists to return True
-            mocker.patch("os.path.exists", return_value=True)
-            # Mock pickle.load to raise an exception
-            mocker.patch("builtins.open", mock_open())
-            mocker.patch(
-                "src.services.gmail_service.pickle.load",
-                side_effect=Exception("Pickle error"),
-            )
-
-            result = _load_existing_token(token_path)
-
-            assert result is None
-            mock_logger.warning.assert_called_once()
 
 
 class TestValidateAndRefreshCredentials:
@@ -115,6 +56,11 @@ class TestValidateAndRefreshCredentials:
             # Mock Request class
             mocker.patch("src.services.gmail_service.Request")
 
+            def _after_refresh(_req):
+                mock_creds.valid = True
+
+            mock_creds.refresh.side_effect = _after_refresh
+
             result = _validate_and_refresh_credentials(mock_creds)
 
             assert result == mock_creds
@@ -138,68 +84,32 @@ class TestValidateAndRefreshCredentials:
             assert result is None
             mock_logger.warning.assert_called_once()
 
-    def test_credentials_valid_no_refresh_token(self, app):
-        """Test handling of invalid credentials without refresh token."""
+    def test_credentials_valid_no_refresh_token(self, mocker, app):
+        """Invalid credentials that stay invalid after refresh attempt yield None."""
         with app.app_context():
             mock_creds = Mock(spec=Credentials)
             mock_creds.valid = False
             mock_creds.expired = True
             mock_creds.refresh_token = None
+            mocker.patch("src.services.gmail_service.Request")
+            mocker.patch("flask.current_app.logger")
 
             result = _validate_and_refresh_credentials(mock_creds)
 
-            assert result == mock_creds
+            assert result is None
 
 
 class TestGetGmailService:
-    """Test cases for get_gmail_service function."""
-
-    def test_get_gmail_service_with_existing_valid_token(self, mocker, app):
-        """Test getting service with existing valid token."""
-        with app.app_context():
-            mock_creds = Mock(spec=Credentials)
-            mock_creds.valid = True
-            mock_service = Mock()
-
-            # Mock paths
-            mocker.patch(
-                "src.services.gmail_service.os.path.join",
-                side_effect=lambda *args: "/".join(args),
-            )
-            # Mock token loading
-            mocker.patch(
-                "src.services.gmail_service._load_existing_token",
-                return_value=mock_creds,
-            )
-            mocker.patch(
-                "src.services.gmail_service._validate_and_refresh_credentials",
-                return_value=mock_creds,
-            )
-            # Mock Gmail API build
-            mocker.patch("src.services.gmail_service.build", return_value=mock_service)
-
-            result = get_gmail_service()
-
-            assert result == mock_service
+    """Tests for get_gmail_service (service account only, no user OAuth)."""
 
     def test_get_gmail_service_with_service_account(self, mocker, app):
-        """Test getting service using service account credentials."""
+        """Build Gmail client when service account + DWD are configured correctly."""
         with app.app_context():
             mock_service_account_creds = Mock()
             mock_creds_with_subject = Mock(spec=Credentials)
             mock_creds_with_subject.valid = True
             mock_service = Mock()
 
-            # Mock paths
-            mocker.patch(
-                "src.services.gmail_service.os.path.join",
-                side_effect=lambda *args: "/".join(args),
-            )
-            # Mock no existing token
-            mocker.patch(
-                "src.services.gmail_service._load_existing_token", return_value=None
-            )
-            # Mock environment variables
             mocker.patch.dict(
                 os.environ,
                 {
@@ -208,7 +118,6 @@ class TestGetGmailService:
                 },
             )
             mocker.patch("os.path.exists", return_value=True)
-            # Mock service account credentials
             mocker.patch(
                 "src.services.gmail_service.service_account.Credentials.from_service_account_file",
                 return_value=mock_service_account_creds,
@@ -217,8 +126,6 @@ class TestGetGmailService:
                 mock_creds_with_subject
             )
 
-            # Mock _validate_and_refresh_credentials to return None for None input,
-            # so service account path is executed, then return valid creds after with_subject
             def validate_side_effect(creds):
                 if creds is None:
                     return None
@@ -228,7 +135,6 @@ class TestGetGmailService:
                 "src.services.gmail_service._validate_and_refresh_credentials",
                 side_effect=validate_side_effect,
             )
-            # Mock Gmail API build
             mocker.patch("src.services.gmail_service.build", return_value=mock_service)
             mock_logger = mocker.patch("flask.current_app.logger")
 
@@ -241,188 +147,63 @@ class TestGetGmailService:
             mock_logger.info.assert_called()
 
     def test_get_gmail_service_service_account_no_impersonation(self, mocker, app):
-        """Test service account without GMAIL_SENDER_EMAIL (should fail)."""
+        """Without GMAIL_SENDER_EMAIL, service account auth does not produce credentials."""
         with app.app_context():
-            # Mock paths
-            mocker.patch(
-                "src.services.gmail_service.os.path.join",
-                side_effect=lambda *args: "/".join(args),
-            )
-            # Mock no existing token
-            mocker.patch(
-                "src.services.gmail_service._load_existing_token", return_value=None
-            )
-            # Mock environment variables (no GMAIL_SENDER_EMAIL)
             mocker.patch.dict(
-                os.environ, {"GOOGLE_APPLICATION_CREDENTIALS": "/path/to/sa.json"}
+                os.environ,
+                {
+                    "GMAIL_APPLICATION_CREDENTIALS": "/path/to/sa.json",
+                    "GMAIL_SENDER_EMAIL": "",  # override any real environment value
+                },
             )
-
-            # Mock os.getenv to return None for GMAIL_SENDER_EMAIL to ensure it's not set
-            def getenv_side_effect(key, default=None):
-                if key == "GMAIL_SENDER_EMAIL":
-                    return None
-                # For other keys, use the actual environment (which we've patched)
-                return os.environ.get(key, default)
-
-            mocker.patch(
-                "src.services.gmail_service.os.getenv",
-                side_effect=getenv_side_effect,
-            )
+            mocker.patch("os.path.exists", return_value=True)
             mock_service_account_creds = Mock()
             mocker.patch(
                 "src.services.gmail_service.service_account.Credentials.from_service_account_file",
                 return_value=mock_service_account_creds,
             )
-            # Mock OAuth flow as fallback
-            mock_oauth_creds = Mock(spec=Credentials)
-            mock_oauth_creds.valid = True
-            # Mock os.path.exists to return True for service account path and credentials.json
-            mocker.patch(
-                "src.services.gmail_service.os.path.exists",
-                side_effect=lambda path: path == "/path/to/sa.json"
-                or path.endswith("credentials.json"),
-            )
-            mock_flow = Mock()
-            mock_flow.run_local_server.return_value = mock_oauth_creds
-            mocker.patch(
-                "src.services.gmail_service.InstalledAppFlow.from_client_secrets_file",
-                return_value=mock_flow,
-            )
-
-            # Mock _validate_and_refresh_credentials to return None for None input,
-            # so service account path is executed, then return valid creds after OAuth fallback
-            def validate_side_effect(creds):
-                if creds is None:
-                    return None
-                return mock_oauth_creds
-
-            mocker.patch(
-                "src.services.gmail_service._validate_and_refresh_credentials",
-                side_effect=validate_side_effect,
-            )
-            # Mock file writing to prevent pickle errors with Mock objects
-            mock_file = Mock()
-            mock_file.__enter__ = Mock(return_value=mock_file)
-            mock_file.__exit__ = Mock(return_value=None)
-            mocker.patch(
-                "builtins.open",
-                return_value=mock_file,
-            )
-            # Mock pickle.dump to prevent trying to serialize Mock objects
-            mocker.patch("src.services.gmail_service.pickle.dump")
-            mock_service = Mock()
-            mocker.patch("src.services.gmail_service.build", return_value=mock_service)
-            mock_logger = mocker.patch("flask.current_app.logger")
-
-            result = get_gmail_service()
-
-            assert result == mock_service
-            mock_logger.warning.assert_called()
-
-    def test_get_gmail_service_oauth_flow(self, mocker, app):
-        """Test getting service using OAuth flow."""
-        with app.app_context():
-            mock_oauth_creds = Mock(spec=Credentials)
-            mock_oauth_creds.valid = True
-            mock_service = Mock()
-
-            # Mock paths
-            mocker.patch(
-                "src.services.gmail_service.os.path.join",
-                side_effect=lambda *args: "/".join(args),
-            )
-            # Mock no existing token and no service account
-            mocker.patch(
-                "src.services.gmail_service._load_existing_token", return_value=None
-            )
-            mocker.patch.dict(os.environ, {}, clear=True)
-            # Mock os.path.exists to return True for credentials.json
-            mocker.patch(
-                "src.services.gmail_service.os.path.exists",
-                side_effect=lambda path: path.endswith("credentials.json"),
-            )
-            # Mock OAuth flow
-            mock_flow = Mock()
-            mock_flow.run_local_server.return_value = mock_oauth_creds
-            mocker.patch(
-                "src.services.gmail_service.InstalledAppFlow.from_client_secrets_file",
-                return_value=mock_flow,
-            )
-
-            # Mock _validate_and_refresh_credentials to return None for None input,
-            # so OAuth path is executed, then return valid creds after OAuth flow
-            def validate_side_effect(creds):
-                if creds is None:
-                    return None
-                return mock_oauth_creds
-
-            mocker.patch(
-                "src.services.gmail_service._validate_and_refresh_credentials",
-                side_effect=validate_side_effect,
-            )
-            # Mock file writing for token save
-            mocker.patch("builtins.open", mock_open())
-            # Mock pickle.dump to prevent trying to serialize Mock objects
-            mocker.patch("src.services.gmail_service.pickle.dump")
-            # Mock Gmail API build
-            mocker.patch("src.services.gmail_service.build", return_value=mock_service)
-
-            result = get_gmail_service()
-
-            assert result == mock_service
-            mock_flow.run_local_server.assert_called_once_with(port=8080)
-
-    def test_get_gmail_service_oauth_flow_failure(self, mocker, app):
-        """Test OAuth flow failure."""
-        with app.app_context():
-            # Mock paths
-            mocker.patch(
-                "src.services.gmail_service.os.path.join",
-                side_effect=lambda *args: "/".join(args),
-            )
-            # Mock no existing token and no service account
-            mocker.patch(
-                "src.services.gmail_service._load_existing_token", return_value=None
-            )
-            mocker.patch.dict(os.environ, {}, clear=True)
-            mocker.patch(
-                "os.path.exists",
-                side_effect=lambda path: path.endswith("credentials.json"),
-            )
-            # Mock OAuth flow to fail
-            mock_flow = Mock()
-            mock_flow.run_local_server.side_effect = Exception("OAuth error")
-            mocker.patch(
-                "src.services.gmail_service.InstalledAppFlow.from_client_secrets_file",
-                return_value=mock_flow,
-            )
-            mock_logger = mocker.patch("flask.current_app.logger")
+            mocker.patch("flask.current_app.logger")
 
             with pytest.raises(
                 ValueError, match="Could not authenticate with Gmail API"
             ):
                 get_gmail_service()
 
-            mock_logger.error.assert_called_once()
-
-    def test_get_gmail_service_no_valid_credentials(self, mocker, app):
-        """Test failure when no valid credentials are found."""
+    def test_get_gmail_service_missing_gmail_app_credentials(self, mocker, app):
+        """Without GMAIL_APPLICATION_CREDENTIALS, fail immediately (no other auth methods)."""
         with app.app_context():
-            # Mock paths
-            mocker.patch(
-                "src.services.gmail_service.os.path.join",
-                side_effect=lambda *args: "/".join(args),
-            )
-            # Mock no existing token and no service account
-            mocker.patch(
-                "src.services.gmail_service._load_existing_token", return_value=None
-            )
             mocker.patch.dict(os.environ, {}, clear=True)
-            mocker.patch("os.path.exists", return_value=False)
+            mocker.patch("flask.current_app.logger")
+
+            with pytest.raises(
+                ValueError, match="GMAIL_APPLICATION_CREDENTIALS is not set"
+            ):
+                get_gmail_service()
+
+    def test_get_gmail_service_no_valid_service_account_creds(self, mocker, app):
+        """Path set but _authenticate_with_service_account yields nothing after validation."""
+        with app.app_context():
+            mocker.patch.dict(
+                os.environ,
+                {
+                    "GMAIL_APPLICATION_CREDENTIALS": "/path/to/sa.json",
+                    "GMAIL_SENDER_EMAIL": "x@y.com",
+                },
+            )
+            mocker.patch("os.path.exists", return_value=True)
+            mock_sa = Mock()
+            mocker.patch(
+                "src.services.gmail_service.service_account.Credentials.from_service_account_file",
+                return_value=mock_sa,
+            )
+            mock_creds = Mock(spec=Credentials)
+            mock_creds.valid = True
+            mock_sa.with_subject.return_value = mock_creds
             mocker.patch(
                 "src.services.gmail_service._validate_and_refresh_credentials",
                 return_value=None,
             )
+            mocker.patch("flask.current_app.logger")
 
             with pytest.raises(
                 ValueError, match="Could not authenticate with Gmail API"
@@ -430,108 +211,41 @@ class TestGetGmailService:
                 get_gmail_service()
 
     def test_get_gmail_service_service_account_file_not_exists(self, mocker, app):
-        """Test service account path that doesn't exist."""
+        """Missing key file yields auth failure; no user OAuth fallback."""
         with app.app_context():
-            # Mock paths
-            mocker.patch(
-                "src.services.gmail_service.os.path.join",
-                side_effect=lambda *args: "/".join(args),
-            )
-            # Mock no existing token
-            mocker.patch(
-                "src.services.gmail_service._load_existing_token", return_value=None
-            )
-            # Mock environment variables
-            mocker.patch.dict(
-                os.environ, {"GOOGLE_APPLICATION_CREDENTIALS": "/nonexistent/path.json"}
-            )
-            mocker.patch("os.path.exists", return_value=False)
-            # Should fall back to OAuth or fail
-            mock_oauth_creds = Mock(spec=Credentials)
-            mock_oauth_creds.valid = True
-            mocker.patch(
-                "os.path.exists",
-                side_effect=lambda path: path.endswith("credentials.json"),
-            )
-            mock_flow = Mock()
-            mock_flow.run_local_server.return_value = mock_oauth_creds
-            mocker.patch(
-                "src.services.gmail_service.InstalledAppFlow.from_client_secrets_file",
-                return_value=mock_flow,
-            )
-            mocker.patch(
-                "src.services.gmail_service._validate_and_refresh_credentials",
-                return_value=mock_oauth_creds,
-            )
-            mocker.patch("builtins.open", mock_open())
-            mock_service = Mock()
-            mocker.patch("src.services.gmail_service.build", return_value=mock_service)
-
-            result = get_gmail_service()
-
-            assert result == mock_service
-
-    def test_get_gmail_service_service_account_exception(self, mocker, app):
-        """Test service account loading exception handling."""
-        with app.app_context():
-            # Mock paths
-            mocker.patch(
-                "src.services.gmail_service.os.path.join",
-                side_effect=lambda *args: "/".join(args),
-            )
-            # Mock no existing token
-            mocker.patch(
-                "src.services.gmail_service._load_existing_token", return_value=None
-            )
-            # Mock environment variables
             mocker.patch.dict(
                 os.environ,
-                {"GOOGLE_APPLICATION_CREDENTIALS": "/path/to/service_account.json"},
+                {"GMAIL_APPLICATION_CREDENTIALS": "/nonexistent/path.json"},
             )
-            # Mock os.path.exists to return True for service account path and credentials.json
-            mocker.patch(
-                "src.services.gmail_service.os.path.exists",
-                side_effect=lambda path: path == "/path/to/service_account.json"
-                or path.endswith("credentials.json"),
+            mocker.patch("os.path.exists", return_value=False)
+            mocker.patch("flask.current_app.logger")
+
+            with pytest.raises(
+                ValueError, match="Could not authenticate with Gmail API"
+            ):
+                get_gmail_service()
+
+    def test_get_gmail_service_service_account_exception(self, mocker, app):
+        """Exception loading the key is surfaced as auth failure (no OAuth fallback)."""
+        with app.app_context():
+            mocker.patch.dict(
+                os.environ,
+                {
+                    "GMAIL_APPLICATION_CREDENTIALS": "/path/to/service_account.json",
+                    "GMAIL_SENDER_EMAIL": "a@b.com",
+                },
             )
-            # Mock service account to raise exception
+            mocker.patch("os.path.exists", return_value=True)
             mocker.patch(
                 "src.services.gmail_service.service_account.Credentials.from_service_account_file",
                 side_effect=Exception("Service account error"),
             )
-            mock_logger = mocker.patch("flask.current_app.logger")
-            # Should fall back to OAuth
-            mock_oauth_creds = Mock(spec=Credentials)
-            mock_oauth_creds.valid = True
-            mock_flow = Mock()
-            mock_flow.run_local_server.return_value = mock_oauth_creds
-            mocker.patch(
-                "src.services.gmail_service.InstalledAppFlow.from_client_secrets_file",
-                return_value=mock_flow,
-            )
+            mocker.patch("flask.current_app.logger")
 
-            # Mock _validate_and_refresh_credentials to return None for None input,
-            # so service account path executes, then return valid creds after OAuth
-            def validate_side_effect(creds):
-                if creds is None:
-                    return None
-                return mock_oauth_creds
-
-            mocker.patch(
-                "src.services.gmail_service._validate_and_refresh_credentials",
-                side_effect=validate_side_effect,
-            )
-            # Mock file writing for token save
-            mocker.patch("builtins.open", mock_open())
-            # Mock pickle.dump to prevent trying to serialize Mock objects
-            mocker.patch("src.services.gmail_service.pickle.dump")
-            mock_service = Mock()
-            mocker.patch("src.services.gmail_service.build", return_value=mock_service)
-
-            result = get_gmail_service()
-
-            assert result == mock_service
-            mock_logger.warning.assert_called()
+            with pytest.raises(
+                ValueError, match="Could not authenticate with Gmail API"
+            ):
+                get_gmail_service()
 
 
 class TestSendEmail:
@@ -775,10 +489,6 @@ class TestGmailServiceIntegration:
             subject = "Integration Test"
             body_text = "This is an integration test"
 
-            # Mock credentials
-            mock_creds = Mock(spec=Credentials)
-            mock_creds.valid = True
-
             # Mock service
             mock_service = Mock()
             mock_users = Mock()
@@ -791,20 +501,10 @@ class TestGmailServiceIntegration:
             mock_messages.send.return_value = mock_send
             mock_send.execute = mock_execute
 
-            # Mock all authentication steps
             mocker.patch(
-                "src.services.gmail_service.os.path.join",
-                side_effect=lambda *args: "/".join(args),
+                "src.services.gmail_service.get_gmail_service",
+                return_value=mock_service,
             )
-            mocker.patch(
-                "src.services.gmail_service._load_existing_token",
-                return_value=mock_creds,
-            )
-            mocker.patch(
-                "src.services.gmail_service._validate_and_refresh_credentials",
-                return_value=mock_creds,
-            )
-            mocker.patch("src.services.gmail_service.build", return_value=mock_service)
 
             # Execute
             result = send_email(to_email, subject, body_text)
@@ -814,18 +514,9 @@ class TestGmailServiceIntegration:
             assert result["message_id"] == "integration_test_id"
             mock_send.execute.assert_called_once()
 
-    def test_credential_refresh_during_send(self, mocker, app):
-        """Test that credentials are refreshed if expired during email send."""
+    def test_send_email_with_service_account_mocked(self, mocker, app):
+        """send_email uses get_gmail_service; the client can be mocked end-to-end."""
         with app.app_context():
-            # Setup - credentials need refresh
-            expired_creds = Mock(spec=Credentials)
-            expired_creds.valid = False
-            expired_creds.expired = True
-            expired_creds.refresh_token = "refresh_token"
-            refreshed_creds = Mock(spec=Credentials)
-            refreshed_creds.valid = True
-
-            # Mock service
             mock_service = Mock()
             mock_users = Mock()
             mock_messages = Mock()
@@ -837,27 +528,14 @@ class TestGmailServiceIntegration:
             mock_messages.send.return_value = mock_send
             mock_send.execute = mock_execute
 
-            # Mock authentication with refresh
             mocker.patch(
-                "src.services.gmail_service.os.path.join",
-                side_effect=lambda *args: "/".join(args),
+                "src.services.gmail_service.get_gmail_service",
+                return_value=mock_service,
             )
-            mocker.patch(
-                "src.services.gmail_service._load_existing_token",
-                return_value=expired_creds,
-            )
-            mocker.patch(
-                "src.services.gmail_service._validate_and_refresh_credentials",
-                return_value=refreshed_creds,
-            )
-            mocker.patch("src.services.gmail_service.build", return_value=mock_service)
-
             mock_logger = mocker.patch("flask.current_app.logger")
 
-            # Execute
             result = send_email("test@example.com", "Test", "Body")
 
-            # Verify
             assert result["success"] is True
             assert result["message_id"] == "refreshed_id"
             mock_logger.info.assert_called_once()

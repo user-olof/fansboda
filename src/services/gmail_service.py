@@ -5,37 +5,12 @@ import base64
 from email.mime.text import MIMEText
 from googleapiclient.discovery import build
 from google.oauth2 import service_account
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
-import pickle
 from flask import current_app
 
 
 # Gmail API scope
 SCOPES = ["https://www.googleapis.com/auth/gmail.send"]
-
-
-def _load_existing_token(token_path):
-    """
-    Load existing OAuth token from pickle file.
-
-    Args:
-        token_path: Path to the token.pickle file
-
-    Returns:
-        Credentials object if token exists and is valid, None otherwise
-    """
-    if not os.path.exists(token_path):
-        return None
-
-    try:
-        with open(token_path, "rb") as token:
-            creds = pickle.load(token)
-            return creds
-    except Exception as e:
-        current_app.logger.warning(f"Could not load token from {token_path}: {e}")
-        return None
 
 
 def _validate_and_refresh_credentials(creds):
@@ -61,7 +36,9 @@ def _validate_and_refresh_credentials(creds):
         if creds.valid:
             current_app.logger.info("Credentials refreshed successfully")
     except Exception as e:
-        current_app.logger.warning("Could not refresh credentials: %s", e, exc_info=True)
+        current_app.logger.warning(
+            "Could not refresh credentials: %s", e, exc_info=True
+        )
         return None
 
     return creds if creds.valid else None
@@ -117,103 +94,35 @@ def _authenticate_with_service_account():
         return None
 
 
-def _authenticate_with_oauth_flow(credentials_path, token_path):
+def get_gmail_service():
+    """Get an authenticated Gmail API client.
+
+    Only service-account authentication is supported: set
+    ``GMAIL_APPLICATION_CREDENTIALS`` to the service account JSON key path and
+    ``GMAIL_SENDER_EMAIL`` to the user to impersonate (domain-wide delegation).
+    There is no interactive or installed-app user OAuth flow.
     """
-    Authenticate using OAuth flow.
-
-    Args:
-        credentials_path: Path to credentials.json file
-        token_path: Path to save token.pickle file
-
-    Returns:
-        Credentials object if successful
-
-    Raises:
-        ValueError: If OAuth flow fails
-    """
-    if not os.path.exists(credentials_path):
+    sa_path = os.getenv("GMAIL_APPLICATION_CREDENTIALS")
+    if not sa_path:
         raise ValueError(
-            "Could not authenticate with Gmail API. Please ensure credentials.json exists and is valid."
+            "Could not authenticate with Gmail API. "
+            "GMAIL_APPLICATION_CREDENTIALS is not set (service account JSON path required)."
         )
 
-    try:
-        flow = InstalledAppFlow.from_client_secrets_file(credentials_path, SCOPES)
-        creds = flow.run_local_server(port=8080)
-
-        # Save credentials for next run
-        with open(token_path, "wb") as token:
-            pickle.dump(creds, token)
-
-        return creds
-    except Exception as e:
-        current_app.logger.error(f"OAuth flow failed: {e}")
-        raise ValueError(
-            "Could not authenticate with Gmail API. Please ensure credentials.json exists and is valid."
-        ) from e
-
-
-def get_gmail_service():
-    """Get authenticated Gmail service instance.
-
-    Priority:
-    1) Service account (domain-wide delegation) via GMAIL_APPLICATION_CREDENTIALS
-    2) OAuth token cache (token.pickle)
-    3) OAuth client secrets flow (credentials.json)
-    """
-    base_dir = os.path.join(os.path.dirname(__file__), "..", "..")
-    token_path = os.path.join(base_dir, "token.pickle")
-    credentials_path = os.path.join(base_dir, "credentials.json")
-
     errors = []
-
-    # 1) Service account first
-    sa_path = os.getenv("GMAIL_APPLICATION_CREDENTIALS")
-    if sa_path:
-        current_app.logger.info("Trying Gmail auth with service account first")
-        try:
-            creds = _authenticate_with_service_account()
-            creds = _validate_and_refresh_credentials(creds)
-            if creds:
-                current_app.logger.info("Service account authentication successful")
-                return build("gmail", "v1", credentials=creds)
-            errors.append("Service account returned no valid credentials")
-        except Exception as e:
-            current_app.logger.warning("Service account auth failed: %s", e, exc_info=True)
-            errors.append(f"Service account auth failed: {e}")
-    else:
-        current_app.logger.info("GMAIL_APPLICATION_CREDENTIALS not set; skipping service account auth")
-
-    # 2) Existing OAuth token
+    current_app.logger.info("Authenticating to Gmail API with service account")
     try:
-        current_app.logger.info("Trying existing OAuth token")
-        creds = _load_existing_token(token_path)
+        creds = _authenticate_with_service_account()
         creds = _validate_and_refresh_credentials(creds)
         if creds:
-            current_app.logger.info("OAuth token authentication successful")
+            current_app.logger.info("Service account authentication successful")
             return build("gmail", "v1", credentials=creds)
-        errors.append("No valid OAuth token found")
+        errors.append("Service account returned no valid credentials")
     except Exception as e:
-        current_app.logger.warning("OAuth token auth failed: %s", e, exc_info=True)
-        errors.append(f"OAuth token auth failed: {e}")
+        current_app.logger.warning("Service account auth failed: %s", e, exc_info=True)
+        errors.append(f"Service account auth failed: {e}")
 
-    # 3) OAuth client secrets fallback
-    try:
-        current_app.logger.info("Trying OAuth credentials.json flow")
-        creds = _authenticate_with_oauth_flow(credentials_path, token_path)
-        creds = _validate_and_refresh_credentials(creds)
-        if creds:
-            current_app.logger.info("OAuth flow authentication successful")
-            return build("gmail", "v1", credentials=creds)
-        errors.append("OAuth flow returned no valid credentials")
-    except Exception as e:
-        current_app.logger.warning("OAuth flow failed: %s", e, exc_info=True)
-        errors.append(f"OAuth flow failed: {e}")
-
-    # Final failure
-    raise ValueError(
-        "Could not authenticate with Gmail API. "
-        + " | ".join(errors)
-    )
+    raise ValueError("Could not authenticate with Gmail API. " + " | ".join(errors))
 
 
 def send_email(to_email, subject, body_text, from_email=None):
