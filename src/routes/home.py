@@ -5,6 +5,7 @@ from src.models.user import User
 from src.route_protection import dev_only
 from src.services.gmail_service import send_email
 from datetime import datetime
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import os
 
 home_bp = Blueprint("home", __name__)
@@ -58,6 +59,36 @@ def get_last_month_swedish():
     return SWEDISH_MONTHS[last_month - 1]
 
 
+def format_amount_swedish(amount) -> str:
+    """
+    Format a numeric string or number for Swedish text: space as thousands separator,
+    comma between integer and decimal parts (e.g. 1 234,56).
+    """
+    if amount is None:
+        return ""
+    raw = str(amount).strip().replace("\u00a0", " ")
+    raw = raw.replace(" ", "").replace(",", ".")
+    try:
+        d = Decimal(raw)
+    except InvalidOperation:
+        return str(amount)
+    d = d.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    negative = d < 0
+    d = abs(d)
+    whole, frac = f"{d:.2f}".split(".")
+    if len(whole) > 3:
+        parts = []
+        w = whole
+        while len(w) > 3:
+            parts.append(w[-3:])
+            w = w[:-3]
+        if w:
+            parts.append(w)
+        whole = " ".join(reversed(parts))
+    out = f"{whole},{frac}"
+    return f"-{out}" if negative else out
+
+
 @home_bp.route("/health")
 def health():
     return "OK", 200
@@ -106,10 +137,11 @@ def send_electricity_email():
         last_month = get_last_month_swedish()
 
         # Compose email
+        amount_display = format_amount_swedish(amount)
         subject = f"Elräkning för {last_month}"
         body = (
             f"Hej {company_info['name']},\n\n"
-            f"Vi vill bara meddela att Er elräkning för {last_month} uppgår till {amount}.\n\n"
+            f"Vi vill bara meddela att Er elräkning för {last_month} uppgår till {amount_display} kr.\n\n"
             f"Vänliga hälsningar\n"
             f"Metallen AB"
         )
