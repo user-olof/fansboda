@@ -58,14 +58,13 @@ def _validate_and_refresh_credentials(creds):
     # Try to refresh if expired and has refresh token
     try:
         creds.refresh(Request())
-        current_app.logger.info("Credentials refreshed successfully")
-        return creds
+        if creds.valid:
+            current_app.logger.info("Credentials refreshed successfully")
     except Exception as e:
-        current_app.logger.warning(f"Could not refresh token: {e}")
+        current_app.logger.warning("Could not refresh credentials: %s", e, exc_info=True)
         return None
 
-    # Credentials are invalid and cannot be refreshed
-    return None
+    return creds if creds.valid else None
 
 
 def _authenticate_with_service_account():
@@ -154,41 +153,67 @@ def _authenticate_with_oauth_flow(credentials_path, token_path):
 
 
 def get_gmail_service():
-    """Get authenticated Gmail service instance."""
-    token_path = os.path.join(os.path.dirname(__file__), "..", "..", "token.pickle")
-    credentials_path = os.path.join(
-        os.path.dirname(__file__), "..", "..", "credentials.json"
-    )
+    """Get authenticated Gmail service instance.
 
-    # Try to load existing token
-    creds = _load_existing_token(token_path)
-    creds = _validate_and_refresh_credentials(creds)
+    Priority:
+    1) Service account (domain-wide delegation) via GMAIL_APPLICATION_CREDENTIALS
+    2) OAuth token cache (token.pickle)
+    3) OAuth client secrets flow (credentials.json)
+    """
+    base_dir = os.path.join(os.path.dirname(__file__), "..", "..")
+    token_path = os.path.join(base_dir, "token.pickle")
+    credentials_path = os.path.join(base_dir, "credentials.json")
 
-    # If no valid credentials, try service account or OAuth
-    if not creds:
-        current_app.logger.info(
-            "No existing token found, attempting service account authentication"
-        )
-        creds = _authenticate_with_service_account()
+    errors = []
+
+    # 1) Service account first
+    sa_path = os.getenv("GMAIL_APPLICATION_CREDENTIALS")
+    if sa_path:
+        current_app.logger.info("Trying Gmail auth with service account first")
+        try:
+            creds = _authenticate_with_service_account()
+            creds = _validate_and_refresh_credentials(creds)
+            if creds:
+                current_app.logger.info("Service account authentication successful")
+                return build("gmail", "v1", credentials=creds)
+            errors.append("Service account returned no valid credentials")
+        except Exception as e:
+            current_app.logger.warning("Service account auth failed: %s", e, exc_info=True)
+            errors.append(f"Service account auth failed: {e}")
+    else:
+        current_app.logger.info("GMAIL_APPLICATION_CREDENTIALS not set; skipping service account auth")
+
+    # 2) Existing OAuth token
+    try:
+        current_app.logger.info("Trying existing OAuth token")
+        creds = _load_existing_token(token_path)
         creds = _validate_and_refresh_credentials(creds)
+        if creds:
+            current_app.logger.info("OAuth token authentication successful")
+            return build("gmail", "v1", credentials=creds)
+        errors.append("No valid OAuth token found")
+    except Exception as e:
+        current_app.logger.warning("OAuth token auth failed: %s", e, exc_info=True)
+        errors.append(f"OAuth token auth failed: {e}")
 
-        if not creds:
-            current_app.logger.warning(
-                "Service account authentication failed or not configured, falling back to OAuth flow"
-            )
-            creds = _authenticate_with_oauth_flow(credentials_path, token_path)
-        else:
-            current_app.logger.info("Service account authentication successful")
+    # 3) OAuth client secrets fallback
+    try:
+        current_app.logger.info("Trying OAuth credentials.json flow")
+        creds = _authenticate_with_oauth_flow(credentials_path, token_path)
+        creds = _validate_and_refresh_credentials(creds)
+        if creds:
+            current_app.logger.info("OAuth flow authentication successful")
+            return build("gmail", "v1", credentials=creds)
+        errors.append("OAuth flow returned no valid credentials")
+    except Exception as e:
+        current_app.logger.warning("OAuth flow failed: %s", e, exc_info=True)
+        errors.append(f"OAuth flow failed: {e}")
 
-    # Final validation check
-    creds = _validate_and_refresh_credentials(creds)
-    if not creds:
-        raise ValueError(
-            "No valid Gmail API credentials found. Please authenticate first."
-        )
-
-    service = build("gmail", "v1", credentials=creds)
-    return service
+    # Final failure
+    raise ValueError(
+        "Could not authenticate with Gmail API. "
+        + " | ".join(errors)
+    )
 
 
 def send_email(to_email, subject, body_text, from_email=None):
