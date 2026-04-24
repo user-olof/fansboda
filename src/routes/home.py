@@ -109,8 +109,8 @@ def send_electricity_email():
         subject = f"Elräkning för {last_month}"
         body = (
             f"Hej {company_info['name']},\n\n"
-            f"Er elräkning för {last_month} var {amount}.\n\n"
-            f"Bästa hälsningar\n"
+            f"Vi vill bara meddela att Er elräkning för {last_month} uppgår till {amount}.\n\n"
+            f"Vänliga hälsningar\n"
             f"Metallen AB"
         )
 
