@@ -6,6 +6,7 @@ from email.mime.text import MIMEText
 from googleapiclient.discovery import build
 from google.oauth2 import service_account
 from google.auth.transport.requests import Request
+from email.utils import formataddr
 from flask import current_app
 
 
@@ -146,7 +147,7 @@ def send_email(to_email, subject, body_text, from_email=None):
         message["to"] = to_email
         message["subject"] = subject
         if from_email:
-            message["from"] = from_email
+            message["from"] = formataddr(("Metallen AB", os.getenv("GMAIL_SENDER_EMAIL")))
 
         # Encode message
         raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode("utf-8")

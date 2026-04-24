@@ -38,6 +38,16 @@ jobs:
         gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev   
 
 
+    - name: Reset secrets ownership for container user
+      run: |
+        gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
+          --zone=us-central1-a \
+          --project=${{ vars.GCP_PROJECT_ID }} \
+          --tunnel-through-iap \
+          --quiet \
+          --command "sudo chown -R "$(whoami)":"$(whoami)" ~/fansboda/secrets"
+          
+
     - name: Cleanup containers on VM
       run:  |
         gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
@@ -89,7 +99,17 @@ jobs:
         FLASK_ENV=${{ vars.FLASK_ENV }}
         EOF
 
-    - name: Upload service account key and create .env file
+
+    - name: Copy .env to VM
+      run:  |
+        gcloud compute scp .env ${{ vars.GCP_VM_NAME }}:~/fansboda/.env \
+        --zone=us-central1-a \
+        --project=${{ vars.GCP_PROJECT_ID }} \
+        --tunnel-through-iap \
+        --quiet
+
+
+    - name: Upload service account keys
       run: |
         # Encode the service account key to base64
         ENCODED_GCP_KEY=$(echo -n '${{ secrets.GCP_SVC_ACCOUNT_KEY }}' | base64 -w 0)
@@ -130,6 +150,15 @@ jobs:
           docker compose -f docker-compose.production.yml run --rm web flask db upgrade &&
           docker compose -f docker-compose.production.yml up -d"
 
+
+    - name: Fix secrets ownership for container user (UID 1001)
+      run: |
+        gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
+          --zone=us-central1-a \
+          --project=${{ vars.GCP_PROJECT_ID }} \
+          --tunnel-through-iap \
+          --quiet \
+          --command "sudo chown -R 1001:1001 ~/fansboda/secrets"
 
     
     
