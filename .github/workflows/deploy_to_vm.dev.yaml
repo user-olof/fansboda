@@ -47,7 +47,7 @@ jobs:
           --project=${{ vars.GCP_PROJECT_ID }} \
           --tunnel-through-iap \
           --quiet \
-          --command "sudo chown -R "$(whoami)":"$(whoami)" ~/fansboda/secrets"
+          --command 'sudo chown -R $(whoami):$(whoami) ~/fansboda/secrets'
 
 
     - name: Cleanup containers on VM
