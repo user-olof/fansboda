@@ -171,6 +171,6 @@ scripts/delete-ssh-keys.sh
 scripts/ssh-to-vm.sh
 scripts/create-release-in-workflow.sh
 
-# google user credentials
+# ignore client secrets
 credentials.json
 token.pickle
