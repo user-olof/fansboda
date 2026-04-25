@@ -143,6 +143,7 @@ ssl/*.pfx
 
 # ignore markdown files
 *.md
+CSRF_GUIDE.md
 
 # zap session files
 *session

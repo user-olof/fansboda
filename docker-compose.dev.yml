@@ -4,15 +4,11 @@ services:
     image: oloft/fansboda-dev:latest
     container_name: fansboda-web
     restart: unless-stopped
-    # environment:
-    #   - FLASK_ENV=${FLASK_ENV}
-    #   - GOOGLE_APPLICATION_CREDENTIALS=${GCP_SVC_ACCOUNT_KEY}
-    #   - GOOGLE_CLOUD_PROJECT=${GCP_PROJECT_ID}
-    #   - GOOGLE_CLOUD_REGION=${GCP_REGION}
     env_file:
       - .env
     volumes:
       - ./static:/app/static:ro # Mount static files for nginx
+      - ./secrets:/fansboda/secrets:ro # Mount secrets directory
     networks:
       - fansboda-network
     healthcheck:
@@ -36,13 +32,14 @@ services:
       - ./certificates:/etc/nginx/ssl:ro # Mount SSL certificates
       - ./certbot-webroot:/var/www/certbot:ro # Mount certbot webroot for ACME challenge
     depends_on:
-      web:  # condition: service_healthy
+      web:
+        # condition: service_healthy
         condition: service_healthy
     networks:
       - fansboda-network
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost/" ]
-      interval: 300s
+      interval: 30s
       timeout: 10s
       retries: 3
 

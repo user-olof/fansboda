@@ -36,8 +36,8 @@ def get_database_uri(env_name="dev"):
         neon_database_url = os.getenv("DATABASE_URL")
         if neon_database_url:
             return neon_database_url
-        
-        neon_database_url = _get_secret_from_gcp("DATABASE_URL_PROD") 
+
+        neon_database_url = _get_secret_from_gcp("DATABASE_URL_PROD")
         if not neon_database_url:
             raise ValueError(
                 "DATABASE_URL_PROD environment variable must be set for production. "
@@ -106,6 +106,16 @@ class DevConfig(Config):
     SQLALCHEMY_DATABASE_URI = get_database_uri("dev")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ECHO = True
+
+    # PostgreSQL connection pool settings for Neon
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "pool_size": 5,
+        "max_overflow": 2,
+        "pool_timeout": 30,
+        "pool_recycle": 1800,  # Recycle connections after 30 minutes
+        "pool_pre_ping": True,  # Verify connections before using
+    }
+
     DEBUG = True
     PORT = 5000
     HOST = "localhost"

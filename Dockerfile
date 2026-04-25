@@ -37,8 +37,20 @@ RUN .venv/bin/pip install --no-cache-dir --upgrade pip \
     && .venv/bin/pip install --no-cache-dir gunicorn
 
 # Create non-root user for security
+# RUN addgroup --system --gid 1001 appgroup \
+#     && adduser --system --uid 1001 --gid 1001 --no-create-home appuser
+
+
+# Create non-root user with real home
 RUN addgroup --system --gid 1001 appgroup \
-    && adduser --system --uid 1001 --gid 1001 --no-create-home appuser
+    && adduser --system --uid 1001 --gid 1001 --home /home/appuser appuser \
+    && mkdir -p /home/appuser \
+    && chown -R appuser:appgroup /home/appuser
+
+# Set runtime envs
+ENV HOME=/home/appuser
+ENV TMPDIR=/tmp
+
 
 # Copy application code
 COPY . .

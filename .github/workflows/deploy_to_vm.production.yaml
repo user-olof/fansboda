@@ -1,10 +1,16 @@
 name: 7. Deploy Production to VM
 run-name: ${{ github.actor }} is deploying to VM - Production  🚀
 on: 
+  workflow_dispatch:
+    branches: [ prod ]
+
   workflow_run:
       workflows: ["6. Push Image To Docker Hub in Production"] # Run the deploy after successful Build and Test
       types:
         - completed     
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   deploy_to_vm:
@@ -31,6 +37,29 @@ jobs:
       run: |
         gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev   
 
+
+    - name: Reset secrets ownership for container user
+      run: |
+        gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
+          --zone=us-central1-a \
+          --project=${{ vars.GCP_PROJECT_ID }} \
+          --tunnel-through-iap \
+          --quiet \
+          --command 'sudo chown -R $(whoami):$(whoami) ~/fansboda/secrets'
+
+
+    - name: Cleanup containers on VM
+      run:  |
+        gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
+          --zone=us-central1-a \
+          --project=${{ vars.GCP_PROJECT_ID }} \
+          --tunnel-through-iap \
+          --quiet \
+          --command "cd ~/fansboda && 
+          docker system prune -a --volumes -f && 
+          docker container prune -f"  
+
+
     - name: Create fansboda directory on VM
       run: |
         gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
@@ -56,10 +85,35 @@ jobs:
 
       # gcloud compute scp --recurse certificates ${{ vars.GCP_VM_NAME }}:~/fansboda/ --zone=us-central1-a 2>/dev/null || true
 
-    - name: Upload service account key and create .env file
+    - name: Create .env locally
+      run:  |
+        cat > .env <<EOF
+        DATABASE_URL=${{ secrets.DATABASE_URL }}
+        SECRET_KEY=${{ secrets.SECRET_KEY }}
+        ALLOWED_EMAILS=${{ secrets.ALLOWED_EMAILS }}
+        GOOGLE_APPLICATION_CREDENTIALS=/fansboda/secrets/GCP_SVC_ACCOUNT_KEY.json
+        GMAIL_APPLICATION_CREDENTIALS=/fansboda/secrets/GMAIL_SENDER_SA_KEY.json
+        GOOGLE_CLOUD_PROJECT=${{ vars.GCP_PROJECT_ID }}
+        GOOGLE_CLOUD_REGION=${{ vars.GCP_REGION }}
+        GMAIL_SENDER_EMAIL=${{ secrets.GMAIL_SENDER_EMAIL }}
+        FLASK_ENV=${{ vars.FLASK_ENV }}
+        EOF
+
+
+    - name: Copy .env to VM
+      run:  |
+        gcloud compute scp .env ${{ vars.GCP_VM_NAME }}:~/fansboda/.env \
+        --zone=us-central1-a \
+        --project=${{ vars.GCP_PROJECT_ID }} \
+        --tunnel-through-iap \
+        --quiet
+
+
+    - name: Upload service account keys
       run: |
         # Encode the service account key to base64
-        ENCODED_KEY=$(echo -n '${{ secrets.GCP_SVC_ACCOUNT_KEY }}' | base64 -w 0)
+        ENCODED_GCP_KEY=$(echo -n '${{ secrets.GCP_SVC_ACCOUNT_KEY }}' | base64 -w 0)
+        ENCODED_GMAIL_KEY=$(echo -n '${{ secrets.GMAIL_SENDER_SA_KEY }}' | base64 -w 0)
         
         gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
           --zone=us-central1-a \
@@ -68,18 +122,11 @@ jobs:
           --quiet \
           --command "cd ~/fansboda && 
           mkdir -p secrets &&
-          sudo chmod 777 secrets &&
-          echo '$ENCODED_KEY' | base64 -d > secrets/GCP_SVC_ACCOUNT_KEY.json &&
+          sudo chmod 700 secrets &&
+          echo '$ENCODED_GCP_KEY' | base64 -d > secrets/GCP_SVC_ACCOUNT_KEY.json &&
           sudo chmod 600 secrets/GCP_SVC_ACCOUNT_KEY.json &&
-          cat > .env << 'ENVEOF'
-        DATABASE_URL=${{ secrets.DATABASE_URL }}
-        SECRET_KEY=${{ secrets.SECRET_KEY }}
-        ALLOWED_EMAILS=${{ secrets.ALLOWED_EMAILS }}
-        GOOGLE_APPLICATION_CREDENTIALS=/fansboda/secrets/GCP_SVC_ACCOUNT_KEY.json
-        GOOGLE_CLOUD_PROJECT=${{ vars.GCP_PROJECT_ID }}
-        GOOGLE_CLOUD_REGION=${{ vars.GCP_REGION }}
-        FLASK_ENV=${{ vars.FLASK_ENV }}
-        ENVEOF"
+          echo '$ENCODED_GMAIL_KEY' | base64 -d > secrets/GMAIL_SENDER_SA_KEY.json &&
+          sudo chmod 600 secrets/GMAIL_SENDER_SA_KEY.json"
 
     - name: Configure Docker Hub authentication on VM
       run: |
@@ -99,10 +146,19 @@ jobs:
           --quiet \
           --command "cd ~/fansboda && 
           docker compose -f docker-compose.production.yml down && 
-          docker container prune -f && 
           docker compose -f docker-compose.production.yml pull && 
-          docker compose -f docker-compose.production.yml up -d --build"
+          docker compose -f docker-compose.production.yml run --rm web flask db upgrade &&
+          docker compose -f docker-compose.production.yml up -d"
 
+
+    - name: Fix secrets ownership for container user (UID 1001)
+      run: |
+        gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
+          --zone=us-central1-a \
+          --project=${{ vars.GCP_PROJECT_ID }} \
+          --tunnel-through-iap \
+          --quiet \
+          --command "sudo chown -R 1001:1001 ~/fansboda/secrets"
 
     
     

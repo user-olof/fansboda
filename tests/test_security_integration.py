@@ -5,10 +5,11 @@ This module tests end-to-end security scenarios combining multiple components.
 """
 
 from unittest.mock import patch
+from urllib.parse import urlparse
 
 import pytest
 from src import db
-from src.models.user import User
+from src.models.user import User, Role
 
 
 class TestCompleteSecurityWorkflow:
@@ -263,9 +264,10 @@ class TestCompleteSecurityWorkflow:
                 )
                 # Should not crash or allow access
                 assert login_response.status_code in [200, 302]
-                # Should not redirect to protected area
+                # Should not redirect to the dashboard (path "/"); /login is OK
                 if login_response.status_code == 302:
-                    assert "/" not in login_response.location
+                    path = urlparse(login_response.location).path
+                    assert path != "/"
 
     def test_concurrent_login_attempts(self, client, app):
         """Test handling of rapid sequential login attempts (simulating concurrent behavior)."""
@@ -314,7 +316,7 @@ class TestCompleteSecurityWorkflow:
             db.create_all()
 
             # Create user
-            user = User(email="allowed@example.com")
+            user = User(email="allowed@example.com", role=Role.USER)
             user.password_hash = "testpass"
             db.session.add(user)
             db.session.commit()
@@ -322,9 +324,8 @@ class TestCompleteSecurityWorkflow:
             # Get initial session ID
             initial_response = client.get("/login")
             if len(client._cookies) > 0:
-                initial_session_id = client._cookies.get(
-                    ("localhost", "/", "session")
-                ).key
+                session_cookie = client._cookies.get(("localhost", "/", "session"))
+                initial_session_id = session_cookie.value if session_cookie else None
             else:
                 initial_session_id = None
 
@@ -335,7 +336,8 @@ class TestCompleteSecurityWorkflow:
             assert login_response.status_code == 302
 
             # Session ID should change after login
-            new_session_id = client._cookies.get(("localhost", "/", "session")).key
+            session_cookie = client._cookies.get(("localhost", "/", "session"))
+            new_session_id = session_cookie.value if session_cookie else None
             assert initial_session_id != new_session_id
 
     def test_database_connection_failure_during_login(self, client, app):
@@ -438,7 +440,7 @@ class TestCompleteSecurityWorkflow:
             db.create_all()
 
             # Create user
-            user = User(email="monitor@example.com")
+            user = User(email="monitor@example.com", role=Role.ADMIN)
             user.password_hash = "testpass"
             db.session.add(user)
             db.session.commit()

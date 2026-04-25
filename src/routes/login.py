@@ -22,72 +22,75 @@ from src import db
 login_bp = Blueprint("login", __name__)
 
 
-@login_bp.route("/login", methods=["GET", "POST"])
-def login():
+@login_bp.route("/login", methods=["GET"])
+def show_login_form():
+    """Display the login form."""
     if current_user.is_authenticated:
         return redirect(url_for("home.index"))
 
     form = LoginForm()
-    if form.validate_on_submit():
-        # Find the user in the database
-        try:
-            user = db.session.scalar(
-                sa.select(User).where(
-                    func.lower(User.email) == func.lower(form.email.data)
-                )
-            )
-        except Exception as e:
-            print(f"Error: {e}")
-            user = None
-
-        # Check if user exists and is not locked out
-        if user is None:
-            flash("Invalid username or password")
-            return redirect(url_for("login.login"))
-
-        # Check if user is locked out
-        if user.is_locked_out():
-            remaining_minutes = user.get_lockout_time_remaining()
-            flash(
-                f"Account locked due to too many failed attempts. Try again in {remaining_minutes} minutes."
-            )
-            return render_template("temporary_closed.html")
-
-        # Check if password is correct
-        if not user.authenticate(form.password.data):
-            # Record failed login attempt
-            user.record_failed_login()
-
-            if user.is_locked_out():
-                flash(
-                    "Account locked due to too many failed attempts. Try again in 24 hours."
-                )
-                return render_template("temporary_closed.html")
-            else:
-                attempts_left = 5 - user.failed_login_attempts
-                flash(
-                    f"Invalid username or password. {attempts_left} attempts remaining."
-                )
-                return redirect(url_for("login.login"))
-
-        # Check if user is allowed to login
-        if not user.is_allowed():
-            flash("Access denied. You are not authorized to use this application.")
-            return redirect(url_for("login.login"))
-
-        # Successful login - reset attempts and log in
-        user.reset_login_attempts()
-        login_user(user, remember=form.remember_me.data)
-
-        flash(f"Welcome back, {user.email}! You have successfully logged in!")
-        return redirect(url_for("home.index"))
-
     return render_template("login.html", title="Login", form=form)
 
 
-# @login_bp.route("/signup", methods=["GET", "POST"])
-# def signup():
-#     return "SIGNUP ROUTE IS WORKING - THIS IS A TEST"
+@login_bp.route("/login", methods=["POST"])
+def handle_login():
+    """Handle login form submission."""
+    if current_user.is_authenticated:
+        return redirect(url_for("home.index"))
+
+    form = LoginForm()
+    if not form.validate_on_submit():
+        # If form validation fails, redirect back to login page
+        return redirect(url_for("login.show_login_form"))
+
+    # Find the user in the database
+    try:
+        user = db.session.scalar(
+            sa.select(User).where(func.lower(User.email) == func.lower(form.email.data))
+        )
+    except Exception as e:
+        print(f"Error: {e}")
+        user = None
+
+    # Check if user exists and is not locked out
+    if user is None:
+        flash("Invalid username or password")
+        return redirect(url_for("login.show_login_form"))
+
+    # Check if user is locked out
+    if user.is_locked_out():
+        remaining_minutes = user.get_lockout_time_remaining()
+        flash(
+            f"Account locked due to too many failed attempts. Try again in {remaining_minutes} minutes."
+        )
+        return redirect(url_for("errorhandler.four_oh_four"))
+
+    # Check if password is correct
+    if not user.authenticate(form.password.data):
+        # Record failed login attempt
+        user.record_failed_login()
+
+        if user.is_locked_out():
+            flash(
+                "Account locked due to too many failed attempts. Try again in 24 hours."
+            )
+            return redirect(url_for("errorhandler.four_oh_four"))
+        else:
+            attempts_left = 5 - user.failed_login_attempts
+            flash(f"Invalid username or password. {attempts_left} attempts remaining.")
+            return redirect(url_for("login.show_login_form"))
+
+    # Check if user is allowed to login
+    if not user.is_allowed():
+        flash("Access denied. You are not authorized to use this application.")
+        return redirect(url_for("login.show_login_form"))
+
+    # Successful login - reset attempts and log in
+    user.reset_login_attempts()
+    login_user(user, remember=form.remember_me.data)
+
+    flash(f"Welcome back, {user.email}! You have successfully logged in!")
+    return redirect(url_for("home.index"))
 
 
 @login_bp.route("/signup", methods=["GET", "POST"])
@@ -156,7 +159,7 @@ def logout():
         session.clear()
 
         logout_user()
-    return redirect(url_for("login.login"))
+    return redirect(url_for("login.show_login_form"))
 
 
 # This needs to be registered with the app, not the blueprint
