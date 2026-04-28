@@ -46,3 +46,6 @@ google-auth-oauthlib==1.2.1
 httplib2==0.22.0
 
 urllib3>=2.6.3 # not directly required, pinned by Snyk to avoid a vulnerability
+protobuf>=5.29.6 # not directly required, pinned by Snyk to avoid a vulnerability
+pyasn1>=0.6.3 # not directly required, pinned by Snyk to avoid a vulnerability
+requests>=2.33.0 # not directly required, pinned by Snyk to avoid a vulnerability
