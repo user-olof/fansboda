@@ -133,15 +133,17 @@ def send_electricity_email():
                 500,
             )
 
-        # Get last month in Swedish
+        # Get last month in Swedish and its calendar year (Dec bill in Jan → prior year)
         last_month = get_last_month_swedish()
+        today = datetime.now()
+        bill_year = str(today.year - 1) if today.month == 1 else str(today.year)
 
         # Compose email
         amount_display = format_amount_swedish(amount)
         subject = f"Elräkning för {last_month}"
         body = (
             f"Hej {company_info['name']},\n\n"
-            f"Vi vill bara meddela att Er elräkning för {last_month} uppgår till {amount_display} kr.\n\n"
+            f"Vi vill bara meddela att Er elräkning för {last_month} {bill_year} uppgår till {amount_display} kr.\n\n"
             f"Vänliga hälsningar\n"
             f"Metallen AB"
         )
