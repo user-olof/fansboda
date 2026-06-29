@@ -115,11 +115,13 @@ def create_app(config_name=None):
     from src.routes.login import login_bp, register_login_manager
     from src.routes.errorhandler import errorhandler_bp, register_error_handlers
     from src.routes.tests import tests_bp
+    from src.routes.stocks import stocks_bp
 
     app.register_blueprint(home_bp)
     app.register_blueprint(login_bp)
     app.register_blueprint(errorhandler_bp)
     app.register_blueprint(tests_bp)
+    app.register_blueprint(stocks_bp)
 
     # Register error handlers and login manager
     register_error_handlers(app)
