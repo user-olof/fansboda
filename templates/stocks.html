@@ -43,7 +43,9 @@
                             <tbody>
                                 {% for stock in stocks %}
                                 <tr>
-                                    <td class="fw-semibold">{{ stock.name }}</td>
+                                    <td class="fw-semibold">
+                                        <a href="{{ url_for('stocks.chart', ticker=stock.ticker) }}">{{ stock.name }}</a>
+                                    </td>
                                     <td>{{ stock.ticker }}</td>
                                     <td>{{ stock.currency or "—" }}</td>
                                     <td>{{ "%.2f"|format(stock.current_price) if stock.current_price is not none else "—" }}</td>

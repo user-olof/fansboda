@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/chart.css') }}">
+{% endblock %}
+
+{% block title %}{{ company_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid chart-page mt-4 px-4">
+    <div class="chart-header">
+        <a class="chart-back-link" href="{{ url_for('stocks.stocks') }}">
+            <i class="bi bi-arrow-left me-1"></i>Tillbaka till Aktier
+        </a>
+        <h1 class="chart-company-name">{{ company_name }}</h1>
+        <p class="chart-ticker">{{ ticker }}</p>
+    </div>
+
+    {% if history %}
+    <div class="chart-card">
+        <div class="chart-canvas-wrapper">
+            <canvas id="stockChart" aria-label="Kursdiagram f&ouml;r {{ company_name }}"></canvas>
+        </div>
+        <div class="chart-legend">
+            <div class="chart-legend-item">
+                <span class="chart-legend-swatch" style="background-color: #1a1a1a;"></span>
+                Kurs
+            </div>
+            <div class="chart-legend-item">
+                <span class="chart-legend-swatch" style="background-color: #f59e0b;"></span>
+                SMA 50
+            </div>
+            <div class="chart-legend-item">
+                <span class="chart-legend-swatch" style="background-color: #7c3aed;"></span>
+                SMA 200
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="chart-card chart-empty">
+        <i class="bi bi-graph-down fs-1 d-block mb-3"></i>
+        Ingen kursdata tillg&auml;nglig f&ouml;r {{ ticker }}.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if history %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+<script nonce="{{ csp_nonce() }}">
+    (function () {
+        const history = {{ history | tojson }};
+        const labels = history.map(function (row) {
+            return new Date(row.trading_date).toLocaleDateString('sv-SE', {
+                month: 'short',
+                day: 'numeric',
+            });
+        });
+        const prices = history.map(function (row) { return row.current_price; });
+        const sma50 = history.map(function (row) { return row.sma_50; });
+        const sma200 = history.map(function (row) { return row.sma_200; });
+
+        const ctx = document.getElementById('stockChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Kurs',
+                        data: prices,
+                        borderColor: '#1a1a1a',
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        pointHoverRadius: 4,
+                        tension: 0.1,
+                        spanGaps: true,
+                    },
+                    {
+                        label: 'SMA 50',
+                        data: sma50,
+                        borderColor: '#f59e0b',
+                        backgroundColor: 'transparent',
+                        borderWidth: 1.5,
+                        pointRadius: 0,
+                        pointHoverRadius: 4,
+                        tension: 0.1,
+                        spanGaps: true,
+                    },
+                    {
+                        label: 'SMA 200',
+                        data: sma200,
+                        borderColor: '#7c3aed',
+                        backgroundColor: 'transparent',
+                        borderWidth: 1.5,
+                        pointRadius: 0,
+                        pointHoverRadius: 4,
+                        tension: 0.1,
+                        spanGaps: true,
+                    },
+                ],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                plugins: {
+                    legend: {
+                        display: false,
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function (context) {
+                                const value = context.parsed.y;
+                                if (value === null || value === undefined) {
+                                    return context.dataset.label + ': —';
+                                }
+                                return context.dataset.label + ': ' + value.toFixed(2);
+                            },
+                        },
+                    },
+                },
+                scales: {
+                    x: {
+                        grid: {
+                            color: '#f3f4f6',
+                        },
+                        ticks: {
+                            maxTicksLimit: 8,
+                            color: '#6b7280',
+                            font: { size: 11 },
+                        },
+                    },
+                    y: {
+                        position: 'left',
+                        grid: {
+                            color: '#f3f4f6',
+                        },
+                        ticks: {
+                            color: '#6b7280',
+                            font: { size: 11 },
+                            callback: function (value) {
+                                return value.toFixed(2);
+                            },
+                        },
+                    },
+                },
+            },
+        });
+    })();
+</script>
+{% endif %}
+{% endblock %}

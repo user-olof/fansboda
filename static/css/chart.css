@@ -1,0 +1,76 @@
+.chart-page {
+    max-width: 1200px;
+}
+
+.chart-header {
+    margin-bottom: 1.5rem;
+}
+
+.chart-back-link {
+    display: inline-flex;
+    align-items: center;
+    color: #6c757d;
+    font-size: 0.9rem;
+    margin-bottom: 0.75rem;
+    text-decoration: none;
+}
+
+.chart-back-link:hover {
+    color: #495057;
+}
+
+.chart-company-name {
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+    color: #1a1a1a;
+}
+
+.chart-ticker {
+    font-size: 1rem;
+    margin-bottom: 0;
+    letter-spacing: 0.02em;
+}
+
+.chart-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    padding: 1.5rem 1rem 1rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.chart-canvas-wrapper {
+    position: relative;
+    height: 480px;
+    width: 100%;
+}
+
+.chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    margin-top: 1rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #f0f0f0;
+}
+
+.chart-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: #4b5563;
+}
+
+.chart-legend-swatch {
+    width: 24px;
+    height: 3px;
+    border-radius: 2px;
+}
+
+.chart-empty {
+    padding: 3rem;
+    text-align: center;
+    color: #6c757d;
+}

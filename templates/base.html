@@ -80,9 +80,11 @@
                 <a class="navbar-brand" href="{{ url_for('home.index') }}">
                     <i class="bi bi-house-door-fill me-2"></i>F&auml;nsboda
                 </a>
+                {% if current_user.is_authenticated %}
                 <a class="nav-link me-3 nav-link-aktier" href="{{ url_for('stocks.stocks') }}">
                     <i class="bi bi-graph-up-arrow me-1"></i>Aktier
                 </a>
+                {% endif %}
             </div>
 
 
