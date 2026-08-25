@@ -87,11 +87,183 @@ $(document).ready(function () {
         }
     });
 
-    // Password visibility toggle
+    // Password visibility toggle + last-character delay mask
+    function enableDelayedPasswordMask($input, delayMs) {
+        const input = $input.get(0);
+        const MASK = '\u2022';
+        let actual = '';
+        let maskTimer = null;
+        let revealed = false;
+        let applyingDisplay = false;
+
+        function clearMaskTimer() {
+            if (maskTimer !== null) {
+                clearTimeout(maskTimer);
+                maskTimer = null;
+            }
+        }
+
+        function render(showLast) {
+            applyingDisplay = true;
+            if (revealed) {
+                input.value = actual;
+            } else if (!actual) {
+                input.value = '';
+            } else if (showLast) {
+                input.value = MASK.repeat(actual.length - 1) + actual.slice(-1);
+            } else {
+                input.value = MASK.repeat(actual.length);
+            }
+            applyingDisplay = false;
+        }
+
+        function scheduleMask() {
+            clearMaskTimer();
+            maskTimer = setTimeout(function () {
+                maskTimer = null;
+                if (!revealed) {
+                    render(false);
+                }
+            }, delayMs);
+        }
+
+        function restoreActual() {
+            clearMaskTimer();
+            applyingDisplay = true;
+            input.value = actual;
+            applyingDisplay = false;
+        }
+
+        $input.attr({
+            type: 'text',
+            autocomplete: 'current-password',
+            spellcheck: 'false',
+            autocapitalize: 'off',
+        });
+
+        input.addEventListener('beforeinput', function (event) {
+            if (revealed || applyingDisplay) {
+                return;
+            }
+
+            const type = event.inputType;
+            const start = input.selectionStart;
+            const end = input.selectionEnd;
+
+            if (type === 'insertText' || type === 'insertFromPaste' || type === 'insertReplacementText') {
+                event.preventDefault();
+                const insert = event.data || '';
+                actual = actual.slice(0, start) + insert + actual.slice(end);
+                render(insert.length > 0);
+                input.setSelectionRange(start + insert.length, start + insert.length);
+                if (insert.length > 0) {
+                    scheduleMask();
+                }
+                return;
+            }
+
+            if (type === 'deleteContentBackward') {
+                event.preventDefault();
+                if (start === end) {
+                    if (start === 0) {
+                        return;
+                    }
+                    actual = actual.slice(0, start - 1) + actual.slice(end);
+                    render(false);
+                    input.setSelectionRange(start - 1, start - 1);
+                } else {
+                    actual = actual.slice(0, start) + actual.slice(end);
+                    render(false);
+                    input.setSelectionRange(start, start);
+                }
+                clearMaskTimer();
+                return;
+            }
+
+            if (type === 'deleteContentForward') {
+                event.preventDefault();
+                if (start === end) {
+                    actual = actual.slice(0, start) + actual.slice(end + 1);
+                } else {
+                    actual = actual.slice(0, start) + actual.slice(end);
+                }
+                render(false);
+                input.setSelectionRange(start, start);
+                clearMaskTimer();
+            }
+        });
+
+        input.addEventListener('input', function () {
+            if (applyingDisplay) {
+                return;
+            }
+            if (revealed) {
+                actual = input.value;
+                return;
+            }
+
+            const value = input.value;
+            if (!value) {
+                actual = '';
+                clearMaskTimer();
+                return;
+            }
+
+            const fullyMasked = Array.from(value).every(function (ch) {
+                return ch === MASK;
+            });
+            if (fullyMasked && value.length === actual.length) {
+                return;
+            }
+
+            const maskedPrefix = MASK.repeat(Math.max(0, value.length - 1));
+            const lastVisible = value.slice(0, -1) === maskedPrefix;
+            if (lastVisible && value.length === actual.length && value.slice(-1) === actual.slice(-1)) {
+                return;
+            }
+
+            if (!value.includes(MASK)) {
+                actual = value;
+                render(true);
+                scheduleMask();
+                return;
+            }
+
+            if (lastVisible && value.length === actual.length + 1) {
+                actual += value.slice(-1);
+                render(true);
+                scheduleMask();
+            }
+        });
+
+        input.addEventListener('blur', function () {
+            if (!revealed) {
+                clearMaskTimer();
+                render(false);
+            }
+        });
+
+        $input.closest('form').on('submit', restoreActual);
+
+        return {
+            restoreActual: restoreActual,
+            isRevealed: function () {
+                return revealed;
+            },
+            setRevealed: function (isRevealed) {
+                revealed = isRevealed;
+                clearMaskTimer();
+                render(false);
+            },
+        };
+    }
+
     if ($passwordInput.length) {
+        const passwordMask = enableDelayedPasswordMask($passwordInput, 1000);
+
         // Create password toggle button
         const $toggleBtn = $(`
-     <button type="button" class="btn btn-link password-toggle p-0">
+     <button type="button" class="btn btn-link password-toggle p-0" title="Show password" aria-label="Show password">
     <i class="bi bi-eye"></i>
 </button>
         `);
@@ -102,18 +274,21 @@ $(document).ready(function () {
 
         $toggleBtn.on('click', function (e) {
             e.preventDefault();
-            const type = $passwordInput.attr('type') === 'password' ? 'text' : 'password';
-            $passwordInput.attr('type', type);
+            const showing = !passwordMask.isRevealed();
+            passwordMask.setRevealed(showing);
 
-            // Toggle icon
             const $icon = $(this).find('i');
-            if (type === 'text') {
+            if (showing) {
                 $icon.removeClass('bi-eye').addClass('bi-eye-slash');
-                $(this).attr('title', 'Hide password');
+                $(this).attr({ title: 'Hide password', 'aria-label': 'Hide password' });
             } else {
                 $icon.removeClass('bi-eye-slash').addClass('bi-eye');
-                $(this).attr('title', 'Show password');
+                $(this).attr({ title: 'Show password', 'aria-label': 'Show password' });
             }
+        });
+
+        $form.on('submit', function () {
+            passwordMask.restoreActual();
         });
     }
 
