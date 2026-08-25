@@ -9,7 +9,6 @@ from flask_caching import Cache
 from flask_talisman import Talisman
 from flask_cors import CORS
 import flask_bcrypt
-from flask_migrate import Migrate
 from dotenv import load_dotenv
 
 
@@ -27,12 +26,6 @@ bcrypt = flask_bcrypt.Bcrypt()
 login_manager = LoginManager()
 csrf = CSRFProtect()
 cache = Cache()
-migrate = Migrate()
-
-
-def get_allowed_emails():
-    """Get allowed emails from environment variable."""
-    return os.environ.get("ALLOWED_EMAILS", "").split(",")
 
 
 def get_environment():
@@ -96,15 +89,16 @@ def create_app(config_name=None):
 
     CORS(
         app,
-        origins=["https://www.fansboda.dpdns.org", "https://fansboda.dpdns.org"],  # No external origins allowed
+        origins=[
+            "https://www.fansboda.dpdns.org",
+            "https://fansboda.dpdns.org",
+        ],  # No external origins allowed
         methods=["GET", "POST"],  # Only allow necessary methods
         allow_headers=["Content-Type", "Authorization"],
         supports_credentials=True,
         max_age=86400,
     )
     print("CORS initialized")
-
-    migrate.init_app(app, db)
 
     # Configure Flask-Talisman with CSP
     talisman = configure_talisman(app)
@@ -127,54 +121,7 @@ def create_app(config_name=None):
     register_error_handlers(app)
     register_login_manager(login_manager, cache, db)
 
-    # Initialize database and prepopulate if not in test mode
-    # SHOULD NOT BE DONE IN PRODUCTION!!!!!
-    # with app.app_context():
-    #     if env != "test":
-    #         prepopulate_database(app)
-
     return app
-
-
-def prepopulate_database(app):
-    """Initialize database and add default data."""
-    try:
-        # Check if the database exists
-        db_path = app.config.get("SQLALCHEMY_DATABASE_URI", "").replace(
-            "sqlite:///", ""
-        )
-
-        if os.path.exists(db_path):
-            print("Database exists, skipping table creation")
-        else:
-            print("Database does not exist, creating tables")
-            db.create_all()
-            print("Database tables created/verified")
-
-        # Import User model here to avoid circular imports
-        from src.models.user import User
-
-        # Check if we already have any users
-        try:
-            user_count = db.session.query(User).count()
-            print(f"Current user count: {user_count}")
-
-            if user_count == 0:
-                # No users exist, create the default admin user
-                user = User(email="admin@test.com")
-                user.password_hash = "123456"
-                db.session.add(user)
-                print(f"Added user {user.email} to database")
-                db.session.commit()
-                print("Default admin user created successfully")
-            else:
-                print("Users already exist in database, skipping user creation")
-        except Exception as e:
-            print(f"Error checking/creating users: {e}")
-            db.session.rollback()
-
-    except Exception as e:
-        print(f"Error in prepopulate_database: {e}")
 
 
 def configure_talisman(app: Flask):
@@ -279,7 +226,7 @@ def configure_talisman(app: Flask):
                         "https://code.jquery.com",
                     ],
                     "style-src": [
-                        "'self'",  
+                        "'self'",
                         "'unsafe-inline'",  # Needed for inline styles
                         "https://cdn.jsdelivr.net",
                         "https://fonts.googleapis.com",
