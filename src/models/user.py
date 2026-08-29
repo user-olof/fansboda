@@ -5,6 +5,8 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from datetime import datetime, timedelta, timezone
 import enum
 
+from src.allowed_emails import normalized_allowed_email_set
+
 
 class Role(str, enum.Enum):
     """User roles for access control."""
@@ -81,15 +83,9 @@ class User(UserMixin, db.Model):
     @classmethod
     def _get_normalized_allowed_emails(cls):
         """Get normalized allowed emails (cached for performance)."""
-        allowed_emails = current_app.config.get("ALLOWED_EMAILS", [])
-
-        # Normalize all emails once and store in a set
-        normalized = set()
-        for email in allowed_emails:
-            if email and email.strip():  # Skip empty/None emails
-                normalized.add(email.lower().strip())
-
-        return normalized
+        return normalized_allowed_email_set(
+            current_app.config.get("ALLOWED_EMAILS", [])
+        )
 
     def has_role(self, role):
         """Check if user has a specific role."""

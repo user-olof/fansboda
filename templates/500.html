@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>500 - Server Error</title>
+
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+  <!-- Reuse 404 page styles -->
+  <link href="{{ url_for('static', filename='css/404.css') }}" rel="stylesheet" />
+</head>
+
+<body>
+  <div class="error-404-container">
+    <div class="error-404-content">
+      <div class="error-404-number">
+        <span class="error-404-digit">5</span>
+        <div class="error-404-icon">
+          <i class="bi bi-exclamation-lg"></i>
+        </div>
+        <span class="error-404-digit">0</span>
+      </div>
+
+      <h1 class="error-404-title">Something went wrong.</h1>
+      <p class="error-404-message">{{ message }}</p>
+
+      <a href="{{ url_for('home.index') }}" class="error-404-button">Back to Home</a>
+
+      <div class="error-404-footer">
+        <hr class="error-404-divider">
+        <button class="error-404-scroll-top" onclick="window.scrollTo({top: 0, behavior: 'smooth'})" aria-label="Scroll to top">
+          <i class="bi bi-arrow-up"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+</body>
+
+</html>

@@ -16,6 +16,7 @@ from sqlalchemy import func
 from src.models.user import User
 from src.forms.loginform import LoginForm
 from src.forms.signupform import SignupForm
+from src.allowed_emails import normalized_allowed_email_set
 from datetime import datetime, timedelta
 from src import db
 
@@ -101,12 +102,9 @@ def signup():
     if form.validate_on_submit():
 
         # first check if the user is allowed to sign up (case-insensitive comparison)
-        allowed_emails = current_app.config.get("ALLOWED_EMAILS", [])
-        # Normalize allowed emails to lowercase and strip whitespace
-        normalized_allowed_emails = set()
-        for email in allowed_emails:
-            if email and email.strip():
-                normalized_allowed_emails.add(email.lower().strip())
+        normalized_allowed_emails = normalized_allowed_email_set(
+            current_app.config.get("ALLOWED_EMAILS", [])
+        )
 
         # Normalize the form email for comparison
         normalized_form_email = (
@@ -139,6 +137,7 @@ def signup():
         db.session.add(user)
         db.session.commit()
 
+        login_user(user)
         flash("Account created successfully")
         return redirect(url_for("home.index"))
 

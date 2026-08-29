@@ -1,5 +1,9 @@
 {% extends "base.html" %}
 
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/stocks.css') }}">
+{% endblock %}
+
 {% block title %}Aktier{% endblock %}
 
 {% block content %}
@@ -24,6 +28,9 @@
                             <thead class="table-dark position-sticky top-0">
                                 <tr>
                                     <th scope="col">
+                                        <i class="bi bi-thermometer-half me-1"></i>Heat
+                                    </th>
+                                    <th scope="col">
                                         <i class="bi bi-building me-1"></i>Bolag
                                     </th>
                                     <th scope="col">
@@ -43,8 +50,13 @@
                             <tbody>
                                 {% for stock in stocks %}
                                 <tr>
+                                    <td class="heat-cell{% if stock.heat_score >= 5 %} heat-cell--hot{% endif %}"
+                                        style="background-color: {{ stock.heat_color }};"
+                                        title="Heat score: {{ stock.heat_score }}">
+                                        {{ stock.heat_score }}
+                                    </td>
                                     <td class="fw-semibold">
-                                        <a href="{{ url_for('stocks.chart', ticker=stock.ticker) }}">{{ stock.name }}</a>
+                                        <a href="{{ url_for('stocks.chart', ticker=stock.ticker) }}">{{ stock.company }}</a>
                                     </td>
                                     <td>{{ stock.ticker }}</td>
                                     <td>{{ stock.currency or "—" }}</td>
@@ -53,7 +65,7 @@
                                 </tr>
                                 {% else %}
                                 <tr>
-                                    <td colspan="5" class="text-center text-muted py-4">
+                                    <td colspan="6" class="text-center text-muted py-4">
                                         Inga aktier att visa &auml;nnu.
                                     </td>
                                 </tr>

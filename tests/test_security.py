@@ -9,10 +9,54 @@ This module tests the new security features including:
 """
 
 from src.models.user import User
+from src.allowed_emails import parse_allowed_emails, normalized_allowed_email_set
+
+
+class TestAllowedEmailsParsing:
+    """Test unified ALLOWED_EMAILS parsing."""
+
+    def test_parse_semicolon_separated_string(self):
+        assert parse_allowed_emails("a@x.com;b@x.com") == [
+            "a@x.com",
+            "b@x.com",
+        ]
+
+    def test_parse_string_with_spaces_around_separators(self):
+        assert parse_allowed_emails("a@x.com; b@x.com ; c@x.com") == [
+            "a@x.com",
+            "b@x.com",
+            "c@x.com",
+        ]
+
+    def test_parse_list_unchanged(self):
+        assert parse_allowed_emails(["a@x.com", "b@x.com"]) == [
+            "a@x.com",
+            "b@x.com",
+        ]
+
+    def test_parse_empty_and_none_values(self):
+        assert parse_allowed_emails("") == []
+        assert parse_allowed_emails(None) == []
+        assert parse_allowed_emails(["", None, "a@x.com"]) == ["a@x.com"]
+
+    def test_normalized_set_is_lowercase(self):
+        assert normalized_allowed_email_set("A@X.com;B@x.com") == {
+            "a@x.com",
+            "b@x.com",
+        }
 
 
 class TestEmailWhitelist:
     """Test email whitelist functionality."""
+
+    def test_user_is_allowed_with_semicolon_separated_string(self, client, app):
+        """Test whitelist works when config is a semicolon-separated string."""
+        app.config["ALLOWED_EMAILS"] = "allowed@example.com;other@example.com"
+
+        with client.application.app_context():
+            user = User(email="allowed@example.com")
+            user.password_hash = "testpass"
+            assert user.is_allowed() is True
 
     def test_user_is_allowed_with_whitelisted_email(self, client, app):
         """Test that users with whitelisted emails are allowed."""
