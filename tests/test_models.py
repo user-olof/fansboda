@@ -3,6 +3,7 @@ from datetime import date
 
 from src.models.user import User, Role
 from src.models.metrics import Metric
+from src.models.market_metrics import MarketMetric
 from src import db
 
 
@@ -79,23 +80,43 @@ class TestMetricModel:
             assert found.currency == "SEK"
             assert float(found.current_price) == 265.50
 
-    def test_heat_score_neutral_when_sma_or_price_missing(self):
-        from types import SimpleNamespace
+    def test_market_metric_creation(self, client):
+        """Test creating a country-level market SMA-200 row."""
+        with client.application.app_context():
+            row = MarketMetric(
+                market="us_market",
+                trading_date=date(2026, 7, 1),
+                raw_mean_200=2400.5,
+            )
+            db.session.add(row)
+            db.session.commit()
 
-        from src.routes.stocks import calculate_heat_score
+            found = MarketMetric.query.filter_by(market="us_market").one()
+            assert found.market == "us_market"
+            assert found.trading_date == date(2026, 7, 1)
+            assert float(found.raw_mean_200) == 2400.5
+            assert float(found.sma_200) == 2400.5
+            assert "id" not in MarketMetric.__table__.c
 
-        rows = [
-            SimpleNamespace(
-                sma_50=None,
-                sma_200=100,
-                current_price=110,
-                trading_date=date(2026, 1, 1),
-            ),
-            SimpleNamespace(
-                sma_50=None,
-                sma_200=100,
-                current_price=110,
-                trading_date=date(2026, 1, 2),
-            ),
-        ]
-        assert calculate_heat_score(rows) == 0
+    def test_z_score_is_zero_at_market_average(self):
+        from src.routes.stocks import combined_z, heat_color_from_z, z_score
+
+        assert z_score(0.95, 0.95, 0.05) == 0
+        assert combined_z(0, 0) == 0
+        assert heat_color_from_z(0) == "#fef9c3"
+
+    def test_z_score_hotter_when_below_market_mean(self):
+        from src.routes.stocks import combined_z, heat_color_from_z, z_score
+
+        z_50 = z_score(0.85, 0.95, 0.05)
+        assert z_50 == pytest.approx(-2)
+        assert combined_z(z_50, None) == pytest.approx(-2)
+        assert heat_color_from_z(z_50) == "#991b1b"
+
+    def test_z_score_unavailable_when_std_missing(self):
+        from src.routes.stocks import combined_z, heat_color_from_z, z_score
+
+        assert z_score(0.9, 0.95, None) is None
+        assert z_score(0.9, 0.95, 0) is None
+        assert combined_z(None, None) is None
+        assert heat_color_from_z(None) == "#e5e7eb"

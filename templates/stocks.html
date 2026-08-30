@@ -43,17 +43,17 @@
                                         <i class="bi bi-cash-coin me-1"></i>Pris
                                     </th>
                                     <th scope="col">
-                                        <i class="bi bi-card-text me-1"></i>Beskrivning
+                                        <i class="bi bi-card-text me-1"></i>Industri
                                     </th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for stock in stocks %}
                                 <tr>
-                                    <td class="heat-cell{% if stock.heat_score >= 5 %} heat-cell--hot{% endif %}"
+                                    <td class="heat-cell{% if stock.heat_hot %} heat-cell--hot{% endif %}"
                                         style="background-color: {{ stock.heat_color }};"
-                                        title="Heat score: {{ stock.heat_score }}">
-                                        {{ stock.heat_score }}
+                                        title="{{ stock.heat_title }}">
+                                        {{ stock.heat_label }}
                                     </td>
                                     <td class="fw-semibold">
                                         <a href="{{ url_for('stocks.chart', ticker=stock.ticker) }}">{{ stock.company }}</a>
@@ -61,7 +61,7 @@
                                     <td>{{ stock.ticker }}</td>
                                     <td>{{ stock.currency or "—" }}</td>
                                     <td>{{ "%.2f"|format(stock.current_price) if stock.current_price is not none else "—" }}</td>
-                                    <td class="text-muted">{{ stock.description or "—" }}</td>
+                                    <td class="text-muted">{{ stock.industry or "—" }}</td>
                                 </tr>
                                 {% else %}
                                 <tr>

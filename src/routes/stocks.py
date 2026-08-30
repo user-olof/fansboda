@@ -4,24 +4,17 @@ from datetime import date, timedelta
 from flask import Blueprint, render_template, jsonify
 from src import db
 from src.access_control import role_required
+from src.models.market_metrics import MarketMetric
 from src.models.metrics import Metric
+from src.models.ticker import Ticker
 from src.models.user import Role
 
 stocks_bp = Blueprint("stocks", __name__)
 
-LOOKBACK_DAYS = 10
-DIP_TOLERANCE = 0.02
-RISING_FASTER_WEEKS = 3
-
-HEAT_COLORS = {
-    -1: "#93c5fd",
-    0: "#dbeafe",
-    1: "#fef08a",
-    2: "#fdba74",
-    3: "#fb923c",
-    4: "#f87171",
-    5: "#dc2626",
-    6: "#991b1b",
+# Neon `metrics` has no `market` column. Prefer `tickers.market`, else currency.
+CURRENCY_TO_MARKET = {
+    "USD": "us_market",
+    "SEK": "se_market",
 }
 
 
@@ -29,163 +22,74 @@ def _to_float(value):
     return float(value) if value is not None else None
 
 
-def _get_recent_metrics_by_ticker(weeks=8):
-    """Return recent Metric rows grouped by ticker, ordered by trading_date asc."""
-    cutoff = date.today() - timedelta(weeks=weeks)
-    rows = (
-        db.session.query(Metric)
-        .filter(Metric.trading_date >= cutoff)
-        .order_by(Metric.ticker, Metric.trading_date.asc())
-        .all()
-    )
-
-    by_ticker = {}
-    for row in rows:
-        by_ticker.setdefault(row.ticker, []).append(row)
-    return by_ticker
+def z_score(raw, mean, std):
+    """Standard score vs the market cross-section. Market mean maps to 0."""
+    raw_value = _to_float(raw)
+    mean_value = _to_float(mean)
+    std_value = _to_float(std)
+    if None in (raw_value, mean_value, std_value) or std_value == 0:
+        return None
+    return (raw_value - mean_value) / std_value
 
 
-def _row_on_or_before(rows, target_date):
-    """Return the last row with trading_date on or before target_date."""
-    match = None
-    for row in rows:
-        if row.trading_date <= target_date:
-            match = row
-        else:
-            break
-    return match
+def combined_z(z_50, z_200):
+    """Average of available z-scores. Market average stays 0."""
+    values = [value for value in (z_50, z_200) if value is not None]
+    if not values:
+        return None
+    return sum(values) / len(values)
 
 
-def _sma_50_rising_faster_three_weeks(rows):
-    """True if sma_50 rose faster than sma_200 for 3 consecutive calendar weeks."""
-    if not rows:
-        return False
-
-    end_date = rows[-1].trading_date
-    boundaries = [
-        end_date - timedelta(weeks=RISING_FASTER_WEEKS),
-        end_date - timedelta(weeks=2),
-        end_date - timedelta(weeks=1),
-        end_date,
-    ]
-
-    snapshots = []
-    for boundary_date in boundaries:
-        row = _row_on_or_before(rows, boundary_date)
-        if row is None:
-            return False
-        snapshots.append(row)
-
-    for previous, current in zip(snapshots, snapshots[1:]):
-        prev_sma_50 = _to_float(previous.sma_50)
-        prev_sma_200 = _to_float(previous.sma_200)
-        curr_sma_50 = _to_float(current.sma_50)
-        curr_sma_200 = _to_float(current.sma_200)
-
-        if None in (prev_sma_50, prev_sma_200, curr_sma_50, curr_sma_200):
-            return False
-
-        if (curr_sma_50 - prev_sma_50) <= (curr_sma_200 - prev_sma_200):
-            return False
-
-    return True
+def heat_color_from_z(z):
+    """Diverging colors around the market (z = 0). Negative z is hotter."""
+    if z is None:
+        return "#e5e7eb"
+    z = round(z, 2)
+    if z <= -2:
+        return "#991b1b"
+    if z < -1:
+        return "#dc2626"
+    if z < -0.5:
+        return "#fb923c"
+    if z <= 0.5:
+        return "#fef9c3"
+    if z < 1:
+        return "#93c5fd"
+    if z < 2:
+        return "#3b82f6"
+    return "#1d4ed8"
 
 
-def _sma_50_crossed_below_sma_200(rows):
-    """True if sma_50 recently crossed below sma_200."""
-    for previous, current in zip(rows, rows[1:]):
-        prev_sma_50 = _to_float(previous.sma_50)
-        prev_sma_200 = _to_float(previous.sma_200)
-        curr_sma_50 = _to_float(current.sma_50)
-        curr_sma_200 = _to_float(current.sma_200)
-
-        if None in (prev_sma_50, prev_sma_200, curr_sma_50, curr_sma_200):
-            continue
-
-        if prev_sma_50 >= prev_sma_200 and curr_sma_50 < curr_sma_200:
-            return True
-    return False
+def _heat_label(z):
+    if z is None:
+        return "—"
+    return f"{z:.2f}"
 
 
-def _price_dipped_to_sma(rows):
-    """True if latest price is within tolerance of sma_50 or sma_200."""
-    if not rows:
-        return False
-
-    latest = rows[-1]
-    price = _to_float(latest.current_price)
-    if price is None:
-        return False
-
-    for sma in (_to_float(latest.sma_50), _to_float(latest.sma_200)):
-        if sma is not None and sma > 0 and abs(price - sma) / sma <= DIP_TOLERANCE:
-            return True
-    return False
+def _heat_title(z_50, z_200, z):
+    if z is None:
+        return "Heat: unavailable (no z-score vs market)"
+    parts = []
+    if z_50 is not None:
+        parts.append(f"z50={z_50:.2f}")
+    if z_200 is not None:
+        parts.append(f"z200={z_200:.2f}")
+    return "Heat vs market average (0): " + ", ".join(parts)
 
 
-def calculate_heat_score(rows):
-    """
-    Score stock heat from recent metrics history.
-
-    Rules:
-    - sma_50 below sma_200: 0 points (no bonus for position)
-    - sma_50 rising faster than sma_200 for 3 weeks in a row (only when sma_50 below sma_200): +1
-    - sma_50 over sma_200: +2
-    - current_price over both sma_50 and sma_200 (only when sma_50 below sma_200): +2
-    - current_price dipping to sma_50 or sma_200 on latest date: +1
-    - sma_200 sloping upward: +1
-    - sma_50 dipping below sma_200: -1
-    """
-    if len(rows) < 2:
-        return 0
-
-    latest = rows[-1]
-    lookback = rows[max(0, len(rows) - 1 - LOOKBACK_DAYS)]
-
-    sma_50 = _to_float(latest.sma_50)
-    sma_200 = _to_float(latest.sma_200)
-    price = _to_float(latest.current_price)
-
-    if None in (sma_50, sma_200, price):
-        return 0
-
-    score = 0
-
-    if sma_50 > sma_200:
-        score += 2
-
-    if sma_50 < sma_200 and _sma_50_rising_faster_three_weeks(rows):
-        score += 1
-
-    if sma_50 < sma_200 and price > sma_50 and price > sma_200:
-        score += 2
-
-    if _price_dipped_to_sma(rows):
-        score += 1
-
-    lookback_sma_200_val = _to_float(lookback.sma_200)
-    if lookback_sma_200_val is not None and sma_200 > lookback_sma_200_val:
-        score += 1
-
-    if _sma_50_crossed_below_sma_200(rows[-LOOKBACK_DAYS:]):
-        score -= 1
-
-    return score
-
-
-def _heat_color(score):
-    clamped = max(-1, min(6, score))
-    return HEAT_COLORS.get(clamped, "#e5e7eb")
-
-
-def _stock_row(metric, heat_score):
+def _stock_row(metric, z_50, z_200, sector=None):
+    z = combined_z(z_50, z_200)
     return {
         "company": metric.company,
         "ticker": metric.ticker,
         "currency": metric.currency,
         "current_price": metric.current_price,
-        "heat_score": heat_score,
-        "heat_color": _heat_color(heat_score),
+        "industry": sector,
+        "heat_score": z,
+        "heat_label": _heat_label(z),
+        "heat_color": heat_color_from_z(z),
+        "heat_hot": z is not None and round(z, 2) < -1,
+        "heat_title": _heat_title(z_50, z_200, z),
     }
 
 
@@ -242,14 +146,60 @@ def get_last_weeks_metrics(ticker, weeks=52):
     ]
 
 
+def _ticker_sectors(symbols):
+    """Map ticker symbols to `tickers.sector` in one query."""
+    if not symbols:
+        return {}
+    rows = (
+        db.session.query(Ticker.symbol, Ticker.sector)
+        .filter(Ticker.symbol.in_(symbols))
+        .all()
+    )
+    return {symbol: sector for symbol, sector in rows}
+
+
+def market_key_for_currency(latest):
+    if latest is None or not latest.currency:
+        return None
+    return CURRENCY_TO_MARKET.get(str(latest.currency).strip().upper())
+
+
+def market_key_for_ticker(latest, symbol=None):
+    """Return the `market_metrics.market` key for a ticker, or None."""
+    lookup = symbol or (latest.ticker if latest is not None else None)
+    if lookup:
+        ticker = db.session.get(Ticker, lookup)
+        if ticker and ticker.market:
+            return ticker.market
+    return market_key_for_currency(latest)
+
+
+def _market_row(market, trading_date):
+    if not market or trading_date is None:
+        return None
+    return db.session.get(MarketMetric, (market, trading_date))
+
+
+def _z_scores_for_metric(metric):
+    market = market_key_for_ticker(metric)
+    market_row = _market_row(market, metric.trading_date)
+    if market_row is None:
+        return None, None
+    z_50 = z_score(metric.raw_50, market_row.raw_mean_50, market_row.raw_std_50)
+    z_200 = z_score(metric.raw_200, market_row.raw_mean_200, market_row.raw_std_200)
+    return z_50, z_200
+
+
 @stocks_bp.route("/stocks")
 @role_required(Role.USER, Role.ADMIN)
 def stocks():
     metrics = _get_latest_metrics()
-    recent_by_ticker = _get_recent_metrics_by_ticker()
+    sectors = _ticker_sectors([metric.ticker for metric in metrics])
     stocks = [
         _stock_row(
-            metric, calculate_heat_score(recent_by_ticker.get(metric.ticker, []))
+            metric,
+            *_z_scores_for_metric(metric),
+            sector=sectors.get(metric.ticker),
         )
         for metric in metrics
     ]

@@ -1,3 +1,8 @@
+from datetime import date, timedelta
+
+from src.models.market_metrics import MarketMetric
+from src.models.metrics import Metric
+from src.models.ticker import Ticker
 from src.models.user import User
 from src import db
 
@@ -187,8 +192,58 @@ class TestAktierRoutes:
 
     def test_stocks_empty_table_when_logged_in(self, client_with_user):
         response = client_with_user.get("/stocks")
+        html = response.get_data(as_text=True)
         assert response.status_code == 200
-        assert "Inga aktier" in response.get_data(as_text=True)
+        assert "Inga aktier" in html
+        assert "Industri" in html
+        assert "Beskrivning" not in html
+
+    def test_stocks_heatmap_uses_z_score_vs_market(self, client_with_user, app):
+        trading_day = date.today() - timedelta(days=7)
+        with app.app_context():
+            db.session.add(
+                Ticker(
+                    symbol="AAPL",
+                    company="Apple Inc.",
+                    market="us_market",
+                    sector="Technology",
+                )
+            )
+            db.session.add(
+                Metric(
+                    ticker="AAPL",
+                    company="Apple Inc.",
+                    trading_date=trading_day,
+                    current_price=100.0,
+                    sma_50=90.0,
+                    sma_200=80.0,
+                    currency="USD",
+                    raw_50=0.85,
+                    raw_200=0.85,
+                )
+            )
+            db.session.add(
+                MarketMetric(
+                    market="us_market",
+                    trading_date=trading_day,
+                    raw_mean_50=0.95,
+                    raw_mean_200=0.95,
+                    raw_std_50=0.05,
+                    raw_std_200=0.05,
+                )
+            )
+            db.session.commit()
+
+        response = client_with_user.get("/stocks")
+        html = response.get_data(as_text=True)
+        assert response.status_code == 200
+        assert "-2.00" in html
+        assert "background-color: #991b1b" in html
+        assert "z50=-2.00" in html
+        assert "z200=-2.00" in html
+        assert "Industri" in html
+        assert "Technology" in html
+        assert "Beskrivning" not in html
 
     def test_chart_unknown_ticker_does_not_500(self, client_with_user):
         response = client_with_user.get("/stocks/chart/NOT-A-TICKER")
@@ -199,6 +254,43 @@ class TestAktierRoutes:
         response = client.get("/stocks/latest")
         assert response.status_code == 302
         assert "/login" in response.location
+
+    def test_chart_redirect_when_not_logged_in(self, client):
+        response = client.get("/stocks/chart/VOLV-B.ST")
+        assert response.status_code == 302
+        assert "/login" in response.location
+
+    def test_chart_shows_stock_series_without_market_sma(self, client_with_user, app):
+        trading_day = date.today() - timedelta(days=7)
+        with app.app_context():
+            db.session.add(
+                Metric(
+                    ticker="VOLV-B.ST",
+                    company="Volvo AB",
+                    trading_date=trading_day,
+                    current_price=265.5,
+                    sma_50=250.0,
+                    sma_200=230.0,
+                    currency="SEK",
+                )
+            )
+            db.session.add(
+                MarketMetric(
+                    market="se_market", trading_date=trading_day, raw_mean_200=2400.25
+                )
+            )
+            db.session.commit()
+
+        response = client_with_user.get("/stocks/chart/VOLV-B.ST")
+        html = response.get_data(as_text=True)
+        assert response.status_code == 200
+        assert "Volvo AB" in html
+        assert "label: 'Kurs'" in html
+        assert "label: 'SMA 50'" in html
+        assert "label: 'SMA 200'" in html
+        assert "Market SMA-200" not in html
+        assert "2400.25" not in html
+        assert "yAxisID: 'y1'" not in html
 
 
 class TestErrorHandlers:

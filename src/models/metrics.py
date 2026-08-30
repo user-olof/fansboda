@@ -21,6 +21,8 @@ class Metric(db.Model):
     sma_200 = db.Column(db.Numeric(18, 4), nullable=True)
     current_price = db.Column(db.Numeric(18, 4), nullable=True)
     currency = db.Column(db.String(10), nullable=True)
+    raw_50 = db.Column(db.Numeric(18, 6), nullable=True)
+    raw_200 = db.Column(db.Numeric(18, 6), nullable=True)
 
 
     def __repr__(self):
