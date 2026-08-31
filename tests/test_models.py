@@ -120,3 +120,11 @@ class TestMetricModel:
         assert z_score(0.9, 0.95, 0) is None
         assert combined_z(None, None) is None
         assert heat_color_from_z(None) == "#e5e7eb"
+
+    def test_display_sector_replaces_dashes_with_spaces(self):
+        from src.routes.stocks import _display_sector
+
+        assert _display_sector("communication-services") == "communication services"
+        assert _display_sector("foo--bar") == "foo bar"
+        assert _display_sector("   ") is None
+        assert _display_sector(None) is None

@@ -1,3 +1,4 @@
+import re
 from datetime import date, timedelta
 
 from src.models.market_metrics import MarketMetric
@@ -232,18 +233,72 @@ class TestAktierRoutes:
                     raw_std_200=0.05,
                 )
             )
+            db.session.add(
+                Metric(
+                    ticker="MSFT",
+                    company="Microsoft",
+                    trading_date=trading_day,
+                    current_price=200.0,
+                    sma_50=190.0,
+                    sma_200=180.0,
+                    currency="USD",
+                    raw_50=0.95,
+                    raw_200=0.95,
+                )
+            )
+            db.session.add(
+                Ticker(
+                    symbol="MSFT",
+                    company="Microsoft",
+                    market="us_market",
+                    sector="   ",
+                )
+            )
             db.session.commit()
 
         response = client_with_user.get("/stocks")
         html = response.get_data(as_text=True)
         assert response.status_code == 200
-        assert "-2.00" in html
         assert "background-color: #991b1b" in html
         assert "z50=-2.00" in html
         assert "z200=-2.00" in html
+        assert re.search(r'class="heat-cell[^"]*"[^>]*>\s*</td>', html)
+        visible_heat = html.replace("z50=-2.00", "").replace("z200=-2.00", "")
+        assert "-2.00" not in visible_heat
         assert "Industri" in html
         assert "Technology" in html
         assert "Beskrivning" not in html
+        assert "industri-cell" in html
+        assert re.search(r'class="industri-cell">\s*</td>', html)
+
+    def test_stocks_industri_replaces_dashes_with_spaces(self, client_with_user, app):
+        trading_day = date.today() - timedelta(days=7)
+        with app.app_context():
+            db.session.add(
+                Ticker(
+                    symbol="GOOGL",
+                    company="Alphabet Inc.",
+                    market="us_market",
+                    sector="communication-services",
+                )
+            )
+            db.session.add(
+                Metric(
+                    ticker="GOOGL",
+                    company="Alphabet Inc.",
+                    trading_date=trading_day,
+                    current_price=100.0,
+                    sma_50=90.0,
+                    sma_200=80.0,
+                    currency="USD",
+                )
+            )
+            db.session.commit()
+
+        html = client_with_user.get("/stocks").get_data(as_text=True)
+        assert "communication services" in html
+        assert "communication-services" not in html
+        assert "Industri" in html
 
     def test_chart_unknown_ticker_does_not_500(self, client_with_user):
         response = client_with_user.get("/stocks/chart/NOT-A-TICKER")

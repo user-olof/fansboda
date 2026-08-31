@@ -1182,3 +1182,20 @@ class TestEmailWhitelist:
             user.password_hash = "testpass"
 
             assert user.is_allowed() is False
+
+
+class TestLoginPasswordMask:
+    """Sign In must keep a native password field; no plaintext restore on submit."""
+
+    def test_login_page_password_input_is_type_password(self, client):
+        html = client.get("/login").get_data(as_text=True)
+        assert 'id="floatingPassword"' in html
+        assert 'type="password"' in html
+
+    def test_login_js_does_not_restore_plaintext_on_submit(self):
+        from pathlib import Path
+
+        source = Path("static/js/login.js").read_text(encoding="utf-8")
+        assert "restoreActual" not in source
+        assert "enableDelayedPasswordMask" not in source
+        assert "passwordMask.restoreActual" not in source

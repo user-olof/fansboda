@@ -146,6 +146,16 @@ def get_last_weeks_metrics(ticker, weeks=52):
     ]
 
 
+def _display_sector(sector):
+    if sector is None:
+        return None
+    text = str(sector)
+    for dash in ("-", "\u2010", "\u2011", "\u2012", "\u2013", "\u2014", "\u2212"):
+        text = text.replace(dash, " ")
+    text = " ".join(text.split())
+    return text or None
+
+
 def _ticker_sectors(symbols):
     """Map ticker symbols to `tickers.sector` in one query."""
     if not symbols:
@@ -155,7 +165,7 @@ def _ticker_sectors(symbols):
         .filter(Ticker.symbol.in_(symbols))
         .all()
     )
-    return {symbol: sector for symbol, sector in rows}
+    return {symbol: _display_sector(sector) for symbol, sector in rows}
 
 
 def market_key_for_currency(latest):

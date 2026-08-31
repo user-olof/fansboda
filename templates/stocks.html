@@ -52,16 +52,14 @@
                                 <tr>
                                     <td class="heat-cell{% if stock.heat_hot %} heat-cell--hot{% endif %}"
                                         style="background-color: {{ stock.heat_color }};"
-                                        title="{{ stock.heat_title }}">
-                                        {{ stock.heat_label }}
-                                    </td>
+                                        title="{{ stock.heat_title }}"></td>
                                     <td class="fw-semibold">
                                         <a href="{{ url_for('stocks.chart', ticker=stock.ticker) }}">{{ stock.company }}</a>
                                     </td>
                                     <td>{{ stock.ticker }}</td>
                                     <td>{{ stock.currency or "—" }}</td>
                                     <td>{{ "%.2f"|format(stock.current_price) if stock.current_price is not none else "—" }}</td>
-                                    <td class="text-muted">{{ stock.industry or "—" }}</td>
+                                    <td class="industri-cell">{{ stock.industry or "" }}</td>
                                 </tr>
                                 {% else %}
                                 <tr>
