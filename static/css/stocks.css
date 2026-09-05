@@ -1,3 +1,50 @@
+.exchange-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.exchange-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 3.75rem;
+    min-width: 10rem;
+    padding: 0.85rem 1.75rem;
+    font-size: 1.35rem;
+    font-weight: 600;
+    line-height: 1.2;
+    color: #1a1a1a;
+    text-decoration: none;
+    background-color: #f3f4f6;
+    border: 2px solid #9ca3af;
+    border-radius: 0.5rem;
+}
+
+.exchange-btn:hover {
+    background-color: #e5e7eb;
+    color: #1a1a1a;
+}
+
+.exchange-btn--selected {
+    background-color: #1d4ed8;
+    border-color: #1d4ed8;
+    color: #fff;
+}
+
+.exchange-btn--selected:hover {
+    background-color: #1e40af;
+    border-color: #1e40af;
+    color: #fff;
+}
+
+.exchange-prompt {
+    font-size: 1.05rem;
+    color: #4b5563;
+    margin-bottom: 1rem;
+}
+
 .heat-cell {
     font-weight: 600;
     text-align: center;

@@ -4,6 +4,7 @@ from datetime import date
 from src.models.user import User, Role
 from src.models.metrics import Metric
 from src.models.market_metrics import MarketMetric
+from src.models.ticker import Ticker
 from src import db
 
 
@@ -59,6 +60,23 @@ class TestUserModel:
 
 class TestMetricModel:
     """Test cases for the Metric model."""
+
+    def test_us_table_names_and_exchange_name(self, client):
+        assert Ticker.__tablename__ == "us_tickers"
+        assert Metric.__tablename__ == "us_metrics"
+        assert MarketMetric.__tablename__ == "us_market_metrics"
+        with client.application.app_context():
+            ticker = Ticker(
+                symbol="AAPL",
+                company="Apple Inc.",
+                market="us_market",
+                exchange_name="NASDAQ",
+            )
+            db.session.add(ticker)
+            db.session.commit()
+            found = db.session.get(Ticker, "AAPL")
+            assert found.exchange_name == "NASDAQ"
+            assert "exchange_name" in Ticker.__table__.c
 
     def test_metric_creation(self, client):
         """Test creating a metric with optional display fields."""

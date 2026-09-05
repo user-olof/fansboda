@@ -1,20 +1,35 @@
 # src/routes/stocks.py
 from datetime import date, timedelta
 
-from flask import Blueprint, render_template, jsonify
+from flask import Blueprint, jsonify, render_template, request
 from src import db
 from src.access_control import role_required
 from src.models.market_metrics import MarketMetric
 from src.models.metrics import Metric
+from src.models.swe_market_metrics import SweMarketMetric
+from src.models.swe_metrics import SweMetric
+from src.models.swe_ticker import SweTicker
 from src.models.ticker import Ticker
 from src.models.user import Role
 
 stocks_bp = Blueprint("stocks", __name__)
 
-# Neon `metrics` has no `market` column. Prefer `tickers.market`, else currency.
+# Neon `metrics` has no `market` column. Prefer ticker `market`, else currency.
 CURRENCY_TO_MARKET = {
     "USD": "us_market",
     "SEK": "se_market",
+}
+
+EXCHANGE_QUERY = {
+    "nasdaq": "NASDAQ",
+    "nyse": "NYSE",
+    "omx_stockholm": "OMX Stockholm",
+}
+
+EXCHANGE_COUNTRY = {
+    "nasdaq": "us",
+    "nyse": "us",
+    "omx_stockholm": "se",
 }
 
 
@@ -93,44 +108,99 @@ def _stock_row(metric, z_50, z_200, sector=None):
     }
 
 
-def _get_latest_metrics():
-    """Return the latest Metric row per ticker (by trading_date), newest first."""
+def parse_exchange(value):
+    """Return a known exchange query key, or None."""
+    if value is None:
+        return None
+    key = str(value).strip().lower()
+    return key if key in EXCHANGE_QUERY else None
+
+
+def exchange_name_matches(stored, exchange_key):
+    """Match stored `exchange_name` to a button. Accepts Yahoo-style names (NasdaqGS)."""
+    if stored is None or exchange_key not in EXCHANGE_QUERY:
+        return False
+    text = str(stored).strip().casefold()
+    if not text:
+        return False
+    expected = EXCHANGE_QUERY[exchange_key].casefold()
+    if text == expected:
+        return True
+    if exchange_key == "nasdaq":
+        return text.startswith("nasdaq")
+    if exchange_key == "nyse":
+        return text.startswith("nyse")
+    if exchange_key == "omx_stockholm":
+        return text in {"sto", "xsto"} or "stockholm" in text
+    return False
+
+
+def _tables_for_country(country):
+    if country == "se":
+        return SweMetric, SweTicker, SweMarketMetric
+    return Metric, Ticker, MarketMetric
+
+
+def _get_latest_metrics(metric_model):
+    """Return the latest row per ticker (by trading_date), newest first."""
     latest_dates = (
         db.session.query(
-            Metric.ticker,
-            db.func.max(Metric.trading_date).label("latest_date"),
+            metric_model.ticker,
+            db.func.max(metric_model.trading_date).label("latest_date"),
         )
-        .group_by(Metric.ticker)
+        .group_by(metric_model.ticker)
         .subquery()
     )
 
     return (
-        db.session.query(Metric)
+        db.session.query(metric_model)
         .join(
             latest_dates,
             db.and_(
-                Metric.ticker == latest_dates.c.ticker,
-                Metric.trading_date == latest_dates.c.latest_date,
+                metric_model.ticker == latest_dates.c.ticker,
+                metric_model.trading_date == latest_dates.c.latest_date,
             ),
         )
-        .order_by(Metric.trading_date.desc())
+        .order_by(metric_model.trading_date.desc())
         .all()
+    )
+
+
+def _metric_history(metric_model, ticker, cutoff):
+    return (
+        db.session.query(metric_model)
+        .filter(
+            metric_model.ticker == ticker,
+            metric_model.trading_date >= cutoff,
+        )
+        .order_by(metric_model.trading_date.asc())
+        .all()
+    )
+
+
+def _latest_observation(ticker):
+    latest = (
+        db.session.query(Metric)
+        .filter(Metric.ticker == ticker)
+        .order_by(Metric.trading_date.desc())
+        .first()
+    )
+    if latest is not None:
+        return latest
+    return (
+        db.session.query(SweMetric)
+        .filter(SweMetric.ticker == ticker)
+        .order_by(SweMetric.trading_date.desc())
+        .first()
     )
 
 
 def get_last_weeks_metrics(ticker, weeks=52):
     """Return daily metrics for a ticker over the last `weeks` weeks from Neon."""
     cutoff = date.today() - timedelta(weeks=weeks)
-
-    rows = (
-        db.session.query(Metric)
-        .filter(
-            Metric.ticker == ticker,
-            Metric.trading_date >= cutoff,
-        )
-        .order_by(Metric.trading_date.asc())
-        .all()
-    )
+    rows = _metric_history(Metric, ticker, cutoff)
+    if not rows:
+        rows = _metric_history(SweMetric, ticker, cutoff)
 
     return [
         {
@@ -156,16 +226,19 @@ def _display_sector(sector):
     return text or None
 
 
-def _ticker_sectors(symbols):
-    """Map ticker symbols to `tickers.sector` in one query."""
+def _ticker_map(ticker_model, symbols):
     if not symbols:
         return {}
-    rows = (
-        db.session.query(Ticker.symbol, Ticker.sector)
-        .filter(Ticker.symbol.in_(symbols))
-        .all()
-    )
-    return {symbol: _display_sector(sector) for symbol, sector in rows}
+    rows = ticker_model.query.filter(ticker_model.symbol.in_(symbols)).all()
+    return {row.symbol: row for row in rows}
+
+
+def _ticker_sectors(ticker_model, symbols):
+    """Map ticker symbols to sector display text in one query."""
+    return {
+        symbol: _display_sector(ticker.sector)
+        for symbol, ticker in _ticker_map(ticker_model, symbols).items()
+    }
 
 
 def market_key_for_currency(latest):
@@ -174,25 +247,25 @@ def market_key_for_currency(latest):
     return CURRENCY_TO_MARKET.get(str(latest.currency).strip().upper())
 
 
-def market_key_for_ticker(latest, symbol=None):
-    """Return the `market_metrics.market` key for a ticker, or None."""
+def market_key_for_ticker(latest, symbol=None, ticker_model=Ticker):
+    """Return the market-metrics key for a ticker, or None."""
     lookup = symbol or (latest.ticker if latest is not None else None)
     if lookup:
-        ticker = db.session.get(Ticker, lookup)
+        ticker = db.session.get(ticker_model, lookup)
         if ticker and ticker.market:
             return ticker.market
     return market_key_for_currency(latest)
 
 
-def _market_row(market, trading_date):
+def _market_row(market_model, market, trading_date):
     if not market or trading_date is None:
         return None
-    return db.session.get(MarketMetric, (market, trading_date))
+    return db.session.get(market_model, (market, trading_date))
 
 
-def _z_scores_for_metric(metric):
-    market = market_key_for_ticker(metric)
-    market_row = _market_row(market, metric.trading_date)
+def _z_scores_for_metric(metric, ticker_model=Ticker, market_model=MarketMetric):
+    market = market_key_for_ticker(metric, ticker_model=ticker_model)
+    market_row = _market_row(market_model, market, metric.trading_date)
     if market_row is None:
         return None, None
     z_50 = z_score(metric.raw_50, market_row.raw_mean_50, market_row.raw_std_50)
@@ -200,32 +273,49 @@ def _z_scores_for_metric(metric):
     return z_50, z_200
 
 
+def _stocks_for_exchange(exchange_key):
+    metric_model, ticker_model, market_model = _tables_for_country(
+        EXCHANGE_COUNTRY[exchange_key]
+    )
+    metrics = _get_latest_metrics(metric_model)
+    tickers = _ticker_map(ticker_model, [metric.ticker for metric in metrics])
+    matched = [
+        metric
+        for metric in metrics
+        if metric.ticker in tickers
+        and exchange_name_matches(tickers[metric.ticker].exchange_name, exchange_key)
+    ]
+    sectors = {
+        symbol: _display_sector(ticker.sector) for symbol, ticker in tickers.items()
+    }
+    return [
+        _stock_row(
+            metric,
+            *_z_scores_for_metric(metric, ticker_model, market_model),
+            sector=sectors.get(metric.ticker),
+        )
+        for metric in matched
+    ]
+
+
 @stocks_bp.route("/stocks")
 @role_required(Role.USER, Role.ADMIN)
 def stocks():
-    metrics = _get_latest_metrics()
-    sectors = _ticker_sectors([metric.ticker for metric in metrics])
-    stocks = [
-        _stock_row(
-            metric,
-            *_z_scores_for_metric(metric),
-            sector=sectors.get(metric.ticker),
-        )
-        for metric in metrics
-    ]
-    return render_template("stocks.html", title="Aktier", stocks=stocks)
+    selected_exchange = parse_exchange(request.args.get("exchange"))
+    stock_rows = _stocks_for_exchange(selected_exchange) if selected_exchange else []
+    return render_template(
+        "stocks.html",
+        title="Aktier",
+        stocks=stock_rows,
+        selected_exchange=selected_exchange,
+    )
 
 
 @stocks_bp.route("/stocks/chart/<ticker>")
 @role_required(Role.USER, Role.ADMIN)
 def chart(ticker):
     history = get_last_weeks_metrics(ticker)
-    latest = (
-        db.session.query(Metric)
-        .filter(Metric.ticker == ticker)
-        .order_by(Metric.trading_date.desc())
-        .first()
-    )
+    latest = _latest_observation(ticker)
     company_name = latest.company if latest else ticker
     return render_template(
         "chart.html",
@@ -239,8 +329,8 @@ def chart(ticker):
 @stocks_bp.route("/stocks/latest", methods=["GET"])
 @role_required(Role.USER, Role.ADMIN)
 def latest_stock_prices():
-    """Return the latest price per ticker (by trading_date) from the metrics table."""
-    metrics = _get_latest_metrics()
+    """Return the latest price per ticker from US and Swedish metrics."""
+    metrics = _get_latest_metrics(Metric) + _get_latest_metrics(SweMetric)
     return jsonify(
         [
             {

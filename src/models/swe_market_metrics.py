@@ -1,10 +1,10 @@
 from src import db
 
 
-class MarketMetric(db.Model):
-    """Read-only country-level market observations from Neon `us_market_metrics`."""
+class SweMarketMetric(db.Model):
+    """Read-only country-level market observations from Neon `swe_market_metrics`."""
 
-    __tablename__ = "us_market_metrics"
+    __tablename__ = "swe_market_metrics"
     __table_args__ = {"extend_existing": True}
 
     market = db.Column(db.Text, primary_key=True)
@@ -20,4 +20,4 @@ class MarketMetric(db.Model):
         return self.raw_mean_200
 
     def __repr__(self):
-        return f"<MarketMetric {self.market} {self.trading_date} {self.raw_mean_200}>"
+        return f"<SweMarketMetric {self.market} {self.trading_date} {self.raw_mean_200}>"

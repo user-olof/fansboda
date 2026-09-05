@@ -3,6 +3,8 @@ from datetime import date, timedelta
 
 from src.models.market_metrics import MarketMetric
 from src.models.metrics import Metric
+from src.models.swe_metrics import SweMetric
+from src.models.swe_ticker import SweTicker
 from src.models.ticker import Ticker
 from src.models.user import User
 from src import db
@@ -190,12 +192,19 @@ class TestAktierRoutes:
         response = client.get("/stocks")
         assert response.status_code == 302
         assert "/login" in response.location
+        filtered = client.get("/stocks?exchange=nasdaq")
+        assert filtered.status_code == 302
+        assert "/login" in filtered.location
 
     def test_stocks_empty_table_when_logged_in(self, client_with_user):
         response = client_with_user.get("/stocks")
         html = response.get_data(as_text=True)
         assert response.status_code == 200
-        assert "Inga aktier" in html
+        assert "NASDAQ" in html
+        assert "NYSE" in html
+        assert "OMX Stockholm" in html
+        assert "Välj en börs" in html or "V&auml;lj en b&ouml;rs" in html
+        assert "Inga aktier" not in html
         assert "Industri" in html
         assert "Beskrivning" not in html
 
@@ -208,6 +217,7 @@ class TestAktierRoutes:
                     company="Apple Inc.",
                     market="us_market",
                     sector="Technology",
+                    exchange_name="NASDAQ",
                 )
             )
             db.session.add(
@@ -252,11 +262,12 @@ class TestAktierRoutes:
                     company="Microsoft",
                     market="us_market",
                     sector="   ",
+                    exchange_name="NASDAQ",
                 )
             )
             db.session.commit()
 
-        response = client_with_user.get("/stocks")
+        response = client_with_user.get("/stocks?exchange=nasdaq")
         html = response.get_data(as_text=True)
         assert response.status_code == 200
         assert "background-color: #991b1b" in html
@@ -280,6 +291,7 @@ class TestAktierRoutes:
                     company="Alphabet Inc.",
                     market="us_market",
                     sector="communication-services",
+                    exchange_name="NASDAQ",
                 )
             )
             db.session.add(
@@ -295,10 +307,143 @@ class TestAktierRoutes:
             )
             db.session.commit()
 
-        html = client_with_user.get("/stocks").get_data(as_text=True)
+        html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
         assert "communication services" in html
         assert "communication-services" not in html
         assert "Industri" in html
+
+    def test_stocks_filters_by_exchange_name(self, client_with_user, app):
+        trading_day = date.today() - timedelta(days=7)
+        with app.app_context():
+            db.session.add(
+                Ticker(
+                    symbol="AAPL",
+                    company="Apple Inc.",
+                    market="us_market",
+                    exchange_name="NASDAQ",
+                )
+            )
+            db.session.add(
+                Ticker(
+                    symbol="IBM",
+                    company="IBM",
+                    market="us_market",
+                    exchange_name="NYSE",
+                )
+            )
+            db.session.add(
+                Ticker(
+                    symbol="ORCL",
+                    company="Oracle",
+                    market="us_market",
+                    exchange_name="",
+                )
+            )
+            db.session.add(
+                SweTicker(
+                    symbol="VOLV-B.ST",
+                    company="Volvo AB",
+                    market="se_market",
+                    exchange_name="OMX Stockholm",
+                )
+            )
+            for ticker, company, currency, model in (
+                ("AAPL", "Apple Inc.", "USD", Metric),
+                ("IBM", "IBM", "USD", Metric),
+                ("ORCL", "Oracle", "USD", Metric),
+                ("VOLV-B.ST", "Volvo AB", "SEK", SweMetric),
+            ):
+                db.session.add(
+                    model(
+                        ticker=ticker,
+                        company=company,
+                        trading_date=trading_day,
+                        current_price=100.0,
+                        currency=currency,
+                    )
+                )
+            db.session.commit()
+
+        nasdaq = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
+        assert "Apple Inc." in nasdaq
+        assert "IBM" not in nasdaq
+        assert "Oracle" not in nasdaq
+        assert "Volvo AB" not in nasdaq
+        assert "exchange-btn--selected" in nasdaq
+
+        nyse = client_with_user.get("/stocks?exchange=nyse").get_data(as_text=True)
+        assert "IBM" in nyse
+        assert "Apple Inc." not in nyse
+        assert "Volvo AB" not in nyse
+
+        omx = client_with_user.get("/stocks?exchange=omx_stockholm").get_data(
+            as_text=True
+        )
+        assert "Volvo AB" in omx
+        assert "Apple Inc." not in omx
+        assert "IBM" not in omx
+
+    def test_stocks_nasdaq_matches_nasdaqgs(self, client_with_user, app):
+        trading_day = date.today() - timedelta(days=7)
+        with app.app_context():
+            db.session.add(
+                Ticker(
+                    symbol="AAPL",
+                    company="Apple Inc.",
+                    market="us_market",
+                    exchange_name="NasdaqGS",
+                )
+            )
+            db.session.add(
+                Metric(
+                    ticker="AAPL",
+                    company="Apple Inc.",
+                    trading_date=trading_day,
+                    current_price=100.0,
+                    currency="USD",
+                )
+            )
+            db.session.commit()
+
+        html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
+        assert "Apple Inc." in html
+
+    def test_stocks_first_visit_does_not_list_mixed_rows(self, client_with_user, app):
+        trading_day = date.today() - timedelta(days=7)
+        with app.app_context():
+            db.session.add(
+                Ticker(
+                    symbol="AAPL",
+                    company="Apple Inc.",
+                    market="us_market",
+                    exchange_name="NASDAQ",
+                )
+            )
+            db.session.add(
+                Metric(
+                    ticker="AAPL",
+                    company="Apple Inc.",
+                    trading_date=trading_day,
+                    current_price=100.0,
+                    currency="USD",
+                )
+            )
+            db.session.commit()
+
+        html = client_with_user.get("/stocks").get_data(as_text=True)
+        assert "Apple Inc." not in html
+        assert "exchange-btn--selected" not in html
+        assert "V&auml;lj en b&ouml;rs" in html or "Välj en börs" in html
+
+        unknown = client_with_user.get("/stocks?exchange=tokyo").get_data(as_text=True)
+        assert "Apple Inc." not in unknown
+        assert "exchange-btn--selected" not in unknown
+
+        empty = client_with_user.get("/stocks?exchange=nyse")
+        empty_html = empty.get_data(as_text=True)
+        assert empty.status_code == 200
+        assert "Inga aktier" in empty_html
+        assert "Apple Inc." not in empty_html
 
     def test_chart_unknown_ticker_does_not_500(self, client_with_user):
         response = client_with_user.get("/stocks/chart/NOT-A-TICKER")

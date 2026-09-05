@@ -1,10 +1,10 @@
 from src import db
 
 
-class Ticker(db.Model):
-    """Read-only ticker directory from Neon `us_tickers`."""
+class SweTicker(db.Model):
+    """Read-only ticker directory from Neon `swe_tickers`."""
 
-    __tablename__ = "us_tickers"
+    __tablename__ = "swe_tickers"
     __table_args__ = {"extend_existing": True}
 
     symbol = db.Column(db.Text, primary_key=True)
@@ -16,4 +16,4 @@ class Ticker(db.Model):
     updated_at = db.Column(db.DateTime(timezone=True), nullable=True)
 
     def __repr__(self):
-        return f"<Ticker {self.symbol} {self.exchange_name or self.market}>"
+        return f"<SweTicker {self.symbol} {self.exchange_name or self.market}>"

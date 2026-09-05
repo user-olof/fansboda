@@ -1,11 +1,12 @@
-from src import db
 from datetime import datetime, timezone
 
+from src import db
 
 
+class SweMetric(db.Model):
+    """Read-only stock observations from Neon `swe_metrics`."""
 
-class Metric(db.Model):
-    __tablename__ = "us_metrics"
+    __tablename__ = "swe_metrics"
     __table_args__ = {"extend_existing": True}
 
     id = db.Column(db.Integer, primary_key=True)
@@ -24,6 +25,5 @@ class Metric(db.Model):
     raw_50 = db.Column(db.Numeric(18, 6), nullable=True)
     raw_200 = db.Column(db.Numeric(18, 6), nullable=True)
 
-
     def __repr__(self):
-        return f"<Metric {self.ticker} {self.trading_date} {self.current_price}>"
+        return f"<SweMetric {self.ticker} {self.trading_date} {self.current_price}>"

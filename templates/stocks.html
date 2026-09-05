@@ -15,6 +15,19 @@
                 <i class="bi bi-graph-up-arrow text-primary me-2"></i>Senaste
             </h1>
 
+            <nav class="exchange-buttons" aria-label="B&ouml;rs">
+                <a href="{{ url_for('stocks.stocks', exchange='nasdaq') }}"
+                   class="exchange-btn{% if selected_exchange == 'nasdaq' %} exchange-btn--selected{% endif %}">NASDAQ</a>
+                <a href="{{ url_for('stocks.stocks', exchange='nyse') }}"
+                   class="exchange-btn{% if selected_exchange == 'nyse' %} exchange-btn--selected{% endif %}">NYSE</a>
+                <a href="{{ url_for('stocks.stocks', exchange='omx_stockholm') }}"
+                   class="exchange-btn{% if selected_exchange == 'omx_stockholm' %} exchange-btn--selected{% endif %}">OMX Stockholm</a>
+            </nav>
+
+            {% if not selected_exchange %}
+            <p class="exchange-prompt">V&auml;lj en b&ouml;rs f&ouml;r att visa aktier.</p>
+            {% endif %}
+
             <!-- Explanation of the statistics (content provided later) -->
             <div class="mb-4" style="min-height: 15rem;">
                 {% block stocks_explanation %}{% endblock %}
@@ -48,6 +61,7 @@
                                 </tr>
                             </thead>
                             <tbody>
+                                {% if stocks %}
                                 {% for stock in stocks %}
                                 <tr>
                                     <td class="heat-cell{% if stock.heat_hot %} heat-cell--hot{% endif %}"
@@ -61,13 +75,14 @@
                                     <td>{{ "%.2f"|format(stock.current_price) if stock.current_price is not none else "—" }}</td>
                                     <td class="industri-cell">{{ stock.industry or "" }}</td>
                                 </tr>
-                                {% else %}
+                                {% endfor %}
+                                {% elif selected_exchange %}
                                 <tr>
                                     <td colspan="6" class="text-center text-muted py-4">
                                         Inga aktier att visa &auml;nnu.
                                     </td>
                                 </tr>
-                                {% endfor %}
+                                {% endif %}
                             </tbody>
                         </table>
                     </div>
