@@ -207,6 +207,17 @@ class TestAktierRoutes:
         assert "Inga aktier" not in html
         assert "Industri" in html
         assert "Beskrivning" not in html
+        thead = html.split("<thead", 1)[1].split("</thead>", 1)[0]
+        assert "Trend" in thead
+        assert "Heat" not in thead
+
+    def test_stocks_trend_header_with_exchange_selected(self, client_with_user):
+        html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
+        thead = html.split("<thead", 1)[1].split("</thead>", 1)[0]
+        assert "Trend" in thead
+        assert "Heat" not in thead
+        assert "Bolag" in thead
+        assert "Industri" in thead
 
     def test_stocks_heatmap_uses_z_score_vs_market(self, client_with_user, app):
         trading_day = date.today() - timedelta(days=7)
@@ -277,6 +288,9 @@ class TestAktierRoutes:
         visible_heat = html.replace("z50=-2.00", "").replace("z200=-2.00", "")
         assert "-2.00" not in visible_heat
         assert "Industri" in html
+        thead = html.split("<thead", 1)[1].split("</thead>", 1)[0]
+        assert "Trend" in thead
+        assert "Heat" not in thead
         assert "Technology" in html
         assert "Beskrivning" not in html
         assert "industri-cell" in html
