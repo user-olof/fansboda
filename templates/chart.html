@@ -9,7 +9,7 @@
 {% block content %}
 <div class="container-fluid chart-page mt-4 px-4">
     <div class="chart-header">
-        <a class="chart-back-link" href="{{ url_for('stocks.stocks') }}">
+        <a class="chart-back-link" href="{{ stocks_return_url|default(url_for('stocks.stocks')) }}">
             <i class="bi bi-arrow-left me-1"></i>Tillbaka till Aktier
         </a>
         <h1 class="chart-company-name">{{ company_name }}</h1>

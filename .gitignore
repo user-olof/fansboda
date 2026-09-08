@@ -128,8 +128,15 @@ flask_session/
 # certificates
 certificates/
 
-# vscode
+# OS junk
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+
+# vscode / IDEs
 .vscode/
+.idea/
 
 # SSL certificates (never commit these)
 ssl/*.pem

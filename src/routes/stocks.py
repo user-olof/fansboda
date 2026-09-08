@@ -1,8 +1,10 @@
 # src/routes/stocks.py
 from datetime import date, timedelta
 
-from flask import Blueprint, jsonify, render_template, request
-from src import db
+from flask import Blueprint, jsonify, render_template, request, session, url_for
+from flask_login import current_user
+
+from src import cache, db
 from src.access_control import role_required
 from src.models.market_metrics import MarketMetric
 from src.models.metrics import Metric
@@ -31,6 +33,9 @@ EXCHANGE_COUNTRY = {
     "nyse": "us",
     "omx_stockholm": "se",
 }
+
+PAGE_SIZE = 25
+AKTIER_CACHE_TIMEOUT = 3600
 
 
 def _to_float(value):
@@ -166,6 +171,34 @@ def _get_latest_metrics(metric_model):
     )
 
 
+def _get_latest_metrics_for_symbols(metric_model, symbols):
+    """Latest metric row for each of `symbols`, in that order. Does not scan the whole table."""
+    if not symbols:
+        return []
+    latest_dates = (
+        db.session.query(
+            metric_model.ticker,
+            db.func.max(metric_model.trading_date).label("latest_date"),
+        )
+        .filter(metric_model.ticker.in_(symbols))
+        .group_by(metric_model.ticker)
+        .subquery()
+    )
+    rows = (
+        db.session.query(metric_model)
+        .join(
+            latest_dates,
+            db.and_(
+                metric_model.ticker == latest_dates.c.ticker,
+                metric_model.trading_date == latest_dates.c.latest_date,
+            ),
+        )
+        .all()
+    )
+    by_ticker = {metric.ticker: metric for metric in rows}
+    return [by_ticker[symbol] for symbol in symbols if symbol in by_ticker]
+
+
 def _metric_history(metric_model, ticker, cutoff):
     return (
         db.session.query(metric_model)
@@ -273,42 +306,222 @@ def _z_scores_for_metric(metric, ticker_model=Ticker, market_model=MarketMetric)
     return z_50, z_200
 
 
-def _stocks_for_exchange(exchange_key):
+def _aktier_cache_key(user_id, exchange_key):
+    return f"aktier_table:{user_id}:{exchange_key}"
+
+
+def clear_aktier_table_cache(user_id):
+    """Drop kept Aktier table pages for this user (all venues)."""
+    if user_id is None:
+        return
+    for exchange_key in EXCHANGE_QUERY:
+        cache.delete(_aktier_cache_key(user_id, exchange_key))
+
+
+def _page_count(total):
+    if total <= 0:
+        return 1
+    return (total + PAGE_SIZE - 1) // PAGE_SIZE
+
+
+def parse_page(value, total):
+    """1-based page, clamped to the last page for `total` matching names."""
+    last = _page_count(total)
+    try:
+        page = int(value)
+    except (TypeError, ValueError):
+        page = 1
+    if page < 1:
+        page = 1
+    if page > last:
+        page = last
+    return page
+
+
+def _serialize_row(row):
+    out = dict(row)
+    if out.get("current_price") is not None:
+        out["current_price"] = float(out["current_price"])
+    if out.get("heat_score") is not None:
+        out["heat_score"] = float(out["heat_score"])
+    return out
+
+
+def _cached_page(blob, page):
+    if not isinstance(blob, dict):
+        return None
+    pages = blob.get("pages") or {}
+    if page in pages:
+        return pages[page]
+    return pages.get(str(page))
+
+
+def _empty_cache_blob(total):
+    return {"total": total, "pages": {}}
+
+
+def _matching_symbols_with_metrics(exchange_key):
+    """Symbols on this venue that have a metric, sorted by symbol. No full latest-metric scan."""
     metric_model, ticker_model, market_model = _tables_for_country(
         EXCHANGE_COUNTRY[exchange_key]
     )
-    metrics = _get_latest_metrics(metric_model)
-    tickers = _ticker_map(ticker_model, [metric.ticker for metric in metrics])
-    matched = [
-        metric
-        for metric in metrics
-        if metric.ticker in tickers
-        and exchange_name_matches(tickers[metric.ticker].exchange_name, exchange_key)
-    ]
-    sectors = {
-        symbol: _display_sector(ticker.sector) for symbol, ticker in tickers.items()
+    tickers = ticker_model.query.all()
+    matched = sorted(
+        ticker.symbol
+        for ticker in tickers
+        if exchange_name_matches(ticker.exchange_name, exchange_key)
+    )
+    if not matched:
+        return [], metric_model, ticker_model, market_model
+    present = {
+        row[0]
+        for row in db.session.query(metric_model.ticker)
+        .filter(metric_model.ticker.in_(matched))
+        .distinct()
+        .all()
     }
+    symbols = [symbol for symbol in matched if symbol in present]
+    return symbols, metric_model, ticker_model, market_model
+
+
+def _build_page_rows(symbols_slice, metric_model, ticker_model, market_model):
+    metrics = _get_latest_metrics_for_symbols(metric_model, symbols_slice)
+    sectors = _ticker_sectors(ticker_model, [metric.ticker for metric in metrics])
     return [
-        _stock_row(
-            metric,
-            *_z_scores_for_metric(metric, ticker_model, market_model),
-            sector=sectors.get(metric.ticker),
+        _serialize_row(
+            _stock_row(
+                metric,
+                *_z_scores_for_metric(metric, ticker_model, market_model),
+                sector=sectors.get(metric.ticker),
+            )
         )
-        for metric in matched
+        for metric in metrics
     ]
+
+
+def _store_page(user_id, exchange_key, total, page, rows, blob=None):
+    if user_id is None:
+        return
+    key = _aktier_cache_key(user_id, exchange_key)
+    if not isinstance(blob, dict) or blob.get("total") != total:
+        blob = _empty_cache_blob(total)
+    blob.setdefault("pages", {})[page] = rows
+    blob["total"] = total
+    cache.set(key, blob, timeout=AKTIER_CACHE_TIMEOUT)
+
+
+def _load_table_page(user_id, exchange_key, requested_page):
+    """Prefer cached page; otherwise load only this 25-row slice and Trend scores."""
+    key = _aktier_cache_key(user_id, exchange_key) if user_id is not None else None
+    blob = cache.get(key) if key else None
+
+    if isinstance(blob, dict) and isinstance(blob.get("total"), int):
+        total = blob["total"]
+        page = parse_page(requested_page, total)
+        cached_rows = _cached_page(blob, page)
+        if cached_rows is not None:
+            return cached_rows, total, page
+
+    symbols, metric_model, ticker_model, market_model = _matching_symbols_with_metrics(
+        exchange_key
+    )
+    total = len(symbols)
+    page = parse_page(requested_page, total)
+    start = (page - 1) * PAGE_SIZE
+    rows = _build_page_rows(
+        symbols[start : start + PAGE_SIZE],
+        metric_model,
+        ticker_model,
+        market_model,
+    )
+    _store_page(user_id, exchange_key, total, page, rows, blob)
+    return rows, total, page
+
+
+def _warm_exchange_pages(user_id, exchange_key):
+    symbols, metric_model, ticker_model, market_model = _matching_symbols_with_metrics(
+        exchange_key
+    )
+    total = len(symbols)
+    last = _page_count(total)
+    key = _aktier_cache_key(user_id, exchange_key)
+    blob = cache.get(key)
+    if not isinstance(blob, dict) or blob.get("total") != total:
+        blob = _empty_cache_blob(total)
+    blob.setdefault("pages", {})
+    for page in range(1, last + 1):
+        if _cached_page(blob, page) is not None:
+            continue
+        start = (page - 1) * PAGE_SIZE
+        blob["pages"][page] = _build_page_rows(
+            symbols[start : start + PAGE_SIZE],
+            metric_model,
+            ticker_model,
+            market_model,
+        )
+    blob["total"] = total
+    cache.set(key, blob, timeout=AKTIER_CACHE_TIMEOUT)
+    return last, total
+
+
+def _aktier_return_url():
+    exchange = parse_exchange(session.get("aktier_exchange"))
+    if not exchange:
+        return url_for("stocks.stocks")
+    page = session.get("aktier_page") or 1
+    try:
+        page = int(page)
+    except (TypeError, ValueError):
+        page = 1
+    if page < 1:
+        page = 1
+    return url_for("stocks.stocks", exchange=exchange, page=page)
+
+
+def _remember_aktier_view(exchange_key, page):
+    session["aktier_exchange"] = exchange_key
+    session["aktier_page"] = page
 
 
 @stocks_bp.route("/stocks")
 @role_required(Role.USER, Role.ADMIN)
 def stocks():
     selected_exchange = parse_exchange(request.args.get("exchange"))
-    stock_rows = _stocks_for_exchange(selected_exchange) if selected_exchange else []
+    stock_rows = []
+    stock_total = 0
+    stock_page = 1
+    if selected_exchange:
+        stock_rows, stock_total, stock_page = _load_table_page(
+            current_user.id,
+            selected_exchange,
+            request.args.get("page"),
+        )
+        _remember_aktier_view(selected_exchange, stock_page)
+    last_page = _page_count(stock_total)
+    range_start = ((stock_page - 1) * PAGE_SIZE) + 1 if stock_total else 0
+    range_end = min(stock_page * PAGE_SIZE, stock_total)
     return render_template(
         "stocks.html",
         title="Aktier",
         stocks=stock_rows,
         selected_exchange=selected_exchange,
+        stock_total=stock_total,
+        stock_page=stock_page,
+        stock_page_size=PAGE_SIZE,
+        stock_last_page=last_page,
+        stock_range_start=range_start,
+        stock_range_end=range_end,
     )
+
+
+@stocks_bp.route("/stocks/warm")
+@role_required(Role.USER, Role.ADMIN)
+def warm_stocks():
+    selected_exchange = parse_exchange(request.args.get("exchange"))
+    if not selected_exchange:
+        return jsonify({"ok": False}), 400
+    pages_cached, total = _warm_exchange_pages(current_user.id, selected_exchange)
+    return jsonify({"ok": True, "pages_cached": pages_cached, "total": total})
 
 
 @stocks_bp.route("/stocks/chart/<ticker>")
@@ -323,6 +536,7 @@ def chart(ticker):
         ticker=ticker,
         company_name=company_name,
         history=history,
+        stocks_return_url=_aktier_return_url(),
     )
 
 

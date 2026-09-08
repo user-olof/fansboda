@@ -195,6 +195,12 @@ class TestAktierRoutes:
         filtered = client.get("/stocks?exchange=nasdaq")
         assert filtered.status_code == 302
         assert "/login" in filtered.location
+        paged = client.get("/stocks?exchange=omx_stockholm&page=2")
+        assert paged.status_code == 302
+        assert "/login" in paged.location
+        warm = client.get("/stocks/warm?exchange=omx_stockholm")
+        assert warm.status_code == 302
+        assert "/login" in warm.location
 
     def test_stocks_empty_table_when_logged_in(self, client_with_user):
         response = client_with_user.get("/stocks")
@@ -505,6 +511,143 @@ class TestAktierRoutes:
         assert "Market SMA-200" not in html
         assert "2400.25" not in html
         assert "yAxisID: 'y1'" not in html
+
+
+def _seed_paged_nyse(app, count=26, include_nasdaq=False):
+    trading_day = date.today() - timedelta(days=7)
+    with app.app_context():
+        if include_nasdaq:
+            db.session.add(
+                Ticker(
+                    symbol="AAPL",
+                    company="Apple Inc.",
+                    market="us_market",
+                    exchange_name="NASDAQ",
+                )
+            )
+            db.session.add(
+                Metric(
+                    ticker="AAPL",
+                    company="Apple Inc.",
+                    trading_date=trading_day,
+                    current_price=100.0,
+                    currency="USD",
+                )
+            )
+        for index in range(1, count + 1):
+            symbol = f"P{index:02d}"
+            company = f"Paged Co {index:02d}"
+            db.session.add(
+                Ticker(
+                    symbol=symbol,
+                    company=company,
+                    market="us_market",
+                    exchange_name="NYSE",
+                )
+            )
+            db.session.add(
+                Metric(
+                    ticker=symbol,
+                    company=company,
+                    trading_date=trading_day,
+                    current_price=float(index),
+                    currency="USD",
+                )
+            )
+        db.session.commit()
+
+
+def _tbody_row_count(html):
+    tbody = html.split("<tbody", 1)[1].split("</tbody>", 1)[0]
+    return tbody.count("<tr>")
+
+
+def _has_usable_paging_link(html, label):
+    return re.search(rf"<a[^>]*class=\"[^\"]*paging-btn[^\"]*\"[^>]*>\s*{label}", html) is not None
+
+
+class TestAktierPaging:
+    """25-row Aktier pages, totals, warm cache, and chart return."""
+
+    def test_first_page_caps_at_25_and_shows_total(self, client_with_user, app):
+        _seed_paged_nyse(app, count=26)
+        html = client_with_user.get("/stocks?exchange=nyse").get_data(as_text=True)
+        assert "1–25 av 26" in html or "1&ndash;25 av 26" in html
+        assert "Paged Co 01" in html
+        assert "Paged Co 25" in html
+        assert "Paged Co 26" not in html
+        assert _tbody_row_count(html) == 25
+        assert "stocks.js" in html
+
+    def test_page_two_has_26th_not_first(self, client_with_user, app):
+        _seed_paged_nyse(app, count=26)
+        html = client_with_user.get("/stocks?exchange=nyse&page=2").get_data(as_text=True)
+        assert "26–26 av 26" in html or "26&ndash;26 av 26" in html
+        assert "Paged Co 26" in html
+        assert "Paged Co 01" not in html
+        assert _tbody_row_count(html) == 1
+
+    def test_first_page_has_no_usable_previous(self, client_with_user, app):
+        _seed_paged_nyse(app, count=26)
+        html = client_with_user.get("/stocks?exchange=nyse").get_data(as_text=True)
+        assert "Föregående" in html
+        assert "Nästa" in html
+        assert not _has_usable_paging_link(html, "Föregående")
+        assert _has_usable_paging_link(html, "Nästa")
+        assert "page=2" in html
+        assert "page=0" not in html
+
+    def test_last_page_has_no_usable_next(self, client_with_user, app):
+        _seed_paged_nyse(app, count=26)
+        html = client_with_user.get("/stocks?exchange=nyse&page=2").get_data(as_text=True)
+        assert _has_usable_paging_link(html, "Föregående")
+        assert not _has_usable_paging_link(html, "Nästa")
+
+    def test_page_99_clamps_to_last_page(self, client_with_user, app):
+        _seed_paged_nyse(app, count=26)
+        html = client_with_user.get("/stocks?exchange=nyse&page=99").get_data(as_text=True)
+        assert "Paged Co 26" in html
+        assert "Paged Co 01" not in html
+        assert "26–26 av 26" in html or "26&ndash;26 av 26" in html
+
+    def test_chart_back_keeps_exchange_and_page(self, client_with_user, app):
+        _seed_paged_nyse(app, count=26)
+        client_with_user.get("/stocks?exchange=nyse&page=2")
+        html = client_with_user.get("/stocks/chart/P26").get_data(as_text=True)
+        assert "Tillbaka till Aktier" in html
+        assert "exchange=nyse" in html
+        assert "page=2" in html
+
+    def test_warm_requires_login(self, client):
+        response = client.get("/stocks/warm?exchange=nyse")
+        assert response.status_code == 302
+        assert "/login" in response.location
+
+    def test_warm_unknown_exchange_is_not_ok(self, client_with_user):
+        response = client_with_user.get("/stocks/warm?exchange=tokyo")
+        assert response.status_code == 400
+        assert response.get_json()["ok"] is False
+
+    def test_warm_fills_pages_for_logged_in_user(self, client_with_user, app):
+        _seed_paged_nyse(app, count=26)
+        response = client_with_user.get("/stocks/warm?exchange=nyse")
+        assert response.status_code == 200
+        payload = response.get_json()
+        assert payload["ok"] is True
+        assert payload["total"] == 26
+        assert payload["pages_cached"] == 2
+
+    def test_switching_exchange_does_not_mix_venues(self, client_with_user, app):
+        _seed_paged_nyse(app, count=26, include_nasdaq=True)
+        page_two = client_with_user.get("/stocks?exchange=nyse&page=2").get_data(
+            as_text=True
+        )
+        assert "Paged Co 26" in page_two
+        assert "Apple Inc." not in page_two
+        nasdaq = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
+        assert "Apple Inc." in nasdaq
+        assert "Paged Co 26" not in nasdaq
+        assert "Paged Co 01" not in nasdaq
 
 
 class TestErrorHandlers:
