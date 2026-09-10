@@ -1,4 +1,5 @@
 # src/routes/stocks.py
+import math
 from datetime import date, timedelta
 
 from flask import Blueprint, jsonify, render_template, request, session, url_for
@@ -15,12 +16,6 @@ from src.models.ticker import Ticker
 from src.models.user import Role
 
 stocks_bp = Blueprint("stocks", __name__)
-
-# Neon `metrics` has no `market` column. Prefer ticker `market`, else currency.
-CURRENCY_TO_MARKET = {
-    "USD": "us_market",
-    "SEK": "se_market",
-}
 
 EXCHANGE_QUERY = {
     "nasdaq": "NASDAQ",
@@ -42,42 +37,54 @@ def _to_float(value):
     return float(value) if value is not None else None
 
 
-def z_score(raw, mean, std):
-    """Standard score vs the market cross-section. Market mean maps to 0."""
-    raw_value = _to_float(raw)
-    mean_value = _to_float(mean)
-    std_value = _to_float(std)
-    if None in (raw_value, mean_value, std_value) or std_value == 0:
-        return None
-    return (raw_value - mean_value) / std_value
+# σ landmarks: negative z is blue, positive z is red (polarity flipped from 009).
+_HEAT_STOPS = (
+    (-2.0, (0x1D, 0x4E, 0xD8)),
+    (-1.0, (0x3B, 0x82, 0xF6)),
+    (-0.5, (0x93, 0xC5, 0xFD)),
+    (0.0, (0xFE, 0xF9, 0xC3)),
+    (0.5, (0xFB, 0x92, 0x3C)),
+    (1.0, (0xDC, 0x26, 0x26)),
+    (2.0, (0x99, 0x1B, 0x1B)),
+)
 
 
-def combined_z(z_50, z_200):
-    """Average of available z-scores. Market average stays 0."""
-    values = [value for value in (z_50, z_200) if value is not None]
-    if not values:
-        return None
-    return sum(values) / len(values)
+def _standard_normal_cdf(z):
+    return 0.5 * (1.0 + math.erf(z / math.sqrt(2.0)))
+
+
+def _rgb_to_hex(rgb):
+    return "#{:02x}{:02x}{:02x}".format(*rgb)
 
 
 def heat_color_from_z(z):
-    """Diverging colors around the market (z = 0). Negative z is hotter."""
+    """Diverging colors around the market (z = 0). Positive z is red.
+
+    Blend between σ stops using the standard normal CDF so more shades
+    fall where probability mass is (near 0). Do not rescale from the page.
+    """
     if z is None:
         return "#e5e7eb"
-    z = round(z, 2)
-    if z <= -2:
-        return "#991b1b"
-    if z < -1:
-        return "#dc2626"
-    if z < -0.5:
-        return "#fb923c"
-    if z <= 0.5:
-        return "#fef9c3"
-    if z < 1:
-        return "#93c5fd"
-    if z < 2:
-        return "#3b82f6"
-    return "#1d4ed8"
+    z_value = _to_float(z)
+    if z_value is None:
+        return "#e5e7eb"
+    z_value = max(-2.0, min(2.0, z_value))
+    if z_value <= _HEAT_STOPS[0][0]:
+        return _rgb_to_hex(_HEAT_STOPS[0][1])
+    for index in range(1, len(_HEAT_STOPS)):
+        z_lo, rgb_lo = _HEAT_STOPS[index - 1]
+        z_hi, rgb_hi = _HEAT_STOPS[index]
+        if z_value <= z_hi:
+            phi_lo = _standard_normal_cdf(z_lo)
+            phi_hi = _standard_normal_cdf(z_hi)
+            span = phi_hi - phi_lo
+            t = 0.0 if span == 0 else (_standard_normal_cdf(z_value) - phi_lo) / span
+            t = max(0.0, min(1.0, t))
+            rgb = tuple(
+                int(round(low + t * (high - low))) for low, high in zip(rgb_lo, rgb_hi)
+            )
+            return _rgb_to_hex(rgb)
+    return _rgb_to_hex(_HEAT_STOPS[-1][1])
 
 
 def _heat_label(z):
@@ -86,19 +93,14 @@ def _heat_label(z):
     return f"{z:.2f}"
 
 
-def _heat_title(z_50, z_200, z):
+def _heat_title(z):
     if z is None:
         return "Heat: unavailable (no z-score vs market)"
-    parts = []
-    if z_50 is not None:
-        parts.append(f"z50={z_50:.2f}")
-    if z_200 is not None:
-        parts.append(f"z200={z_200:.2f}")
-    return "Heat vs market average (0): " + ", ".join(parts)
+    return f"Heat vs market average (0): z={z:.2f}"
 
 
-def _stock_row(metric, z_50, z_200, sector=None):
-    z = combined_z(z_50, z_200)
+def _stock_row(metric, sector=None):
+    z = _to_float(metric.z_score)
     return {
         "company": metric.company,
         "ticker": metric.ticker,
@@ -108,8 +110,8 @@ def _stock_row(metric, z_50, z_200, sector=None):
         "heat_score": z,
         "heat_label": _heat_label(z),
         "heat_color": heat_color_from_z(z),
-        "heat_hot": z is not None and round(z, 2) < -1,
-        "heat_title": _heat_title(z_50, z_200, z),
+        "heat_hot": z is not None and round(z, 2) > 1,
+        "heat_title": _heat_title(z),
     }
 
 
@@ -274,38 +276,6 @@ def _ticker_sectors(ticker_model, symbols):
     }
 
 
-def market_key_for_currency(latest):
-    if latest is None or not latest.currency:
-        return None
-    return CURRENCY_TO_MARKET.get(str(latest.currency).strip().upper())
-
-
-def market_key_for_ticker(latest, symbol=None, ticker_model=Ticker):
-    """Return the market-metrics key for a ticker, or None."""
-    lookup = symbol or (latest.ticker if latest is not None else None)
-    if lookup:
-        ticker = db.session.get(ticker_model, lookup)
-        if ticker and ticker.market:
-            return ticker.market
-    return market_key_for_currency(latest)
-
-
-def _market_row(market_model, market, trading_date):
-    if not market or trading_date is None:
-        return None
-    return db.session.get(market_model, (market, trading_date))
-
-
-def _z_scores_for_metric(metric, ticker_model=Ticker, market_model=MarketMetric):
-    market = market_key_for_ticker(metric, ticker_model=ticker_model)
-    market_row = _market_row(market_model, market, metric.trading_date)
-    if market_row is None:
-        return None, None
-    z_50 = z_score(metric.raw_50, market_row.raw_mean_50, market_row.raw_std_50)
-    z_200 = z_score(metric.raw_200, market_row.raw_mean_200, market_row.raw_std_200)
-    return z_50, z_200
-
-
 def _aktier_cache_key(user_id, exchange_key):
     return f"aktier_table:{user_id}:{exchange_key}"
 
@@ -384,17 +354,11 @@ def _matching_symbols_with_metrics(exchange_key):
     return symbols, metric_model, ticker_model, market_model
 
 
-def _build_page_rows(symbols_slice, metric_model, ticker_model, market_model):
+def _build_page_rows(symbols_slice, metric_model, ticker_model):
     metrics = _get_latest_metrics_for_symbols(metric_model, symbols_slice)
     sectors = _ticker_sectors(ticker_model, [metric.ticker for metric in metrics])
     return [
-        _serialize_row(
-            _stock_row(
-                metric,
-                *_z_scores_for_metric(metric, ticker_model, market_model),
-                sector=sectors.get(metric.ticker),
-            )
-        )
+        _serialize_row(_stock_row(metric, sector=sectors.get(metric.ticker)))
         for metric in metrics
     ]
 
@@ -422,7 +386,7 @@ def _load_table_page(user_id, exchange_key, requested_page):
         if cached_rows is not None:
             return cached_rows, total, page
 
-    symbols, metric_model, ticker_model, market_model = _matching_symbols_with_metrics(
+    symbols, metric_model, ticker_model, _market_model = _matching_symbols_with_metrics(
         exchange_key
     )
     total = len(symbols)
@@ -432,14 +396,13 @@ def _load_table_page(user_id, exchange_key, requested_page):
         symbols[start : start + PAGE_SIZE],
         metric_model,
         ticker_model,
-        market_model,
     )
     _store_page(user_id, exchange_key, total, page, rows, blob)
     return rows, total, page
 
 
 def _warm_exchange_pages(user_id, exchange_key):
-    symbols, metric_model, ticker_model, market_model = _matching_symbols_with_metrics(
+    symbols, metric_model, ticker_model, _market_model = _matching_symbols_with_metrics(
         exchange_key
     )
     total = len(symbols)
@@ -457,7 +420,6 @@ def _warm_exchange_pages(user_id, exchange_key):
             symbols[start : start + PAGE_SIZE],
             metric_model,
             ticker_model,
-            market_model,
         )
     blob["total"] = total
     cache.set(key, blob, timeout=AKTIER_CACHE_TIMEOUT)

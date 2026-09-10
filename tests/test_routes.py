@@ -246,18 +246,16 @@ class TestAktierRoutes:
                     sma_50=90.0,
                     sma_200=80.0,
                     currency="USD",
-                    raw_50=0.85,
-                    raw_200=0.85,
+                    momentum=0.89,
+                    z_score=-2,
                 )
             )
             db.session.add(
                 MarketMetric(
                     market="us_market",
                     trading_date=trading_day,
-                    raw_mean_50=0.95,
-                    raw_mean_200=0.95,
-                    raw_std_50=0.05,
-                    raw_std_200=0.05,
+                    momentum_mean=0.95,
+                    momentum_std=0.05,
                 )
             )
             db.session.add(
@@ -269,8 +267,8 @@ class TestAktierRoutes:
                     sma_50=190.0,
                     sma_200=180.0,
                     currency="USD",
-                    raw_50=0.95,
-                    raw_200=0.95,
+                    momentum=1.05,
+                    z_score=2,
                 )
             )
             db.session.add(
@@ -287,12 +285,16 @@ class TestAktierRoutes:
         response = client_with_user.get("/stocks?exchange=nasdaq")
         html = response.get_data(as_text=True)
         assert response.status_code == 200
+        assert "background-color: #1d4ed8" in html
         assert "background-color: #991b1b" in html
-        assert "z50=-2.00" in html
-        assert "z200=-2.00" in html
+        assert "z=-2.00" in html
+        assert "z=2.00" in html
+        assert "z50=" not in html
+        assert "z200=" not in html
         assert re.search(r'class="heat-cell[^"]*"[^>]*>\s*</td>', html)
-        visible_heat = html.replace("z50=-2.00", "").replace("z200=-2.00", "")
+        visible_heat = html.replace("z=-2.00", "").replace("z=2.00", "")
         assert "-2.00" not in visible_heat
+        assert "2.00" not in visible_heat
         assert "Industri" in html
         thead = html.split("<thead", 1)[1].split("</thead>", 1)[0]
         assert "Trend" in thead
@@ -496,7 +498,10 @@ class TestAktierRoutes:
             )
             db.session.add(
                 MarketMetric(
-                    market="se_market", trading_date=trading_day, raw_mean_200=2400.25
+                    market="se_market",
+                    trading_date=trading_day,
+                    momentum_mean=2400.25,
+                    momentum_std=0.2,
                 )
             )
             db.session.commit()

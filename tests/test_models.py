@@ -4,6 +4,8 @@ from datetime import date
 from src.models.user import User, Role
 from src.models.metrics import Metric
 from src.models.market_metrics import MarketMetric
+from src.models.swe_market_metrics import SweMarketMetric
+from src.models.swe_metrics import SweMetric
 from src.models.ticker import Ticker
 from src import db
 
@@ -89,6 +91,8 @@ class TestMetricModel:
                 sma_50=250.1234,
                 sma_200=230.5678,
                 currency="SEK",
+                momentum=1.08,
+                z_score=0.0,
             )
             db.session.add(metric)
             db.session.commit()
@@ -97,14 +101,31 @@ class TestMetricModel:
             assert found.company == "Volvo AB"
             assert found.currency == "SEK"
             assert float(found.current_price) == 265.50
+            assert float(found.momentum) == 1.08
+            assert float(found.z_score) == 0.0
+
+    def test_observation_models_drop_raw_columns(self):
+        for model in (Metric, SweMetric, MarketMetric, SweMarketMetric):
+            raw_columns = [name for name in model.__table__.c.keys() if name.startswith("raw_")]
+            assert raw_columns == []
+        assert "momentum" in Metric.__table__.c
+        assert "z_score" in Metric.__table__.c
+        assert "momentum" in SweMetric.__table__.c
+        assert "z_score" in SweMetric.__table__.c
+        assert "momentum_mean" in MarketMetric.__table__.c
+        assert "momentum_std" in MarketMetric.__table__.c
+        assert "momentum_mean" in SweMarketMetric.__table__.c
+        assert "momentum_std" in SweMarketMetric.__table__.c
+        assert "sma_200" not in MarketMetric.__table__.c
 
     def test_market_metric_creation(self, client):
-        """Test creating a country-level market SMA-200 row."""
+        """Test creating a country-level market momentum row."""
         with client.application.app_context():
             row = MarketMetric(
                 market="us_market",
                 trading_date=date(2026, 7, 1),
-                raw_mean_200=2400.5,
+                momentum_mean=1.02,
+                momentum_std=0.15,
             )
             db.session.add(row)
             db.session.commit()
@@ -112,31 +133,34 @@ class TestMetricModel:
             found = MarketMetric.query.filter_by(market="us_market").one()
             assert found.market == "us_market"
             assert found.trading_date == date(2026, 7, 1)
-            assert float(found.raw_mean_200) == 2400.5
-            assert float(found.sma_200) == 2400.5
+            assert float(found.momentum_mean) == 1.02
+            assert float(found.momentum_std) == 0.15
             assert "id" not in MarketMetric.__table__.c
 
-    def test_z_score_is_zero_at_market_average(self):
-        from src.routes.stocks import combined_z, heat_color_from_z, z_score
+    def test_heat_color_from_stored_z_at_market(self):
+        from src.routes.stocks import heat_color_from_z
 
-        assert z_score(0.95, 0.95, 0.05) == 0
-        assert combined_z(0, 0) == 0
         assert heat_color_from_z(0) == "#fef9c3"
+        assert heat_color_from_z(0.5) == "#fb923c"
+        assert heat_color_from_z(-0.5) == "#93c5fd"
+        assert heat_color_from_z(None) == "#e5e7eb"
 
-    def test_z_score_hotter_when_below_market_mean(self):
-        from src.routes.stocks import combined_z, heat_color_from_z, z_score
+    def test_heat_color_finer_shades_in_band(self):
+        from src.routes.stocks import heat_color_from_z
 
-        z_50 = z_score(0.85, 0.95, 0.05)
-        assert z_50 == pytest.approx(-2)
-        assert combined_z(z_50, None) == pytest.approx(-2)
-        assert heat_color_from_z(z_50) == "#991b1b"
+        mild = heat_color_from_z(-0.6)
+        stronger = heat_color_from_z(-0.9)
+        assert mild != stronger
+        assert mild != heat_color_from_z(0)
+        assert stronger != heat_color_from_z(-2)
 
-    def test_z_score_unavailable_when_std_missing(self):
-        from src.routes.stocks import combined_z, heat_color_from_z, z_score
+    def test_heat_color_clamps_extremes_and_missing(self):
+        from src.routes.stocks import heat_color_from_z
 
-        assert z_score(0.9, 0.95, None) is None
-        assert z_score(0.9, 0.95, 0) is None
-        assert combined_z(None, None) is None
+        assert heat_color_from_z(-2) == "#1d4ed8"
+        assert heat_color_from_z(-3) == "#1d4ed8"
+        assert heat_color_from_z(2) == "#991b1b"
+        assert heat_color_from_z(3) == "#991b1b"
         assert heat_color_from_z(None) == "#e5e7eb"
 
     def test_display_sector_replaces_dashes_with_spaces(self):
