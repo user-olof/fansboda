@@ -54,6 +54,9 @@
     font-size: 1.05rem;
     line-height: 1.5;
     color: #1a1a1a;
+    text-align: justify;
+    hyphens: auto;
+    -webkit-hyphens: auto;
 }
 
 .trend-scale {
