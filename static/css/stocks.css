@@ -45,6 +45,46 @@
     margin-bottom: 1rem;
 }
 
+.trend-legend {
+    margin-bottom: 1.25rem;
+}
+
+.trend-caption {
+    margin: 0 0 0.85rem;
+    font-size: 1.05rem;
+    line-height: 1.5;
+    color: #1a1a1a;
+}
+
+.trend-scale {
+    max-width: 36rem;
+}
+
+/* Hex stops match src/routes/stocks.py _HEAT_STOPS (011 polarity). */
+.trend-scale-bar {
+    height: 1.1rem;
+    border-radius: 0.35rem;
+    background: linear-gradient(
+        to right,
+        #1d4ed8,
+        #3b82f6,
+        #93c5fd,
+        #fef9c3,
+        #fb923c,
+        #dc2626,
+        #991b1b
+    );
+}
+
+.trend-scale-labels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.35rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #1a1a1a;
+}
+
 .heat-cell {
     font-weight: 600;
     text-align: center;

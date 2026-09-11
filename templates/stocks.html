@@ -24,14 +24,20 @@
                    class="exchange-btn{% if selected_exchange == 'omx_stockholm' %} exchange-btn--selected{% endif %}">OMX Stockholm</a>
             </nav>
 
+            <div class="trend-legend">
+                <p class="trend-caption">Positivt momentum kan indikera en potentiell uppåtgående (bullish) trend, medan negativt momentum kan indikera en nedåtgående (bearish) trend. I bred bemärkelse kan momentum mätas både mellan olika tillgångsslag och för enskilda värdepapper, där marknadsmomentum i synnerhet avser den övergripande marknaden. Trend mäts här som 50-dagars genomsnittligt pris dividerat med 200-dagars genomsnittligt pris.</p>
+                <div class="trend-scale" role="img" aria-label="Trend: Bearish till Bullish">
+                    <div class="trend-scale-bar"></div>
+                    <div class="trend-scale-labels">
+                        <span>Bearish</span>
+                        <span>Bullish</span>
+                    </div>
+                </div>
+            </div>
+
             {% if not selected_exchange %}
             <p class="exchange-prompt">V&auml;lj en b&ouml;rs f&ouml;r att visa aktier.</p>
             {% endif %}
-
-            <!-- Explanation of the statistics (content provided later) -->
-            <div class="mb-4" style="min-height: 15rem;">
-                {% block stocks_explanation %}{% endblock %}
-            </div>
 
             <!-- Stocks Table -->
             <div class="card" id="stocks-table"{% if selected_exchange %} data-exchange="{{ selected_exchange }}"{% endif %}>

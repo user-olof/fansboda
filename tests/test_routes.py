@@ -201,6 +201,9 @@ class TestAktierRoutes:
         warm = client.get("/stocks/warm?exchange=omx_stockholm")
         assert warm.status_code == 302
         assert "/login" in warm.location
+        body = response.get_data(as_text=True)
+        assert "Positivt momentum kan indikera" not in body
+        assert "Bearish" not in body
 
     def test_stocks_empty_table_when_logged_in(self, client_with_user):
         response = client_with_user.get("/stocks")
@@ -216,6 +219,7 @@ class TestAktierRoutes:
         thead = html.split("<thead", 1)[1].split("</thead>", 1)[0]
         assert "Trend" in thead
         assert "Heat" not in thead
+        _assert_trend_legend(html)
 
     def test_stocks_trend_header_with_exchange_selected(self, client_with_user):
         html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
@@ -224,6 +228,7 @@ class TestAktierRoutes:
         assert "Heat" not in thead
         assert "Bolag" in thead
         assert "Industri" in thead
+        _assert_trend_legend(html)
 
     def test_stocks_heatmap_uses_z_score_vs_market(self, client_with_user, app):
         trading_day = date.today() - timedelta(days=7)
@@ -516,6 +521,24 @@ class TestAktierRoutes:
         assert "Market SMA-200" not in html
         assert "2400.25" not in html
         assert "yAxisID: 'y1'" not in html
+
+
+def _assert_trend_legend(html):
+    assert (
+        "Positivt momentum kan indikera en potentiell uppåtgående (bullish) trend, medan negativt momentum kan indikera en nedåtgående (bearish) trend."
+        in html
+    )
+    assert (
+        "I bred bemärkelse kan momentum mätas både mellan olika tillgångsslag och för enskilda värdepapper, där marknadsmomentum i synnerhet avser den övergripande marknaden."
+        in html
+    )
+    assert (
+        "Trend mäts här som 50-dagars genomsnittligt pris dividerat med 200-dagars genomsnittligt pris."
+        in html
+    )
+    assert "Bearish" in html
+    assert "Bullish" in html
+    assert "min-height: 15rem" not in html
 
 
 def _seed_paged_nyse(app, count=26, include_nasdaq=False):
