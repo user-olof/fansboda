@@ -1,6 +1,6 @@
 # Research: Aktier Cross Signal (Kors)
 
-**Feature**: `001-aktier-cross-signal`  
+**Feature**: `013-aktier-cross-signal`  
 **Date**: 2026-09-11
 
 ## R1 — How to obtain RFC-013 detection without calling the finance CLI

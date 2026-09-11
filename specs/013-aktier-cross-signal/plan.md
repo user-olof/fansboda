@@ -1,8 +1,8 @@
 # Implementation Plan: Aktier Cross Signal (Kors)
 
-**Branch**: `001-aktier-cross-signal` | **Date**: 2026-09-11 | **Spec**: [spec.md](./spec.md)
+**Branch**: `013-aktier-cross-signal` | **Date**: 2026-09-11 | **Spec**: [spec.md](./spec.md)
 
-**Input**: Feature specification from `/specs/001-aktier-cross-signal/spec.md`
+**Input**: Feature specification from `/specs/013-aktier-cross-signal/spec.md`
 
 **Note**: This plan is produced by `/speckit-plan`. Implementation and `/speckit-tasks` are out of scope for this step.
 
@@ -49,7 +49,7 @@ Add a **Kors** column on Aktier (`/stocks`) after **Trend** / before **Bolag**, 
 ### Documentation (this feature)
 
 ```text
-specs/001-aktier-cross-signal/
+specs/013-aktier-cross-signal/
 ├── plan.md              # This file
 ├── research.md          # Phase 0
 ├── data-model.md        # Phase 1
