@@ -1,5 +1,6 @@
 import re
 from datetime import date, timedelta
+from decimal import Decimal
 
 from src.models.market_metrics import MarketMetric
 from src.models.metrics import Metric
@@ -8,6 +9,81 @@ from src.models.swe_ticker import SweTicker
 from src.models.ticker import Ticker
 from src.models.user import User
 from src import db
+
+
+def _assert_kors_after_trend_before_bolag(html):
+    thead = html.split("<thead", 1)[1].split("</thead>", 1)[0]
+    trend_pos = thead.find("Trend")
+    kors_pos = thead.find("Kors")
+    bolag_pos = thead.find("Bolag")
+    assert trend_pos != -1 and kors_pos != -1 and bolag_pos != -1
+    assert trend_pos < kors_pos < bolag_pos
+
+
+def _week(n: int, origin: date | None = None) -> date:
+    base = origin or date.today()
+    return base + timedelta(weeks=n)
+
+
+def _seed_kors_ticker(
+    app,
+    *,
+    symbol: str,
+    company: str,
+    series: list[tuple[int, str | None, str | None]],
+    exchange_name: str = "NASDAQ",
+    origin: date | None = None,
+):
+    """Seed ticker + weekly Metric SMA history for Kors fixtures."""
+    with app.app_context():
+        db.session.add(
+            Ticker(
+                symbol=symbol,
+                company=company,
+                market="us_market",
+                sector="Technology",
+                exchange_name=exchange_name,
+            )
+        )
+        for week, sma_50, sma_200 in series:
+            db.session.add(
+                Metric(
+                    ticker=symbol,
+                    company=company,
+                    trading_date=_week(week, origin),
+                    current_price=100.0,
+                    sma_50=None if sma_50 is None else Decimal(sma_50),
+                    sma_200=None if sma_200 is None else Decimal(sma_200),
+                    currency="USD",
+                    z_score=0,
+                )
+            )
+        db.session.commit()
+
+
+def _golden_sma_series():
+    return [
+        (0, "90", "100"),
+        (1, "92", "100"),
+        (2, "94", "100"),
+        (3, "96", "100"),
+        (4, "105", "100"),
+    ]
+
+
+def _death_sma_series():
+    return [
+        (0, "110", "100"),
+        (1, "108", "100"),
+        (2, "106", "100"),
+        (3, "104", "100"),
+        (4, "95", "100"),
+    ]
+
+
+def _kors_series_origin():
+    """Five-week series ending near today so it stays inside the 52-week lookback."""
+    return date.today() - timedelta(weeks=4)
 
 
 class TestRoutes:
@@ -204,6 +280,9 @@ class TestAktierRoutes:
         body = response.get_data(as_text=True)
         assert "Positivt momentum kan indikera" not in body
         assert "Bearish" not in body
+        assert "Kors" not in body
+        assert "Golden" not in body
+        assert "Death" not in body
 
     def test_stocks_empty_table_when_logged_in(self, client_with_user):
         response = client_with_user.get("/stocks")
@@ -218,17 +297,99 @@ class TestAktierRoutes:
         assert "Beskrivning" not in html
         thead = html.split("<thead", 1)[1].split("</thead>", 1)[0]
         assert "Trend" in thead
+        assert "Kors" in thead
         assert "Heat" not in thead
+        _assert_kors_after_trend_before_bolag(html)
         _assert_trend_legend(html)
 
     def test_stocks_trend_header_with_exchange_selected(self, client_with_user):
         html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
         thead = html.split("<thead", 1)[1].split("</thead>", 1)[0]
         assert "Trend" in thead
+        assert "Kors" in thead
         assert "Heat" not in thead
         assert "Bolag" in thead
         assert "Industri" in thead
+        _assert_kors_after_trend_before_bolag(html)
+        assert 'colspan="7"' in html or "colspan='7'" in html
         _assert_trend_legend(html)
+
+    def test_stocks_admin_sees_kors_header(self, client_with_admin_user):
+        html = client_with_admin_user.get("/stocks?exchange=nasdaq").get_data(
+            as_text=True
+        )
+        assert "Kors" in html
+        _assert_kors_after_trend_before_bolag(html)
+
+    def test_stocks_kors_golden_death_and_empty(self, client_with_user, app):
+        origin = _kors_series_origin()
+        crossover_iso = _week(4, origin).isoformat()
+        _seed_kors_ticker(
+            app,
+            symbol="GOLD",
+            company="Golden Co",
+            series=_golden_sma_series(),
+            origin=origin,
+        )
+        _seed_kors_ticker(
+            app,
+            symbol="DEAD",
+            company="Death Co",
+            series=_death_sma_series(),
+            origin=origin,
+        )
+        _seed_kors_ticker(
+            app,
+            symbol="NONE",
+            company="None Co",
+            series=[(0, "100", "100"), (1, "101", "100")],
+            origin=origin,
+        )
+        html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
+        assert response_has_kors_cell(html, "Golden", title=crossover_iso)
+        assert response_has_kors_cell(html, "Death", title=crossover_iso)
+        assert "None Co" in html
+        # Empty placeholder present for non-qualifying row
+        assert re.search(
+            r'class="kors-cell"[^>]*>\s*—\s*</td>|class="kors-cell"[^>]*>\s*&mdash;\s*</td>',
+            html,
+        )
+        # Em dash cells must not imply a crossover via title
+        for match in re.finditer(
+            r'<td class="kors-cell"[^>]*>\s*(?:—|&mdash;)\s*</td>', html
+        ):
+            assert "title=" not in match.group(0)
+
+    def test_stocks_kors_stale_golden_clears(self, client_with_user, app):
+        origin = _kors_series_origin() - timedelta(weeks=1)
+        # Golden completes at week 4; add a later week so latest != crossover.
+        series = _golden_sma_series() + [(5, "106", "100")]
+        _seed_kors_ticker(
+            app,
+            symbol="STALE",
+            company="Stale Cross Co",
+            series=series,
+            origin=origin,
+        )
+        html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
+        assert "Stale Cross Co" in html
+        assert not response_has_kors_cell(html, "Golden")
+        assert response_has_kors_cell(html, "—") or response_has_kors_cell(
+            html, "&mdash;"
+        )
+
+
+def response_has_kors_cell(html, label, title=None):
+    pattern = rf'class="kors-cell"[^>]*>\s*{re.escape(label)}\s*</td>'
+    match = re.search(pattern, html)
+    if not match:
+        return False
+    if title is None:
+        return True
+    # Look back within the opening tag for title=
+    start = html.rfind("<td", 0, match.start())
+    cell = html[start : match.end()]
+    return f'title="{title}"' in cell or f"title='{title}'" in cell
 
     def test_stocks_heatmap_uses_z_score_vs_market(self, client_with_user, app):
         trading_day = date.today() - timedelta(days=7)
@@ -303,7 +464,9 @@ class TestAktierRoutes:
         assert "Industri" in html
         thead = html.split("<thead", 1)[1].split("</thead>", 1)[0]
         assert "Trend" in thead
+        assert "Kors" in thead
         assert "Heat" not in thead
+        _assert_kors_after_trend_before_bolag(html)
         assert "Technology" in html
         assert "Beskrivning" not in html
         assert "industri-cell" in html
@@ -664,6 +827,11 @@ class TestAktierPaging:
         assert payload["ok"] is True
         assert payload["total"] == 26
         assert payload["pages_cached"] == 2
+        page_two = client_with_user.get("/stocks?exchange=nyse&page=2").get_data(
+            as_text=True
+        )
+        assert "kors-cell" in page_two
+        assert "Paged Co 26" in page_two
 
     def test_switching_exchange_does_not_mix_venues(self, client_with_user, app):
         _seed_paged_nyse(app, count=26, include_nasdaq=True)

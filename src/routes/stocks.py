@@ -1,6 +1,7 @@
 # src/routes/stocks.py
 import math
 from datetime import date, timedelta
+from decimal import Decimal
 
 from flask import Blueprint, jsonify, render_template, request, session, url_for
 from flask_login import current_user
@@ -14,6 +15,8 @@ from src.models.swe_metrics import SweMetric
 from src.models.swe_ticker import SweTicker
 from src.models.ticker import Ticker
 from src.models.user import Role
+from src.services.cross_detection import SmaSnapshot, detect_all_patterns
+from src.services.kors_display import select_kors_display
 
 stocks_bp = Blueprint("stocks", __name__)
 
@@ -31,6 +34,7 @@ EXCHANGE_COUNTRY = {
 
 PAGE_SIZE = 25
 AKTIER_CACHE_TIMEOUT = 3600
+SMA_HISTORY_WEEKS = 52
 
 
 def _to_float(value):
@@ -99,7 +103,7 @@ def _heat_title(z):
     return f"Heat vs market average (0): z={z:.2f}"
 
 
-def _stock_row(metric, sector=None):
+def _stock_row(metric, sector=None, kors=None, kors_title=""):
     z = _to_float(metric.z_score)
     return {
         "company": metric.company,
@@ -112,6 +116,8 @@ def _stock_row(metric, sector=None):
         "heat_color": heat_color_from_z(z),
         "heat_hot": z is not None and round(z, 2) > 1,
         "heat_title": _heat_title(z),
+        "kors": kors,
+        "kors_title": kors_title or "",
     }
 
 
@@ -314,7 +320,72 @@ def _serialize_row(row):
         out["current_price"] = float(out["current_price"])
     if out.get("heat_score") is not None:
         out["heat_score"] = float(out["heat_score"])
+    # Cache-safe kors fields (never leave raw date objects in the blob).
+    kors = out.get("kors")
+    if kors not in ("Golden", "Death"):
+        out["kors"] = None
+    title = out.get("kors_title")
+    if title is None:
+        out["kors_title"] = ""
+    else:
+        out["kors_title"] = str(title)
     return out
+
+
+def _to_decimal(value):
+    if value is None:
+        return None
+    if isinstance(value, Decimal):
+        return value
+    return Decimal(str(value))
+
+
+def _batch_sma_history(metric_model, symbols, weeks=SMA_HISTORY_WEEKS):
+    """Load ordered SMA history for a page symbol slice (no per-ticker N+1).
+
+    Returns ``dict[ticker, list[SmaSnapshot]]`` ordered by trading_date ascending.
+    """
+    if not symbols:
+        return {}
+    cutoff = date.today() - timedelta(weeks=weeks)
+    rows = (
+        db.session.query(
+            metric_model.ticker,
+            metric_model.trading_date,
+            metric_model.sma_50,
+            metric_model.sma_200,
+        )
+        .filter(
+            metric_model.ticker.in_(symbols),
+            metric_model.trading_date >= cutoff,
+        )
+        .order_by(metric_model.ticker.asc(), metric_model.trading_date.asc())
+        .all()
+    )
+    history: dict[str, list[SmaSnapshot]] = {symbol: [] for symbol in symbols}
+    for ticker, trading_date, sma_50, sma_200 in rows:
+        history.setdefault(ticker, []).append(
+            SmaSnapshot(
+                trading_date=trading_date,
+                sma_50=_to_decimal(sma_50),
+                sma_200=_to_decimal(sma_200),
+            )
+        )
+    return history
+
+
+def _kors_for_metric(metric, snapshots, country=""):
+    """Detect crosses and apply freshness; never fail the page on bad history."""
+    try:
+        events = detect_all_patterns(
+            snapshots or [],
+            ticker=metric.ticker,
+            country=country,
+        )
+        display = select_kors_display(events, metric.trading_date)
+        return display.kors, display.kors_title
+    except Exception:
+        return None, ""
 
 
 def _cached_page(blob, page):
@@ -354,13 +425,28 @@ def _matching_symbols_with_metrics(exchange_key):
     return symbols, metric_model, ticker_model, market_model
 
 
-def _build_page_rows(symbols_slice, metric_model, ticker_model):
+def _build_page_rows(symbols_slice, metric_model, ticker_model, country=""):
     metrics = _get_latest_metrics_for_symbols(metric_model, symbols_slice)
     sectors = _ticker_sectors(ticker_model, [metric.ticker for metric in metrics])
-    return [
-        _serialize_row(_stock_row(metric, sector=sectors.get(metric.ticker)))
-        for metric in metrics
-    ]
+    history = _batch_sma_history(metric_model, [metric.ticker for metric in metrics])
+    rows = []
+    for metric in metrics:
+        kors, kors_title = _kors_for_metric(
+            metric,
+            history.get(metric.ticker, []),
+            country=country,
+        )
+        rows.append(
+            _serialize_row(
+                _stock_row(
+                    metric,
+                    sector=sectors.get(metric.ticker),
+                    kors=kors,
+                    kors_title=kors_title,
+                )
+            )
+        )
+    return rows
 
 
 def _store_page(user_id, exchange_key, total, page, rows, blob=None):
@@ -389,6 +475,7 @@ def _load_table_page(user_id, exchange_key, requested_page):
     symbols, metric_model, ticker_model, _market_model = _matching_symbols_with_metrics(
         exchange_key
     )
+    country = EXCHANGE_COUNTRY[exchange_key]
     total = len(symbols)
     page = parse_page(requested_page, total)
     start = (page - 1) * PAGE_SIZE
@@ -396,6 +483,7 @@ def _load_table_page(user_id, exchange_key, requested_page):
         symbols[start : start + PAGE_SIZE],
         metric_model,
         ticker_model,
+        country=country,
     )
     _store_page(user_id, exchange_key, total, page, rows, blob)
     return rows, total, page
@@ -405,6 +493,7 @@ def _warm_exchange_pages(user_id, exchange_key):
     symbols, metric_model, ticker_model, _market_model = _matching_symbols_with_metrics(
         exchange_key
     )
+    country = EXCHANGE_COUNTRY[exchange_key]
     total = len(symbols)
     last = _page_count(total)
     key = _aktier_cache_key(user_id, exchange_key)
@@ -420,6 +509,7 @@ def _warm_exchange_pages(user_id, exchange_key):
             symbols[start : start + PAGE_SIZE],
             metric_model,
             ticker_model,
+            country=country,
         )
     blob["total"] = total
     cache.set(key, blob, timeout=AKTIER_CACHE_TIMEOUT)

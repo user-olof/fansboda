@@ -23,9 +23,9 @@
 
 **Purpose**: Confirm package layout for the RFC-013 port and product display helpers without adding dependencies or schema tooling.
 
-- [ ] T001 Confirm `src/services/` package is importable (`src/services/__init__.py` present) and reserve module paths `src/services/cross_detection.py` and `src/services/kors_display.py` per plan.md structure
-- [ ] T002 [P] Confirm no new Python dependencies are required (stdlib + existing Flask/SQLAlchemy stack only) and that Pipfile / project deps stay unchanged for this feature
-- [ ] T003 [P] Note canonical source for the port in the upcoming module docstring: `user-olof/fansboda-finance` pure `cross_detection.py` (RFC-013); do not plan CLI subprocess or finance `config`/`db` imports
+- [x] T001 Confirm `src/services/` package is importable (`src/services/__init__.py` present) and reserve module paths `src/services/cross_detection.py` and `src/services/kors_display.py` per plan.md structure
+- [x] T002 [P] Confirm no new Python dependencies are required (stdlib + existing Flask/SQLAlchemy stack only) and that Pipfile / project deps stay unchanged for this feature
+- [x] T003 [P] Note canonical source for the port in the upcoming module docstring: `user-olof/fansboda-finance` pure `cross_detection.py` (RFC-013); do not plan CLI subprocess or finance `config`/`db` imports
 
 ---
 
@@ -35,10 +35,10 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T004 Port RFC-013 pure detector into `src/services/cross_detection.py` with API surface `SmaSnapshot`, `CrossPattern`, `CrossEvent`, `DEFAULT_MIN_REGIME_WEEKS=4`, `DEFAULT_CONVERGENCE_WEEKS=3`, `validate_cross_windows`, `detect_crosses`, `detect_all_patterns`; skip NULL `sma_50`/`sma_200` rows; equal SMAs never count as regime or crossover; attribute finance repo + RFC-013 in module docstring
-- [ ] T005 Implement freshness / “more recent wins” in `src/services/kors_display.py`: Golden only when `crossover_date == latest_trading_date`; Death when `latest_trading_date - timedelta(weeks=8) <= crossover_date <= latest_trading_date` (inclusive); if both qualify pick max `crossover_date` only; return display fields `kors` (`"Golden"` \| `"Death"` \| `None`) and tooltip-ready `kors_date` / `kors_title` (ISO `YYYY-MM-DD` when signal present, empty when not); document deterministic tie-break if equal-date Golden+Death in tests
-- [ ] T006 Add batch SMA history load for a page symbol slice in `src/routes/stocks.py` (or a small helper colocated there): ordered `(trading_date, sma_50, sma_200)` from the country metric model (`Metric` / `SweMetric`) with ~52-week lookback (same horizon as `get_last_weeks_metrics`), keyed by ticker, suitable for feeding `SmaSnapshot` lists — no per-ticker N+1 on the page path
-- [ ] T007 Extend Aktier row serialization contract in `src/routes/stocks.py` (`_stock_row` / `_serialize_row`): support cache-safe `kors` (`"Golden"` / `"Death"` / `null`) and `kors_title` (`str`, `""` when empty); never put raw `date` objects in the `aktier_table` cache blob
+- [x] T004 Port RFC-013 pure detector into `src/services/cross_detection.py` with API surface `SmaSnapshot`, `CrossPattern`, `CrossEvent`, `DEFAULT_MIN_REGIME_WEEKS=4`, `DEFAULT_CONVERGENCE_WEEKS=3`, `validate_cross_windows`, `detect_crosses`, `detect_all_patterns`; skip NULL `sma_50`/`sma_200` rows; equal SMAs never count as regime or crossover; attribute finance repo + RFC-013 in module docstring
+- [x] T005 Implement freshness / “more recent wins” in `src/services/kors_display.py`: Golden only when `crossover_date == latest_trading_date`; Death when `latest_trading_date - timedelta(weeks=8) <= crossover_date <= latest_trading_date` (inclusive); if both qualify pick max `crossover_date` only; return display fields `kors` (`"Golden"` \| `"Death"` \| `None`) and tooltip-ready `kors_date` / `kors_title` (ISO `YYYY-MM-DD` when signal present, empty when not); document deterministic tie-break if equal-date Golden+Death in tests
+- [x] T006 Add batch SMA history load for a page symbol slice in `src/routes/stocks.py` (or a small helper colocated there): ordered `(trading_date, sma_50, sma_200)` from the country metric model (`Metric` / `SweMetric`) with ~52-week lookback (same horizon as `get_last_weeks_metrics`), keyed by ticker, suitable for feeding `SmaSnapshot` lists — no per-ticker N+1 on the page path
+- [x] T007 Extend Aktier row serialization contract in `src/routes/stocks.py` (`_stock_row` / `_serialize_row`): support cache-safe `kors` (`"Golden"` / `"Death"` / `null`) and `kors_title` (`str`, `""` when empty); never put raw `date` objects in the `aktier_table` cache blob
 
 **Checkpoint**: Foundation ready — detection, freshness, history batching, and cache-safe row fields exist; user story UI/wiring can begin
 
@@ -54,17 +54,17 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T008 [P] [US1] Add pure RFC-013 detection tests in `tests/test_cross_detection.py` (adapt finance cases): complete Golden/Death emit; NULL SMA skip; equal SMA no emit; incomplete regime/convergence no emit; defaults 4/3 windows
-- [ ] T009 [P] [US1] Add freshness/display unit tests in `tests/test_kors_display.py`: Golden on latest → `Golden`; Golden on prior week → empty; Death within 8 weeks inclusive → `Death`; Death older than 8 weeks → empty; both qualify → more recent type only; incomplete events → empty; 8-week boundary inclusive still `Death`
-- [ ] T010 [P] [US1] Extend Aktier HTML/route tests in `tests/test_routes.py`: thead order Trend → **Kors** → Bolag; cell literals `Golden`/`Death`/`—`; empty-state `colspan` is 7; existing Trend/paging/warm assertions still pass; seeded fixtures match freshness cases in HTML
+- [x] T008 [P] [US1] Add pure RFC-013 detection tests in `tests/test_cross_detection.py` (adapt finance cases): complete Golden/Death emit; NULL SMA skip; equal SMA no emit; incomplete regime/convergence no emit; defaults 4/3 windows
+- [x] T009 [P] [US1] Add freshness/display unit tests in `tests/test_kors_display.py`: Golden on latest → `Golden`; Golden on prior week → empty; Death within 8 weeks inclusive → `Death`; Death older than 8 weeks → empty; both qualify → more recent type only; incomplete events → empty; 8-week boundary inclusive still `Death`
+- [x] T010 [P] [US1] Extend Aktier HTML/route tests in `tests/test_routes.py`: thead order Trend → **Kors** → Bolag; cell literals `Golden`/`Death`/`—`; empty-state `colspan` is 7; existing Trend/paging/warm assertions still pass; seeded fixtures match freshness cases in HTML
 
 ### Implementation for User Story 1
 
-- [ ] T011 [US1] Wire detection + freshness into `_build_page_rows` in `src/routes/stocks.py`: for each page slice, batch-load SMA history (T006), run `detect_all_patterns`, apply `kors_display` against each ticker’s latest `trading_date`, attach `kors` (and leave `kors_title` empty or unset until US2 if preferred) before `_serialize_row` / `_store_page` so warm pages share the same builder
-- [ ] T012 [US1] Ensure insufficient history or empty detector results yield `kors=None` / `—` without failing the whole Aktier page in `src/routes/stocks.py`
-- [ ] T013 [US1] Insert **Kors** column header and cells in `templates/stocks.html` immediately after Trend and before Bolag; render `Golden` / `Death` / `—`; update empty-state `colspan` from 6 to 7; leave Trend heat cells and other columns unchanged
-- [ ] T014 [P] [US1] Add optional light alignment/styling for `.kors-cell` (or equivalent) in `static/css/stocks.css` without cards, filters, icons, or layout redesign
-- [ ] T015 [US1] Verify `static/js/stocks.js` warm path needs no logic change beyond cache blobs already containing `kors` from `_build_page_rows`; do not add chart markers or filter controls
+- [x] T011 [US1] Wire detection + freshness into `_build_page_rows` in `src/routes/stocks.py`: for each page slice, batch-load SMA history (T006), run `detect_all_patterns`, apply `kors_display` against each ticker’s latest `trading_date`, attach `kors` (and leave `kors_title` empty or unset until US2 if preferred) before `_serialize_row` / `_store_page` so warm pages share the same builder
+- [x] T012 [US1] Ensure insufficient history or empty detector results yield `kors=None` / `—` without failing the whole Aktier page in `src/routes/stocks.py`
+- [x] T013 [US1] Insert **Kors** column header and cells in `templates/stocks.html` immediately after Trend and before Bolag; render `Golden` / `Death` / `—`; update empty-state `colspan` from 6 to 7; leave Trend heat cells and other columns unchanged
+- [x] T014 [P] [US1] Add optional light alignment/styling for `.kors-cell` (or equivalent) in `static/css/stocks.css` without cards, filters, icons, or layout redesign
+- [x] T015 [US1] Verify `static/js/stocks.js` warm path needs no logic change beyond cache blobs already containing `kors` from `_build_page_rows`; do not add chart markers or filter controls
 
 **Checkpoint**: User Story 1 is fully functional and testable independently (MVP)
 
@@ -78,13 +78,13 @@
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T016 [P] [US3] Assert anonymous `GET /stocks` (and exchange query if exercised) still redirects to login in `tests/test_routes.py` and/or `tests/test_access_control.py` with no Kors leakage in the response body
-- [ ] T017 [P] [US3] Assert allowlisted USER and ADMIN clients receive 200 on Aktier with the Kors header present in `tests/test_routes.py` (or access-control suite) — same `@role_required(Role.USER, Role.ADMIN)` surface, no new public endpoint
+- [x] T016 [P] [US3] Assert anonymous `GET /stocks` (and exchange query if exercised) still redirects to login in `tests/test_routes.py` and/or `tests/test_access_control.py` with no Kors leakage in the response body
+- [x] T017 [P] [US3] Assert allowlisted USER and ADMIN clients receive 200 on Aktier with the Kors header present in `tests/test_routes.py` (or access-control suite) — same `@role_required(Role.USER, Role.ADMIN)` surface, no new public endpoint
 
 ### Implementation for User Story 3
 
-- [ ] T018 [US3] Confirm `stocks` and warm routes in `src/routes/stocks.py` retain existing `@role_required(Role.USER, Role.ADMIN)` (or equivalent) — no auth decorator changes unless a regression is found; do not add a separate kors endpoint
-- [ ] T019 [US3] Confirm logout cache clear via `clear_aktier_table_cache` in `src/routes/login.py` still drops `aktier_table:*` blobs that now include kors fields (no new cache key)
+- [x] T018 [US3] Confirm `stocks` and warm routes in `src/routes/stocks.py` retain existing `@role_required(Role.USER, Role.ADMIN)` (or equivalent) — no auth decorator changes unless a regression is found; do not add a separate kors endpoint
+- [x] T019 [US3] Confirm logout cache clear via `clear_aktier_table_cache` in `src/routes/login.py` still drops `aktier_table:*` blobs that now include kors fields (no new cache key)
 
 **Checkpoint**: User Stories 1 and 3 both work; Kors remains private
 
@@ -98,13 +98,13 @@
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T020 [P] [US2] Extend `tests/test_kors_display.py` (or route tests) so display helpers produce `kors_title` containing ISO `YYYY-MM-DD` when a signal is present and `""` when empty
-- [ ] T021 [P] [US2] Extend `tests/test_routes.py` HTML assertions: non-empty Kors cells include `title` with the seeded crossover date; `—` cells do not imply a crossover via title
+- [x] T020 [P] [US2] Extend `tests/test_kors_display.py` (or route tests) so display helpers produce `kors_title` containing ISO `YYYY-MM-DD` when a signal is present and `""` when empty
+- [x] T021 [P] [US2] Extend `tests/test_routes.py` HTML assertions: non-empty Kors cells include `title` with the seeded crossover date; `—` cells do not imply a crossover via title
 
 ### Implementation for User Story 2
 
-- [ ] T022 [US2] Ensure `kors_display` / `_build_page_rows` always set cache-safe `kors_title` on rows in `src/routes/stocks.py` when `kors` is set (ISO date string acceptable per contracts/aktier-kors-ui.md)
-- [ ] T023 [US2] Bind native `title="{{ stock.kors_title }}"` (or equivalent) on Kors cells in `templates/stocks.html` only when a signal is shown; mirror Trend’s native-title pattern; no Bootstrap popover / new script sources (CSP-safe)
+- [x] T022 [US2] Ensure `kors_display` / `_build_page_rows` always set cache-safe `kors_title` on rows in `src/routes/stocks.py` when `kors` is set (ISO date string acceptable per contracts/aktier-kors-ui.md)
+- [x] T023 [US2] Bind native `title="{{ stock.kors_title }}"` (or equivalent) on Kors cells in `templates/stocks.html` only when a signal is shown; mirror Trend’s native-title pattern; no Bootstrap popover / new script sources (CSP-safe)
 
 **Checkpoint**: All user stories independently functional
 
@@ -114,10 +114,10 @@
 
 **Purpose**: Constitution / non-goal guards and quickstart validation across stories
 
-- [ ] T024 [P] Run quickstart.md validation commands: `uv run pytest tests/test_cross_detection.py -q`, `uv run pytest tests/test_kors_display.py -q`, `uv run pytest tests/test_routes.py -k Aktier -q`
-- [ ] T025 [P] Confirm non-goals remain absent: no chart stage markers in `templates/chart.html` / chart route; no golden/death filters on Aktier; no detections table / migrations / Alembic / `flask db`; no subprocess/CLI call to fansboda-finance from the stocks request path
-- [ ] T026 Confirm Trend heat semantics and existing columns unchanged aside from adding Kors (SC-006) via existing route/UI tests in `tests/test_routes.py`
-- [ ] T027 [P] Spot-check pagination/warm: warmed pages in `aktier_table` cache include `kors` keys so clients never see Trend-only rows missing Kors after deploy (contracts/aktier-kors-ui.md)
+- [x] T024 [P] Run quickstart.md validation commands: `uv run pytest tests/test_cross_detection.py -q`, `uv run pytest tests/test_kors_display.py -q`, `uv run pytest tests/test_routes.py -k Aktier -q`
+- [x] T025 [P] Confirm non-goals remain absent: no chart stage markers in `templates/chart.html` / chart route; no golden/death filters on Aktier; no detections table / migrations / Alembic / `flask db`; no subprocess/CLI call to fansboda-finance from the stocks request path
+- [x] T026 Confirm Trend heat semantics and existing columns unchanged aside from adding Kors (SC-006) via existing route/UI tests in `tests/test_routes.py`
+- [x] T027 [P] Spot-check pagination/warm: warmed pages in `aktier_table` cache include `kors` keys so clients never see Trend-only rows missing Kors after deploy (contracts/aktier-kors-ui.md)
 
 ---
 

@@ -49,6 +49,7 @@
                                     <th scope="col">
                                         <i class="bi bi-thermometer-half me-1"></i>Trend
                                     </th>
+                                    <th scope="col">Kors</th>
                                     <th scope="col">
                                         <i class="bi bi-building me-1"></i>Bolag
                                     </th>
@@ -73,6 +74,7 @@
                                     <td class="heat-cell{% if stock.heat_hot %} heat-cell--hot{% endif %}"
                                         style="background-color: {{ stock.heat_color }};"
                                         title="{{ stock.heat_title }}"></td>
+                                    <td class="kors-cell"{% if stock.kors and stock.kors_title %} title="{{ stock.kors_title }}"{% endif %}>{{ stock.kors or "—" }}</td>
                                     <td class="fw-semibold">
                                         <a href="{{ url_for('stocks.chart', ticker=stock.ticker) }}">{{ stock.company }}</a>
                                     </td>
@@ -84,7 +86,7 @@
                                 {% endfor %}
                                 {% elif selected_exchange %}
                                 <tr>
-                                    <td colspan="6" class="text-center text-muted py-4">
+                                    <td colspan="7" class="text-center text-muted py-4">
                                         Inga aktier att visa &auml;nnu.
                                     </td>
                                 </tr>
