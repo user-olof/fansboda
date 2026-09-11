@@ -1,6 +1,6 @@
 # Quickstart: Validate Aktier Kors
 
-**Feature**: `001-aktier-cross-signal`  
+**Feature**: `013-aktier-cross-signal`  
 **Plan**: [plan.md](./plan.md) · **Spec**: [spec.md](./spec.md) · **UI contract**: [contracts/aktier-kors-ui.md](./contracts/aktier-kors-ui.md)
 
 Validation guide for implementers after `/speckit-tasks` / implement — not an implementation dump.

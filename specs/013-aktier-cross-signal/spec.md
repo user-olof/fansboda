@@ -1,6 +1,6 @@
 # Feature Specification: Aktier Cross Signal (Kors)
 
-**Feature Branch**: `001-aktier-cross-signal`
+**Feature Branch**: `013-aktier-cross-signal`
 
 **Created**: 2026-09-11
 

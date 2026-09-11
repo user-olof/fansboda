@@ -1,6 +1,6 @@
 # Contract: Aktier Kors UI & row payload
 
-**Feature**: `001-aktier-cross-signal`  
+**Feature**: `013-aktier-cross-signal`  
 **Surface**: `GET /stocks?exchange={nasdaq|nyse|omx_stockholm}&page={n}` (existing)  
 **Auth**: `@role_required(Role.USER, Role.ADMIN)` — unchanged
 

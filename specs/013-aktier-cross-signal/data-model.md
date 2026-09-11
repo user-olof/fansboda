@@ -1,6 +1,6 @@
 # Data Model: Aktier Cross Signal (Kors)
 
-**Feature**: `001-aktier-cross-signal`  
+**Feature**: `013-aktier-cross-signal`  
 **Date**: 2026-09-11
 
 No Neon schema changes. Entities below are **read models** and **in-memory** shapes used by detection and the Aktier UI.
