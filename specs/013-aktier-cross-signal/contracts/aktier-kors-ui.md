@@ -24,8 +24,8 @@ Header label text: **Signal** (Swedish product chrome). Internal field names may
 
 | Display | Condition |
 |---------|-----------|
-| Red skull icon (`aria-label` / accessible name `Death`) | Qualifying completed Death under freshness rules |
-| Green bull icon (`aria-label` / accessible name `Golden`) | Qualifying completed Golden under freshness rules |
+| Red down-trend arrow icon (`aria-label` / accessible name `Death`) | Qualifying completed Death under freshness rules |
+| Green up-trend arrow icon (`aria-label` / accessible name `Golden`) | Qualifying completed Golden under freshness rules |
 | `—` | No qualifying signal (including incomplete detection / short history) |
 
 Exactly one of the three per visible data row (SC-001). Do not render dual icons or text labels `Golden` / `Death` in the cell.
