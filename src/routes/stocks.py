@@ -36,9 +36,84 @@ PAGE_SIZE = 25
 AKTIER_CACHE_TIMEOUT = 3600
 SMA_HISTORY_WEEKS = 52
 
+# Sortable Aktier columns (URL `sort=`). Invalid sort/dir → default symbol order.
+SORT_COLUMNS = frozenset({"trend", "bolag", "signal"})
+DEFAULT_SORT_DIR = {
+    "trend": "desc",
+    "bolag": "asc",
+    "signal": "asc",
+}
+SIGNAL_SORT_RANK = {
+    "Death": 0,
+    "Golden": 1,
+}
+
 
 def _to_float(value):
     return float(value) if value is not None else None
+
+
+def parse_sort(sort_value, dir_value):
+    """Return ``(sort, dir)`` or ``(None, None)`` for default symbol order."""
+    sort_key = str(sort_value).strip().lower() if sort_value is not None else ""
+    direction = str(dir_value).strip().lower() if dir_value is not None else ""
+    if sort_key not in SORT_COLUMNS:
+        return None, None
+    if direction not in ("asc", "desc"):
+        return None, None
+    return sort_key, direction
+
+
+def next_sort_direction(column, current_sort, current_dir):
+    """Dir to apply when the user activates ``column`` (toggle if already active)."""
+    if column not in SORT_COLUMNS:
+        return DEFAULT_SORT_DIR.get(column, "asc")
+    if current_sort == column and current_dir in ("asc", "desc"):
+        return "asc" if current_dir == "desc" else "desc"
+    return DEFAULT_SORT_DIR[column]
+
+
+def aria_sort_value(column, current_sort, current_dir):
+    if current_sort != column or current_dir not in ("asc", "desc"):
+        return "none"
+    return "ascending" if current_dir == "asc" else "descending"
+
+
+def sort_stock_rows(rows, sort_key, direction):
+    """Sort a full exchange row list. Secondary key is always ticker ascending.
+
+    Trend null heat scores sort last. Signal order (asc): Death < Golden < empty.
+    """
+    ordered = list(rows)
+    if not sort_key or sort_key not in SORT_COLUMNS:
+        return ordered
+    reverse = direction == "desc"
+
+    def ticker_key(row):
+        return (row.get("ticker") or "").casefold()
+
+    # Stable secondary: ticker ascending first, then primary (preserves ticker on ties).
+    ordered.sort(key=ticker_key)
+
+    if sort_key == "trend":
+        valued = [row for row in ordered if row.get("heat_score") is not None]
+        missing = [row for row in ordered if row.get("heat_score") is None]
+        valued.sort(key=lambda row: float(row["heat_score"]), reverse=reverse)
+        return valued + missing
+
+    if sort_key == "bolag":
+        ordered.sort(
+            key=lambda row: (row.get("company") or "").casefold(),
+            reverse=reverse,
+        )
+        return ordered
+
+    # signal
+    ordered.sort(
+        key=lambda row: SIGNAL_SORT_RANK.get(row.get("kors"), 2),
+        reverse=reverse,
+    )
+    return ordered
 
 
 # σ landmarks: negative z is blue, positive z is red (polarity flipped from 009).
@@ -283,7 +358,8 @@ def _ticker_sectors(ticker_model, symbols):
 
 
 def _aktier_cache_key(user_id, exchange_key):
-    return f"aktier_table:{user_id}:{exchange_key}"
+    # v2: full-row blobs for global sort (partial page caches must not be sorted).
+    return f"aktier_table_v2:{user_id}:{exchange_key}"
 
 
 def clear_aktier_table_cache(user_id):
@@ -330,6 +406,11 @@ def _serialize_row(row):
     else:
         out["kors_title"] = str(title)
     return out
+
+
+def _slice_page(rows, page):
+    start = (page - 1) * PAGE_SIZE
+    return rows[start : start + PAGE_SIZE]
 
 
 def _to_decimal(value):
@@ -398,7 +479,28 @@ def _cached_page(blob, page):
 
 
 def _empty_cache_blob(total):
-    return {"total": total, "pages": {}}
+    return {"total": total, "pages": {}, "rows": None, "complete": False}
+
+
+def _blob_complete_rows(blob, total):
+    """Return full symbol-order rows only when the cache holds the entire set."""
+    if not isinstance(blob, dict) or blob.get("total") != total:
+        return None
+    rows = blob.get("rows")
+    if blob.get("complete") and isinstance(rows, list) and len(rows) == total:
+        return rows
+    last = _page_count(total)
+    if total == 0:
+        return []
+    assembled = []
+    for page in range(1, last + 1):
+        page_rows = _cached_page(blob, page)
+        if page_rows is None:
+            return None
+        assembled.extend(page_rows)
+    if len(assembled) != total:
+        return None
+    return assembled
 
 
 def _matching_symbols_with_metrics(exchange_key):
@@ -449,25 +551,92 @@ def _build_page_rows(symbols_slice, metric_model, ticker_model, country=""):
     return rows
 
 
+def _store_cache_blob(user_id, exchange_key, blob):
+    if user_id is None:
+        return
+    cache.set(
+        _aktier_cache_key(user_id, exchange_key),
+        blob,
+        timeout=AKTIER_CACHE_TIMEOUT,
+    )
+
+
 def _store_page(user_id, exchange_key, total, page, rows, blob=None):
     if user_id is None:
         return
-    key = _aktier_cache_key(user_id, exchange_key)
     if not isinstance(blob, dict) or blob.get("total") != total:
         blob = _empty_cache_blob(total)
     blob.setdefault("pages", {})[page] = rows
     blob["total"] = total
-    cache.set(key, blob, timeout=AKTIER_CACHE_TIMEOUT)
+    # A single page write never claims completeness for sorting.
+    if blob.get("complete") and isinstance(blob.get("rows"), list):
+        start = (page - 1) * PAGE_SIZE
+        full = list(blob["rows"])
+        full[start : start + len(rows)] = rows
+        blob["rows"] = full
+    else:
+        blob["complete"] = False
+        complete_rows = _blob_complete_rows(blob, total)
+        if complete_rows is not None:
+            blob["rows"] = complete_rows
+            blob["complete"] = True
+    _store_cache_blob(user_id, exchange_key, blob)
 
 
-def _load_table_page(user_id, exchange_key, requested_page):
-    """Prefer cached page; otherwise load only this 25-row slice and Trend scores."""
+def _store_full_rows(user_id, exchange_key, rows, total, blob=None):
+    if user_id is None:
+        return
+    if not isinstance(blob, dict) or blob.get("total") != total:
+        blob = _empty_cache_blob(total)
+    blob["total"] = total
+    blob["rows"] = rows
+    blob["complete"] = True
+    blob.setdefault("pages", {})
+    last = _page_count(total)
+    for page in range(1, last + 1):
+        blob["pages"][page] = _slice_page(rows, page)
+    _store_cache_blob(user_id, exchange_key, blob)
+
+
+def _ensure_full_rows(user_id, exchange_key):
+    """Full exchange rows in default symbol order. Never returns a partial set."""
+    key = _aktier_cache_key(user_id, exchange_key) if user_id is not None else None
+    blob = cache.get(key) if key else None
+    symbols, metric_model, ticker_model, _market_model = _matching_symbols_with_metrics(
+        exchange_key
+    )
+    total = len(symbols)
+    cached = _blob_complete_rows(blob, total)
+    if cached is not None:
+        if isinstance(blob, dict) and not blob.get("complete"):
+            _store_full_rows(user_id, exchange_key, cached, total, blob)
+        return cached, total
+
+    country = EXCHANGE_COUNTRY[exchange_key]
+    rows = _build_page_rows(symbols, metric_model, ticker_model, country=country)
+    _store_full_rows(user_id, exchange_key, rows, total, blob)
+    return rows, total
+
+
+def _load_table_page(
+    user_id, exchange_key, requested_page, sort_key=None, direction=None
+):
+    """Load one page. With sort: full dataset → sort → paginate. Without: may lazy-slice."""
+    if sort_key:
+        all_rows, total = _ensure_full_rows(user_id, exchange_key)
+        ordered = sort_stock_rows(all_rows, sort_key, direction)
+        page = parse_page(requested_page, total)
+        return _slice_page(ordered, page), total, page
+
     key = _aktier_cache_key(user_id, exchange_key) if user_id is not None else None
     blob = cache.get(key) if key else None
 
     if isinstance(blob, dict) and isinstance(blob.get("total"), int):
         total = blob["total"]
         page = parse_page(requested_page, total)
+        complete_rows = _blob_complete_rows(blob, total)
+        if complete_rows is not None:
+            return _slice_page(complete_rows, page), total, page
         cached_rows = _cached_page(blob, page)
         if cached_rows is not None:
             return cached_rows, total, page
@@ -512,8 +681,19 @@ def _warm_exchange_pages(user_id, exchange_key):
             country=country,
         )
     blob["total"] = total
+    full_rows = _blob_complete_rows(blob, total) or []
+    blob["rows"] = full_rows
+    blob["complete"] = True
     cache.set(key, blob, timeout=AKTIER_CACHE_TIMEOUT)
     return last, total
+
+
+def _aktier_query_args(exchange, page, sort_key=None, direction=None):
+    args = {"exchange": exchange, "page": page}
+    if sort_key and direction:
+        args["sort"] = sort_key
+        args["dir"] = direction
+    return args
 
 
 def _aktier_return_url():
@@ -527,18 +707,35 @@ def _aktier_return_url():
         page = 1
     if page < 1:
         page = 1
-    return url_for("stocks.stocks", exchange=exchange, page=page)
+    sort_key, direction = parse_sort(
+        session.get("aktier_sort"),
+        session.get("aktier_dir"),
+    )
+    return url_for(
+        "stocks.stocks",
+        **_aktier_query_args(exchange, page, sort_key, direction),
+    )
 
 
-def _remember_aktier_view(exchange_key, page):
+def _remember_aktier_view(exchange_key, page, sort_key=None, direction=None):
     session["aktier_exchange"] = exchange_key
     session["aktier_page"] = page
+    if sort_key and direction:
+        session["aktier_sort"] = sort_key
+        session["aktier_dir"] = direction
+    else:
+        session.pop("aktier_sort", None)
+        session.pop("aktier_dir", None)
 
 
 @stocks_bp.route("/stocks")
 @role_required(Role.USER, Role.ADMIN)
 def stocks():
     selected_exchange = parse_exchange(request.args.get("exchange"))
+    sort_key, direction = parse_sort(
+        request.args.get("sort"),
+        request.args.get("dir"),
+    )
     stock_rows = []
     stock_total = 0
     stock_page = 1
@@ -547,8 +744,12 @@ def stocks():
             current_user.id,
             selected_exchange,
             request.args.get("page"),
+            sort_key=sort_key,
+            direction=direction,
         )
-        _remember_aktier_view(selected_exchange, stock_page)
+        _remember_aktier_view(
+            selected_exchange, stock_page, sort_key=sort_key, direction=direction
+        )
     last_page = _page_count(stock_total)
     range_start = ((stock_page - 1) * PAGE_SIZE) + 1 if stock_total else 0
     range_end = min(stock_page * PAGE_SIZE, stock_total)
@@ -563,6 +764,16 @@ def stocks():
         stock_last_page=last_page,
         stock_range_start=range_start,
         stock_range_end=range_end,
+        stock_sort=sort_key,
+        stock_dir=direction,
+        sort_next_dir={
+            column: next_sort_direction(column, sort_key, direction)
+            for column in SORT_COLUMNS
+        },
+        sort_aria={
+            column: aria_sort_value(column, sort_key, direction)
+            for column in SORT_COLUMNS
+        },
     )
 
 

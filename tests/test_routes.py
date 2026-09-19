@@ -11,13 +11,18 @@ from src.models.user import User
 from src import db
 
 
-def _assert_kors_after_trend_before_bolag(html):
+def _assert_signal_after_trend_before_bolag(html):
     thead = html.split("<thead", 1)[1].split("</thead>", 1)[0]
     trend_pos = thead.find("Trend")
-    kors_pos = thead.find("Kors")
+    signal_pos = thead.find("Signal")
     bolag_pos = thead.find("Bolag")
-    assert trend_pos != -1 and kors_pos != -1 and bolag_pos != -1
-    assert trend_pos < kors_pos < bolag_pos
+    assert trend_pos != -1 and signal_pos != -1 and bolag_pos != -1
+    assert trend_pos < signal_pos < bolag_pos
+    assert "Kors" not in thead
+
+
+# Back-compat alias used during SPEC 013→014 transition in older diffs
+_assert_kors_after_trend_before_bolag = _assert_signal_after_trend_before_bolag
 
 
 def _week(n: int, origin: date | None = None) -> date:
@@ -281,6 +286,7 @@ class TestAktierRoutes:
         assert "Positivt momentum kan indikera" not in body
         assert "Bearish" not in body
         assert "Kors" not in body
+        assert "Signal" not in body
         assert "Golden" not in body
         assert "Death" not in body
 
@@ -297,20 +303,22 @@ class TestAktierRoutes:
         assert "Beskrivning" not in html
         thead = html.split("<thead", 1)[1].split("</thead>", 1)[0]
         assert "Trend" in thead
-        assert "Kors" in thead
+        assert "Signal" in thead
+        assert "Kors" not in thead
         assert "Heat" not in thead
-        _assert_kors_after_trend_before_bolag(html)
+        _assert_signal_after_trend_before_bolag(html)
         _assert_trend_legend(html)
 
     def test_stocks_trend_header_with_exchange_selected(self, client_with_user):
         html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
         thead = html.split("<thead", 1)[1].split("</thead>", 1)[0]
         assert "Trend" in thead
-        assert "Kors" in thead
+        assert "Signal" in thead
+        assert "Kors" not in thead
         assert "Heat" not in thead
         assert "Bolag" in thead
         assert "Industri" in thead
-        _assert_kors_after_trend_before_bolag(html)
+        _assert_signal_after_trend_before_bolag(html)
         assert 'colspan="7"' in html or "colspan='7'" in html
         _assert_trend_legend(html)
 
@@ -318,8 +326,9 @@ class TestAktierRoutes:
         html = client_with_admin_user.get("/stocks?exchange=nasdaq").get_data(
             as_text=True
         )
-        assert "Kors" in html
-        _assert_kors_after_trend_before_bolag(html)
+        assert "Signal" in html
+        assert "Kors" not in html.split("<thead", 1)[1].split("</thead>", 1)[0]
+        _assert_signal_after_trend_before_bolag(html)
 
     def test_stocks_kors_golden_death_and_empty(self, client_with_user, app):
         origin = _kors_series_origin()
@@ -346,8 +355,8 @@ class TestAktierRoutes:
             origin=origin,
         )
         html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
-        assert response_has_kors_cell(html, "Golden", title=crossover_iso)
-        assert response_has_kors_cell(html, "Death", title=crossover_iso)
+        assert response_has_signal_cell(html, "Golden", title=crossover_iso)
+        assert response_has_signal_cell(html, "Death", title=crossover_iso)
         assert "None Co" in html
         # Empty placeholder present for non-qualifying row
         assert re.search(
@@ -373,23 +382,11 @@ class TestAktierRoutes:
         )
         html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
         assert "Stale Cross Co" in html
-        assert not response_has_kors_cell(html, "Golden")
-        assert response_has_kors_cell(html, "—") or response_has_kors_cell(
+        assert not response_has_signal_cell(html, "Golden")
+        assert response_has_signal_cell(html, "—") or response_has_signal_cell(
             html, "&mdash;"
         )
 
-
-def response_has_kors_cell(html, label, title=None):
-    pattern = rf'class="kors-cell"[^>]*>\s*{re.escape(label)}\s*</td>'
-    match = re.search(pattern, html)
-    if not match:
-        return False
-    if title is None:
-        return True
-    # Look back within the opening tag for title=
-    start = html.rfind("<td", 0, match.start())
-    cell = html[start : match.end()]
-    return f'title="{title}"' in cell or f"title='{title}'" in cell
 
     def test_stocks_heatmap_uses_z_score_vs_market(self, client_with_user, app):
         trading_day = date.today() - timedelta(days=7)
@@ -464,9 +461,10 @@ def response_has_kors_cell(html, label, title=None):
         assert "Industri" in html
         thead = html.split("<thead", 1)[1].split("</thead>", 1)[0]
         assert "Trend" in thead
-        assert "Kors" in thead
+        assert "Signal" in thead
+        assert "Kors" not in thead
         assert "Heat" not in thead
-        _assert_kors_after_trend_before_bolag(html)
+        _assert_signal_after_trend_before_bolag(html)
         assert "Technology" in html
         assert "Beskrivning" not in html
         assert "industri-cell" in html
@@ -686,6 +684,28 @@ def response_has_kors_cell(html, label, title=None):
         assert "yAxisID: 'y1'" not in html
 
 
+
+def response_has_signal_cell(html, label, title=None):
+    """Match Signal cell by aria-label (Death|Golden) or em dash empty."""
+    if label in ("—", "&mdash;"):
+        pattern = r'class="kors-cell"[^>]*>\s*(?:—|&mdash;)\s*</td>'
+        match = re.search(pattern, html)
+        if not match:
+            return False
+        return True
+    # Icon cell: aria-label on SVG inside kors-cell
+    cell_pattern = rf'<td class="kors-cell"([^>]*)>.*?aria-label="{re.escape(label)}".*?</td>'
+    match = re.search(cell_pattern, html, flags=re.DOTALL)
+    if not match:
+        return False
+    if title is None:
+        return True
+    attrs = match.group(1)
+    return f'title="{title}"' in attrs or f"title='{title}'" in attrs
+
+
+response_has_kors_cell = response_has_signal_cell
+
 def _assert_trend_legend(html):
     assert (
         "Positivt momentum kan indikera en potentiell uppåtgående (bullish) trend, medan negativt momentum kan indikera en nedåtgående (bearish) trend."
@@ -844,6 +864,136 @@ class TestAktierPaging:
         assert "Apple Inc." in nasdaq
         assert "Paged Co 26" not in nasdaq
         assert "Paged Co 01" not in nasdaq
+
+
+class TestAktierSort:
+    """SPEC 014: full-exchange sort then paginate."""
+
+    def test_sort_headers_and_aria(self, client_with_user, app):
+        _seed_paged_nyse(app, count=3)
+        html = client_with_user.get(
+            "/stocks?exchange=nyse&sort=bolag&dir=asc"
+        ).get_data(as_text=True)
+        thead = html.split("<thead", 1)[1].split("</thead>", 1)[0]
+        assert "Signal" in thead
+        assert 'aria-sort="ascending"' in thead
+        assert "sort=bolag" in html
+        assert "dir=desc" in html  # next click toggles
+
+    def test_bolag_sort_is_global_across_pages(self, client_with_user, app):
+        trading_day = date.today() - timedelta(days=7)
+        with app.app_context():
+            # 26 rows: Z-company is alphabetically last → page 2 under bolag asc
+            for index in range(1, 26):
+                symbol = f"P{index:02d}"
+                db.session.add(
+                    Ticker(
+                        symbol=symbol,
+                        company=f"Paged Co {index:02d}",
+                        market="us_market",
+                        exchange_name="NYSE",
+                    )
+                )
+                db.session.add(
+                    Metric(
+                        ticker=symbol,
+                        company=f"Paged Co {index:02d}",
+                        trading_date=trading_day,
+                        current_price=float(index),
+                        currency="USD",
+                        z_score=0,
+                    )
+                )
+            db.session.add(
+                Ticker(
+                    symbol="ZZZ",
+                    company="Zeta Last",
+                    market="us_market",
+                    exchange_name="NYSE",
+                )
+            )
+            db.session.add(
+                Metric(
+                    ticker="ZZZ",
+                    company="Zeta Last",
+                    trading_date=trading_day,
+                    current_price=1.0,
+                    currency="USD",
+                    z_score=0,
+                )
+            )
+            db.session.commit()
+
+        page1 = client_with_user.get(
+            "/stocks?exchange=nyse&sort=bolag&dir=asc&page=1"
+        ).get_data(as_text=True)
+        assert "Paged Co 01" in page1
+        assert "Zeta Last" not in page1
+        page2 = client_with_user.get(
+            "/stocks?exchange=nyse&sort=bolag&dir=asc&page=2"
+        ).get_data(as_text=True)
+        assert "Zeta Last" in page2
+        assert "Paged Co 01" not in page2
+        assert "sort=bolag" in page2
+        assert "dir=asc" in page2
+
+    def test_trend_sort_brings_high_z_to_page_one(self, client_with_user, app):
+        trading_day = date.today() - timedelta(days=7)
+        with app.app_context():
+            for index in range(1, 27):
+                symbol = f"P{index:02d}"
+                z = 5.0 if symbol == "P26" else float(index) / 100.0
+                db.session.add(
+                    Ticker(
+                        symbol=symbol,
+                        company=f"Paged Co {index:02d}",
+                        market="us_market",
+                        exchange_name="NYSE",
+                    )
+                )
+                db.session.add(
+                    Metric(
+                        ticker=symbol,
+                        company=f"Paged Co {index:02d}",
+                        trading_date=trading_day,
+                        current_price=float(index),
+                        currency="USD",
+                        z_score=z,
+                    )
+                )
+            db.session.commit()
+
+        html = client_with_user.get(
+            "/stocks?exchange=nyse&sort=trend&dir=desc&page=1"
+        ).get_data(as_text=True)
+        assert "Paged Co 26" in html
+        assert 'aria-sort="descending"' in html
+
+    def test_invalid_sort_falls_back_to_symbol_order(self, client_with_user, app):
+        _seed_paged_nyse(app, count=26)
+        html = client_with_user.get(
+            "/stocks?exchange=nyse&sort=nope&dir=asc&page=1"
+        ).get_data(as_text=True)
+        assert "Paged Co 01" in html
+        assert "Paged Co 26" not in html
+        assert "sort=nope" not in html
+
+    def test_sort_change_resets_to_page_one_in_header_links(self, client_with_user, app):
+        _seed_paged_nyse(app, count=26)
+        html = client_with_user.get(
+            "/stocks?exchange=nyse&page=2&sort=bolag&dir=asc"
+        ).get_data(as_text=True)
+        assert "page=1" in html
+        assert "sort=trend" in html
+
+    def test_chart_back_preserves_sort(self, client_with_user, app):
+        _seed_paged_nyse(app, count=26)
+        client_with_user.get("/stocks?exchange=nyse&page=2&sort=bolag&dir=asc")
+        html = client_with_user.get("/stocks/chart/P26").get_data(as_text=True)
+        assert "exchange=nyse" in html
+        assert "page=2" in html
+        assert "sort=bolag" in html
+        assert "dir=asc" in html
 
 
 class TestErrorHandlers:
