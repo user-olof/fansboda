@@ -99,21 +99,25 @@
     color: #fff;
 }
 
-.kors-cell {
+/* Signal column: larger icons without growing rows vs empty — cells.
+   Beat Bootstrap `.table > … > *` padding via equal/higher specificity. */
+.table > :not(caption) > * > td.kors-cell {
     text-align: center;
     white-space: nowrap;
     min-width: 4.5rem;
     font-weight: 600;
     color: #1a1a1a;
     vertical-align: middle;
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
+    line-height: 1;
 }
 
 .signal-icon {
-    display: inline-block;
-    /* Fit existing table row (~heat-cell / text line box); do not grow rows. */
-    width: 1.15em;
-    height: 1.15em;
-    vertical-align: middle;
+    display: block;
+    width: 24px;
+    height: 24px;
+    margin-inline: auto;
 }
 
 .signal-icon--death {
