@@ -99,24 +99,27 @@
     color: #fff;
 }
 
-/* Signal column: larger icons without growing rows vs empty — cells.
-   Beat Bootstrap `.table > … > *` padding via equal/higher specificity. */
+/* Signal column: legibility-first icons (faces/hands readable).
+   Modest row growth vs empty — is acceptable. Beat Bootstrap table padding. */
 .table > :not(caption) > * > td.kors-cell {
     text-align: center;
     white-space: nowrap;
-    min-width: 4.5rem;
+    min-width: 3.25rem;
+    width: 3.25rem;
     font-weight: 600;
     color: #1a1a1a;
     vertical-align: middle;
-    padding-top: 0.25rem;
-    padding-bottom: 0.25rem;
+    padding-top: 0.125rem;
+    padding-bottom: 0.125rem;
+    padding-left: 0.25rem;
+    padding-right: 0.25rem;
     line-height: 1;
 }
 
 .signal-icon {
     display: block;
-    width: 24px;
-    height: 24px;
+    width: 40px;
+    height: 40px;
     margin-inline: auto;
     object-fit: contain;
 }
