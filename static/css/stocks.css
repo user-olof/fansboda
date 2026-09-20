@@ -99,6 +99,28 @@
     color: #fff;
 }
 
+/* Sticky column headers: stick on <th> (not only <thead>) with an explicit
+   stacking level so scrolled Signal spheres cannot paint over column names.
+   Empty spheres use opacity < 1, which creates a stacking context that draws
+   above a sticky thead with z-index: auto. */
+#stocks-table .table-responsive > .table > thead > tr > th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background-color: var(--bs-table-bg, #212529);
+}
+
+/* Sticky column headers: stick on <th> (not only <thead>) with an explicit
+   stacking level so scrolled Signal spheres cannot paint over column names.
+   Empty spheres use opacity < 1, which creates a stacking context that draws
+   above a sticky thead with z-index: auto. */
+#stocks-table .table-responsive > .table > thead > tr > th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background-color: var(--bs-table-bg, #212529);
+}
+
 /* Signal column: glossy status spheres (~40px). Modest row growth OK. */
 .table > :not(caption) > * > td.kors-cell {
     text-align: center;
