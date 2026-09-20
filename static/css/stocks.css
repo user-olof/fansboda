@@ -99,8 +99,7 @@
     color: #fff;
 }
 
-/* Signal column: legibility-first icons (faces/hands readable).
-   Modest row growth vs empty — is acceptable. Beat Bootstrap table padding. */
+/* Signal column: glossy status spheres (~40px). Modest row growth OK. */
 .table > :not(caption) > * > td.kors-cell {
     text-align: center;
     white-space: nowrap;
@@ -122,6 +121,10 @@
     height: 40px;
     margin-inline: auto;
     object-fit: contain;
+}
+
+.signal-icon--empty {
+    opacity: 0.92;
 }
 
 .stocks-sort-link {

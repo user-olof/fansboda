@@ -358,16 +358,15 @@ class TestAktierRoutes:
         assert response_has_signal_cell(html, "Golden", title=crossover_iso)
         assert response_has_signal_cell(html, "Death", title=crossover_iso)
         assert "None Co" in html
-        # Empty placeholder present for non-qualifying row
-        assert re.search(
-            r'class="kors-cell"[^>]*>\s*—\s*</td>|class="kors-cell"[^>]*>\s*&mdash;\s*</td>',
-            html,
-        )
-        # Em dash cells must not imply a crossover via title
+        # Empty placeholder sphere for non-qualifying row
+        assert response_has_signal_cell(html, "none")
+        # Empty sphere cells must not imply a crossover via title
         for match in re.finditer(
-            r'<td class="kors-cell"[^>]*>\s*(?:—|&mdash;)\s*</td>', html
+            r'<td class="kors-cell"([^>]*)>\s*<img[^>]*aria-label="none"[^>]*>\s*</td>',
+            html,
+            flags=re.DOTALL,
         ):
-            assert "title=" not in match.group(0)
+            assert "title=" not in match.group(1)
 
     def test_stocks_kors_stale_golden_clears(self, client_with_user, app):
         origin = _kors_series_origin() - timedelta(weeks=1)
@@ -383,9 +382,7 @@ class TestAktierRoutes:
         html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
         assert "Stale Cross Co" in html
         assert not response_has_signal_cell(html, "Golden")
-        assert response_has_signal_cell(html, "—") or response_has_signal_cell(
-            html, "&mdash;"
-        )
+        assert response_has_signal_cell(html, "none")
 
 
     def test_stocks_heatmap_uses_z_score_vs_market(self, client_with_user, app):
@@ -686,14 +683,14 @@ class TestAktierRoutes:
 
 
 def response_has_signal_cell(html, label, title=None):
-    """Match Signal cell by aria-label (Death|Golden) or em dash empty."""
+    """Match Signal cell by aria-label (Death|Golden|none); legacy em dash empty."""
     if label in ("—", "&mdash;"):
         pattern = r'class="kors-cell"[^>]*>\s*(?:—|&mdash;)\s*</td>'
         match = re.search(pattern, html)
         if not match:
             return False
         return True
-    # Icon cell: aria-label on SVG inside kors-cell
+    # Icon cell: aria-label on img/svg inside kors-cell
     cell_pattern = rf'<td class="kors-cell"([^>]*)>.*?aria-label="{re.escape(label)}".*?</td>'
     match = re.search(cell_pattern, html, flags=re.DOTALL)
     if not match:

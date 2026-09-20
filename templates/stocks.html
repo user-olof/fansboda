@@ -95,20 +95,25 @@
                                     <td class="kors-cell"{% if stock.kors and stock.kors_title %} title="{{ stock.kors_title }}"{% endif %}>
                                         {% if stock.kors == "Death" %}
                                         <img class="signal-icon signal-icon--death"
-                                             src="{{ url_for('static', filename='images/signals/death-woman.svg') }}"
+                                             src="{{ url_for('static', filename='images/signals/sphere-death.svg') }}"
                                              width="40" height="40"
                                              alt=""
                                              role="img"
                                              aria-label="Death">
                                         {% elif stock.kors == "Golden" %}
                                         <img class="signal-icon signal-icon--golden"
-                                             src="{{ url_for('static', filename='images/signals/golden-man.svg') }}"
+                                             src="{{ url_for('static', filename='images/signals/sphere-golden.svg') }}"
                                              width="40" height="40"
                                              alt=""
                                              role="img"
                                              aria-label="Golden">
                                         {% else %}
-                                        —
+                                        <img class="signal-icon signal-icon--empty"
+                                             src="{{ url_for('static', filename='images/signals/sphere-empty.svg') }}"
+                                             width="40" height="40"
+                                             alt=""
+                                             role="img"
+                                             aria-label="none">
                                         {% endif %}
                                     </td>
                                     <td class="fw-semibold">

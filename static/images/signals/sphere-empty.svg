@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-hidden="true" focusable="false">
+  <defs>
+    <radialGradient id="body" cx="36%" cy="32%" r="68%">
+      <stop offset="0%" stop-color="#dee2e6"/>
+      <stop offset="40%" stop-color="#ced4da"/>
+      <stop offset="78%" stop-color="#adb5bd"/>
+      <stop offset="100%" stop-color="#868e96"/>
+    </radialGradient>
+    <radialGradient id="gloss" cx="35%" cy="28%" r="42%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.28"/>
+      <stop offset="40%" stop-color="#ffffff" stop-opacity="0.1"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="rim" x1="20%" y1="10%" x2="85%" y2="95%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.18"/>
+      <stop offset="45%" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#495057" stop-opacity="0.22"/>
+    </linearGradient>
+    <filter id="shadow" x="-25%" y="-15%" width="150%" height="150%">
+      <feDropShadow dx="1.2" dy="2" stdDeviation="1.8" flood-color="#495057" flood-opacity="0.22"/>
+    </filter>
+  </defs>
+  <circle cx="32" cy="31" r="24" fill="url(#body)" filter="url(#shadow)"/>
+  <circle cx="32" cy="31" r="24" fill="url(#rim)"/>
+  <ellipse cx="23.5" cy="20.5" rx="11" ry="7.5" fill="url(#gloss)" transform="rotate(-28 23.5 20.5)"/>
+  <ellipse cx="20" cy="17.5" rx="4.2" ry="2.4" fill="#ffffff" fill-opacity="0.18" transform="rotate(-28 20 17.5)"/>
+</svg>
