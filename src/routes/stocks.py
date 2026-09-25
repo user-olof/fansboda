@@ -44,8 +44,8 @@ DEFAULT_SORT_DIR = {
     "signal": "asc",
 }
 SIGNAL_SORT_RANK = {
-    "Death": 0,
-    "Golden": 1,
+    "Golden": 0,
+    "Death": 1,
 }
 
 
@@ -82,7 +82,7 @@ def aria_sort_value(column, current_sort, current_dir):
 def sort_stock_rows(rows, sort_key, direction):
     """Sort a full exchange row list. Secondary key is always ticker ascending.
 
-    Trend null heat scores sort last. Signal order (asc): Death < Golden < empty.
+    Trend null heat scores sort last. Signal order (asc): Golden < Death < empty.
     """
     ordered = list(rows)
     if not sort_key or sort_key not in SORT_COLUMNS:

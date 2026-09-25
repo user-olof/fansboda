@@ -77,7 +77,7 @@ def test_sort_bolag_case_insensitive_secondary_ticker():
     assert [r["ticker"] for r in ordered_desc] == ["D", "B", "A", "C"]
 
 
-def test_sort_signal_death_golden_empty_secondary_ticker():
+def test_sort_signal_golden_death_empty_secondary_ticker():
     rows = [
         _row("G2", kors="Golden"),
         _row("E1", kors=None),
@@ -87,9 +87,9 @@ def test_sort_signal_death_golden_empty_secondary_ticker():
         _row("D0", kors="Death"),
     ]
     ordered = sort_stock_rows(rows, "signal", "asc")
-    assert [r["ticker"] for r in ordered] == ["D0", "D1", "G1", "G2", "E0", "E1"]
+    assert [r["ticker"] for r in ordered] == ["G1", "G2", "D0", "D1", "E0", "E1"]
     ordered_desc = sort_stock_rows(rows, "signal", "desc")
-    assert [r["ticker"] for r in ordered_desc] == ["E0", "E1", "G1", "G2", "D0", "D1"]
+    assert [r["ticker"] for r in ordered_desc] == ["E0", "E1", "D0", "D1", "G1", "G2"]
 
 
 def test_sort_none_preserves_input_order_copy():
