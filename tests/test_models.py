@@ -6,6 +6,7 @@ from src.models.metrics import Metric
 from src.models.market_metrics import MarketMetric
 from src.models.swe_market_metrics import SweMarketMetric
 from src.models.swe_metrics import SweMetric
+from src.models.swe_ticker import SweTicker
 from src.models.ticker import Ticker
 from src import db
 
@@ -73,12 +74,31 @@ class TestMetricModel:
                 company="Apple Inc.",
                 market="us_market",
                 exchange_name="NASDAQ",
+                business_summary="Apple designs consumer electronics.",
             )
             db.session.add(ticker)
             db.session.commit()
             found = db.session.get(Ticker, "AAPL")
             assert found.exchange_name == "NASDAQ"
+            assert found.business_summary == "Apple designs consumer electronics."
             assert "exchange_name" in Ticker.__table__.c
+            assert "business_summary" in Ticker.__table__.c
+
+    def test_swe_ticker_business_summary(self, client):
+        assert SweTicker.__tablename__ == "swe_tickers"
+        with client.application.app_context():
+            ticker = SweTicker(
+                symbol="VOLV-B.ST",
+                company="Volvo AB",
+                market="se_market",
+                exchange_name="OMX Stockholm",
+                business_summary="Volvo AB manufactures trucks and buses.",
+            )
+            db.session.add(ticker)
+            db.session.commit()
+            found = db.session.get(SweTicker, "VOLV-B.ST")
+            assert found.business_summary == "Volvo AB manufactures trucks and buses."
+            assert "business_summary" in SweTicker.__table__.c
 
     def test_metric_creation(self, client):
         """Test creating a metric with optional display fields."""

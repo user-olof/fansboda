@@ -11,6 +11,16 @@ from src.models.user import User
 from src import db
 
 
+def _chart_header_html(html):
+    match = re.search(
+        r'<div class="chart-header">(.*?)</div>',
+        html,
+        flags=re.DOTALL,
+    )
+    assert match is not None
+    return match.group(1)
+
+
 def _assert_signal_after_trend_before_bolag(html):
     thead = html.split("<thead", 1)[1].split("</thead>", 1)[0]
     trend_pos = thead.find("Trend")
@@ -632,8 +642,13 @@ class TestAktierRoutes:
 
     def test_chart_unknown_ticker_does_not_500(self, client_with_user):
         response = client_with_user.get("/stocks/chart/NOT-A-TICKER")
+        html = response.get_data(as_text=True)
         assert response.status_code == 200
-        assert "Ingen kursdata" in response.get_data(as_text=True)
+        assert "Ingen kursdata" in html
+        assert "NOT-A-TICKER" in html
+        header = _chart_header_html(html)
+        assert "chart-ticker" not in header
+        assert "chart-business-summary" not in header
 
     def test_latest_prices_require_login(self, client):
         response = client.get("/stocks/latest")
@@ -679,6 +694,114 @@ class TestAktierRoutes:
         assert "Market SMA-200" not in html
         assert "2400.25" not in html
         assert "yAxisID: 'y1'" not in html
+        header = _chart_header_html(html)
+        assert "Volvo AB" in header
+        assert "chart-ticker" not in header
+        assert "chart-business-summary" not in header
+        assert "VOLV-B.ST" not in header
+
+    def test_chart_shows_us_business_summary_under_company_name(
+        self, client_with_user, app
+    ):
+        trading_day = date.today() - timedelta(days=7)
+        summary = "Apple Inc. designs, manufactures, and markets smartphones."
+        with app.app_context():
+            db.session.add(
+                Metric(
+                    ticker="AAPL",
+                    company="Apple Inc.",
+                    trading_date=trading_day,
+                    current_price=190.0,
+                    sma_50=185.0,
+                    sma_200=170.0,
+                    currency="USD",
+                )
+            )
+            db.session.add(
+                Ticker(
+                    symbol="AAPL",
+                    company="Apple Inc.",
+                    exchange_name="NASDAQ",
+                    business_summary=summary,
+                )
+            )
+            db.session.commit()
+
+        html = client_with_user.get("/stocks/chart/AAPL").get_data(as_text=True)
+        header = _chart_header_html(html)
+        assert "Apple Inc." in header
+        assert summary in header
+        assert "chart-business-summary" in header
+        assert "chart-ticker" not in header
+        assert "AAPL" not in header
+
+    def test_chart_shows_swe_business_summary_under_company_name(
+        self, client_with_user, app
+    ):
+        trading_day = date.today() - timedelta(days=7)
+        summary = "Volvo AB manufactures trucks, buses, and construction equipment."
+        with app.app_context():
+            db.session.add(
+                SweMetric(
+                    ticker="VOLV-B.ST",
+                    company="Volvo AB",
+                    trading_date=trading_day,
+                    current_price=265.5,
+                    sma_50=250.0,
+                    sma_200=230.0,
+                    currency="SEK",
+                )
+            )
+            db.session.add(
+                SweTicker(
+                    symbol="VOLV-B.ST",
+                    company="Volvo AB",
+                    exchange_name="OMX Stockholm",
+                    business_summary=summary,
+                )
+            )
+            db.session.commit()
+
+        html = client_with_user.get("/stocks/chart/VOLV-B.ST").get_data(as_text=True)
+        header = _chart_header_html(html)
+        assert "Volvo AB" in header
+        assert summary in header
+        assert "chart-business-summary" in header
+        assert "chart-ticker" not in header
+        assert "VOLV-B.ST" not in header
+
+    def test_chart_omits_whitespace_only_business_summary(
+        self, client_with_user, app
+    ):
+        trading_day = date.today() - timedelta(days=7)
+        with app.app_context():
+            db.session.add(
+                Metric(
+                    ticker="MSFT",
+                    company="Microsoft Corporation",
+                    trading_date=trading_day,
+                    current_price=400.0,
+                    sma_50=390.0,
+                    sma_200=350.0,
+                    currency="USD",
+                )
+            )
+            db.session.add(
+                Ticker(
+                    symbol="MSFT",
+                    company="Microsoft Corporation",
+                    exchange_name="NASDAQ",
+                    business_summary="   ",
+                )
+            )
+            db.session.commit()
+
+        html = client_with_user.get("/stocks/chart/MSFT").get_data(as_text=True)
+        header = _chart_header_html(html)
+        assert "Microsoft Corporation" in header
+        assert "chart-business-summary" not in header
+        assert "chart-ticker" not in header
+        assert "MSFT" not in header
 
 
 

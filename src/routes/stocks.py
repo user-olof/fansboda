@@ -311,6 +311,21 @@ def _latest_observation(ticker):
     )
 
 
+def _directory_ticker(symbol):
+    row = db.session.get(Ticker, symbol)
+    if row is not None:
+        return row
+    return db.session.get(SweTicker, symbol)
+
+
+def _business_summary_for(symbol):
+    row = _directory_ticker(symbol)
+    if row is None:
+        return None
+    text = (row.business_summary or "").strip()
+    return text or None
+
+
 def get_last_weeks_metrics(ticker, weeks=52):
     """Return daily metrics for a ticker over the last `weeks` weeks from Neon."""
     cutoff = date.today() - timedelta(weeks=weeks)
@@ -798,6 +813,7 @@ def chart(ticker):
         title=company_name,
         ticker=ticker,
         company_name=company_name,
+        business_summary=_business_summary_for(ticker),
         history=history,
         stocks_return_url=_aktier_return_url(),
     )

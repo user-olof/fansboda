@@ -13,6 +13,7 @@ class Ticker(db.Model):
     industry = db.Column(db.Text, nullable=True)
     market = db.Column(db.Text, nullable=True)
     exchange_name = db.Column(db.Text, nullable=True)
+    business_summary = db.Column(db.Text, nullable=True)
     updated_at = db.Column(db.DateTime(timezone=True), nullable=True)
 
     def __repr__(self):
