@@ -36,6 +36,46 @@
     max-width: 48rem;
 }
 
+.chart-summary-expand {
+    max-width: 48rem;
+    margin-bottom: 0;
+}
+
+.chart-summary-expand > summary {
+    cursor: pointer;
+    list-style: none;
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.5;
+    color: #4b5563;
+}
+
+.chart-summary-expand > summary::-webkit-details-marker {
+    display: none;
+}
+
+.chart-summary-more,
+.chart-summary-expanded {
+    color: #2563eb;
+    white-space: nowrap;
+}
+
+.chart-summary-expanded {
+    display: none;
+}
+
+.chart-summary-expand[open] > summary .chart-summary-collapsed {
+    display: none;
+}
+
+.chart-summary-expand[open] > summary .chart-summary-expanded {
+    display: inline;
+}
+
+.chart-summary-expand[open] > .chart-business-summary {
+    margin-top: 0.5rem;
+}
+
 .chart-card {
     background: #fff;
     border: 1px solid #e5e7eb;

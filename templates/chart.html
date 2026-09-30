@@ -14,7 +14,17 @@
         </a>
         <h1 class="chart-company-name">{{ company_name }}</h1>
         {% if business_summary %}
-        <p class="chart-business-summary">{{ business_summary }}</p>
+        {% if business_summary.truncated %}
+        <details class="chart-summary-expand">
+            <summary>
+                <span class="chart-summary-collapsed">{{ business_summary.preview }}&hellip; <span class="chart-summary-more">Visa mer</span></span>
+                <span class="chart-summary-expanded">Visa mindre</span>
+            </summary>
+            <p class="chart-business-summary">{{ business_summary.text }}</p>
+        </details>
+        {% else %}
+        <p class="chart-business-summary">{{ business_summary.text }}</p>
+        {% endif %}
         {% endif %}
     </div>
 

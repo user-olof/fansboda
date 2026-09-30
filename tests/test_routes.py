@@ -21,6 +21,48 @@ def _chart_header_html(html):
     return match.group(1)
 
 
+def _chart_details_tag(html):
+    header = _chart_header_html(html)
+    match = re.search(r"<details\b([^>]*)>", header, flags=re.IGNORECASE)
+    return match.group(1) if match else None
+
+
+def _chart_summary_inner(html):
+    header = _chart_header_html(html)
+    match = re.search(r"<summary[^>]*>(.*?)</summary>", header, flags=re.DOTALL)
+    assert match is not None
+    return match.group(1)
+
+
+def _seed_chart_summary(app, *, symbol, company, summary, swe=False):
+    trading_day = date.today() - timedelta(days=7)
+    metric_cls = SweMetric if swe else Metric
+    ticker_cls = SweTicker if swe else Ticker
+    with app.app_context():
+        db.session.add(
+            metric_cls(
+                ticker=symbol,
+                company=company,
+                trading_date=trading_day,
+                current_price=190.0,
+                sma_50=185.0,
+                sma_200=170.0,
+                currency="SEK" if swe else "USD",
+            )
+        )
+        ticker_kwargs = {
+            "symbol": symbol,
+            "company": company,
+            "business_summary": summary,
+        }
+        if swe:
+            ticker_kwargs["exchange_name"] = "OMX Stockholm"
+        else:
+            ticker_kwargs["exchange_name"] = "NASDAQ"
+        db.session.add(ticker_cls(**ticker_kwargs))
+        db.session.commit()
+
+
 def _assert_signal_after_trend_before_bolag(html):
     thead = html.split("<thead", 1)[1].split("</thead>", 1)[0]
     trend_pos = thead.find("Trend")
@@ -734,6 +776,8 @@ class TestAktierRoutes:
         assert "chart-business-summary" in header
         assert "chart-ticker" not in header
         assert "AAPL" not in header
+        assert "Visa mer" not in header
+        assert "<details" not in header
 
     def test_chart_shows_swe_business_summary_under_company_name(
         self, client_with_user, app
@@ -769,6 +813,8 @@ class TestAktierRoutes:
         assert "chart-business-summary" in header
         assert "chart-ticker" not in header
         assert "VOLV-B.ST" not in header
+        assert "Visa mer" not in header
+        assert "<details" not in header
 
     def test_chart_omits_whitespace_only_business_summary(
         self, client_with_user, app
@@ -802,7 +848,43 @@ class TestAktierRoutes:
         assert "chart-business-summary" not in header
         assert "chart-ticker" not in header
         assert "MSFT" not in header
+        assert "Visa mer" not in header
+        assert "<details" not in header
 
+    def test_chart_truncates_long_business_summary_to_200_chars(
+        self, client_with_user, app
+    ):
+        summary = ("A" * 200) + "TAILMARKER"
+        _seed_chart_summary(
+            app, symbol="LONG", company="Long Summary Co", summary=summary
+        )
+        html = client_with_user.get("/stocks/chart/LONG").get_data(as_text=True)
+        preview = _chart_summary_inner(html)
+        assert "A" * 200 in preview
+        assert "TAILMARKER" not in preview
+        assert "Visa mer" in preview
+        assert "&hellip;" in preview or "…" in preview
+        details_attrs = _chart_details_tag(html)
+        assert details_attrs is not None
+        assert "open" not in details_attrs.lower()
+        header = _chart_header_html(html)
+        assert summary in header
+        assert "Visa mindre" in header
+        assert "chart-ticker" not in header
+
+    def test_chart_shows_full_summary_at_exactly_200_chars(
+        self, client_with_user, app
+    ):
+        summary = "B" * 200
+        _seed_chart_summary(
+            app, symbol="EXACT", company="Exact Length Co", summary=summary
+        )
+        html = client_with_user.get("/stocks/chart/EXACT").get_data(as_text=True)
+        header = _chart_header_html(html)
+        assert summary in header
+        assert "Visa mer" not in header
+        assert "<details" not in header
+        assert "chart-business-summary" in header
 
 
 def response_has_signal_cell(html, label, title=None):

@@ -318,12 +318,26 @@ def _directory_ticker(symbol):
     return db.session.get(SweTicker, symbol)
 
 
+SUMMARY_PREVIEW_CHARS = 200
+
+
 def _business_summary_for(symbol):
     row = _directory_ticker(symbol)
     if row is None:
         return None
     text = (row.business_summary or "").strip()
     return text or None
+
+
+def _summary_heading(text):
+    if not text:
+        return None
+    truncated = len(text) > SUMMARY_PREVIEW_CHARS
+    return {
+        "text": text,
+        "preview": text[:SUMMARY_PREVIEW_CHARS] if truncated else text,
+        "truncated": truncated,
+    }
 
 
 def get_last_weeks_metrics(ticker, weeks=52):
@@ -813,7 +827,7 @@ def chart(ticker):
         title=company_name,
         ticker=ticker,
         company_name=company_name,
-        business_summary=_business_summary_for(ticker),
+        business_summary=_summary_heading(_business_summary_for(ticker)),
         history=history,
         stocks_return_url=_aktier_return_url(),
     )
