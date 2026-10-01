@@ -1,13 +1,16 @@
 import pytest
 from datetime import date
+from decimal import Decimal
 
 from src.models.user import User, Role
 from src.models.metrics import Metric
 from src.models.market_metrics import MarketMetric
+from src.models.swe_by_sector import SweBySector
 from src.models.swe_market_metrics import SweMarketMetric
 from src.models.swe_metrics import SweMetric
 from src.models.swe_ticker import SweTicker
 from src.models.ticker import Ticker
+from src.models.us_by_sector import UsBySector
 from src import db
 
 
@@ -190,3 +193,60 @@ class TestMetricModel:
         assert _display_sector("foo--bar") == "foo bar"
         assert _display_sector("   ") is None
         assert _display_sector(None) is None
+
+
+class TestSectorModels:
+    def test_us_and_swe_by_sector_map_neon_tables(self, client):
+        assert UsBySector.__tablename__ == "us_by_sector"
+        assert SweBySector.__tablename__ == "swe_by_sector"
+        for model in (UsBySector, SweBySector):
+            pk = {column.name for column in model.__table__.primary_key.columns}
+            assert pk == {"sector", "week_start"}
+            for name in (
+                "ticker_count",
+                "z_score_mean",
+                "pct_uptrend",
+                "momentum_mean",
+                "momentum_median",
+                "updated_at",
+            ):
+                assert name in model.__table__.c
+
+    def test_us_by_sector_round_trip(self, client):
+        with client.application.app_context():
+            row = UsBySector(
+                sector="energy",
+                week_start=date(2026, 9, 28),
+                ticker_count=190,
+                z_score_mean=Decimal("0.317925"),
+                pct_uptrend=Decimal("72.631579"),
+            )
+            db.session.add(row)
+            db.session.commit()
+            found = db.session.get(UsBySector, ("energy", date(2026, 9, 28)))
+            assert found.ticker_count == 190
+            assert float(found.z_score_mean) == 0.317925
+            assert float(found.pct_uptrend) == 72.631579
+
+    def test_swe_by_sector_round_trip(self, client):
+        with client.application.app_context():
+            row = SweBySector(
+                sector="basic-materials",
+                week_start=date(2026, 9, 21),
+                ticker_count=36,
+                z_score_mean=Decimal("0.101050"),
+                pct_uptrend=Decimal("55.555556"),
+            )
+            db.session.add(row)
+            db.session.commit()
+            found = db.session.get(SweBySector, ("basic-materials", date(2026, 9, 21)))
+            assert found.ticker_count == 36
+            assert float(found.pct_uptrend) == 55.555556
+
+    def test_ratio_label_uses_stored_percent(self):
+        from src.routes.stocks import _ratio_label
+
+        assert _ratio_label(Decimal("72.631579")) == "72.6%"
+        assert _ratio_label(Decimal("55.555556")) == "55.6%"
+        assert _ratio_label(None) is None
+        assert _ratio_label(0) == "0.0%"

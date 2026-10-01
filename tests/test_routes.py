@@ -1,12 +1,15 @@
 import re
 from datetime import date, timedelta
 from decimal import Decimal
+from pathlib import Path
 
 from src.models.market_metrics import MarketMetric
 from src.models.metrics import Metric
 from src.models.swe_metrics import SweMetric
+from src.models.swe_by_sector import SweBySector
 from src.models.swe_ticker import SweTicker
 from src.models.ticker import Ticker
+from src.models.us_by_sector import UsBySector
 from src.models.user import User
 from src import db
 
@@ -71,6 +74,49 @@ def _assert_signal_after_trend_before_bolag(html):
     assert trend_pos != -1 and signal_pos != -1 and bolag_pos != -1
     assert trend_pos < signal_pos < bolag_pos
     assert "Kors" not in thead
+
+
+def _assert_no_choose_bors(html):
+    assert "Välj en börs" not in html
+    assert "V&auml;lj en b&ouml;rs" not in html
+
+
+def _assert_sector_headers(html):
+    thead = html.split("<thead", 1)[1].split("</thead>", 1)[0]
+    names = ["Trend", "Signal", "Sektor", "Antal aktier", "Valuta", "Ratio"]
+    positions = [thead.find(name) for name in names]
+    assert all(pos != -1 for pos in positions), thead
+    assert positions == sorted(positions)
+    assert "Bolag" not in thead
+    assert "Pris" not in thead
+    assert "Industri" not in thead
+    assert "Symbol" not in thead
+    assert "Kors" not in thead
+    assert "Heat" not in thead
+
+
+def _seed_sector_row(
+    app,
+    *,
+    swe=False,
+    sector,
+    week_start,
+    ticker_count,
+    z_score_mean=None,
+    pct_uptrend=None,
+):
+    model = SweBySector if swe else UsBySector
+    with app.app_context():
+        db.session.add(
+            model(
+                sector=sector,
+                week_start=week_start,
+                ticker_count=ticker_count,
+                z_score_mean=z_score_mean,
+                pct_uptrend=pct_uptrend,
+            )
+        )
+        db.session.commit()
 
 
 # Back-compat alias used during SPEC 013→014 transition in older diffs
@@ -341,6 +387,8 @@ class TestAktierRoutes:
         assert "Signal" not in body
         assert "Golden" not in body
         assert "Death" not in body
+        assert "Antal aktier" not in body
+        assert "Sektor" not in body
 
     def test_stocks_empty_table_when_logged_in(self, client_with_user):
         response = client_with_user.get("/stocks")
@@ -349,17 +397,93 @@ class TestAktierRoutes:
         assert "NASDAQ" in html
         assert "NYSE" in html
         assert "OMX Stockholm" in html
-        assert "Välj en börs" in html or "V&auml;lj en b&ouml;rs" in html
+        _assert_no_choose_bors(html)
         assert "Inga aktier" not in html
-        assert "Industri" in html
         assert "Beskrivning" not in html
-        thead = html.split("<thead", 1)[1].split("</thead>", 1)[0]
-        assert "Trend" in thead
-        assert "Signal" in thead
-        assert "Kors" not in thead
-        assert "Heat" not in thead
-        _assert_signal_after_trend_before_bolag(html)
+        _assert_sector_headers(html)
         _assert_trend_legend(html)
+
+    def test_stocks_landing_sector_table_from_stored_rows(self, client_with_user, app):
+        latest_us = date(2026, 9, 28)
+        older_us = date(2026, 9, 21)
+        _seed_sector_row(
+            app,
+            sector="energy",
+            week_start=older_us,
+            ticker_count=999,
+            z_score_mean=Decimal("0.1"),
+            pct_uptrend=Decimal("10.0"),
+        )
+        _seed_sector_row(
+            app,
+            sector="energy",
+            week_start=latest_us,
+            ticker_count=190,
+            z_score_mean=Decimal("-2"),
+            pct_uptrend=Decimal("72.631579"),
+        )
+        _seed_sector_row(
+            app,
+            swe=True,
+            sector="basic-materials",
+            week_start=older_us,
+            ticker_count=36,
+            z_score_mean=Decimal("0.101050"),
+            pct_uptrend=Decimal("55.555556"),
+        )
+        html = client_with_user.get("/stocks").get_data(as_text=True)
+        _assert_no_choose_bors(html)
+        _assert_sector_headers(html)
+        assert "energy" in html
+        assert "basic materials" in html
+        assert "basic-materials" not in html
+        assert "190" in html
+        assert "999" not in html
+        assert "36" in html
+        assert "USD" in html
+        assert "SEK" in html
+        assert "72.6%" in html
+        assert "55.6%" in html
+        assert "72.631579" not in html
+        assert "Bolag" not in html.split("<thead", 1)[1].split("</thead>", 1)[0]
+        nasdaq = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
+        nasdaq_thead = nasdaq.split("<thead", 1)[1].split("</thead>", 1)[0]
+        assert "Antal aktier" not in nasdaq_thead
+        assert "Sektor" not in nasdaq_thead
+        assert "Ratio" not in nasdaq_thead
+        assert "Bolag" in nasdaq_thead
+        _assert_no_choose_bors(nasdaq)
+
+    def test_stocks_landing_trend_colour_and_empty_signal(self, client_with_user, app):
+        _seed_sector_row(
+            app,
+            sector="energy",
+            week_start=date(2026, 9, 28),
+            ticker_count=190,
+            z_score_mean=Decimal("-2"),
+            pct_uptrend=Decimal("72.6"),
+        )
+        _seed_sector_row(
+            app,
+            sector="utilities",
+            week_start=date(2026, 9, 28),
+            ticker_count=11,
+            z_score_mean=None,
+            pct_uptrend=None,
+        )
+        html = client_with_user.get("/stocks").get_data(as_text=True)
+        assert "background-color: #1d4ed8" in html
+        assert "background-color: #e5e7eb" in html
+        assert re.search(r'class="heat-cell[^"]*"[^>]*>\s*</td>', html)
+        visible = html.replace("z=-2.00", "")
+        assert "-2.00" not in visible
+        assert response_has_signal_cell(html, "none")
+        assert not response_has_signal_cell(html, "Golden")
+        assert not response_has_signal_cell(html, "Death")
+        template = Path(__file__).resolve().parents[1].joinpath("templates/stocks.html").read_text()
+        assert template.count('aria-label="Death"') >= 2
+        assert template.count('aria-label="Golden"') >= 2
+        assert template.count('aria-label="none"') >= 2
 
     def test_stocks_trend_header_with_exchange_selected(self, client_with_user):
         html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
@@ -373,6 +497,10 @@ class TestAktierRoutes:
         _assert_signal_after_trend_before_bolag(html)
         assert 'colspan="7"' in html or "colspan='7'" in html
         _assert_trend_legend(html)
+        _assert_no_choose_bors(html)
+        assert "Antal aktier" not in thead
+        assert "Sektor" not in thead
+        assert "Ratio" not in thead
 
     def test_stocks_admin_sees_kors_header(self, client_with_admin_user):
         html = client_with_admin_user.get("/stocks?exchange=nasdaq").get_data(
@@ -670,11 +798,14 @@ class TestAktierRoutes:
         html = client_with_user.get("/stocks").get_data(as_text=True)
         assert "Apple Inc." not in html
         assert "exchange-btn--selected" not in html
-        assert "V&auml;lj en b&ouml;rs" in html or "Välj en börs" in html
+        _assert_no_choose_bors(html)
+        _assert_sector_headers(html)
 
         unknown = client_with_user.get("/stocks?exchange=tokyo").get_data(as_text=True)
         assert "Apple Inc." not in unknown
         assert "exchange-btn--selected" not in unknown
+        _assert_sector_headers(unknown)
+        _assert_no_choose_bors(unknown)
 
         empty = client_with_user.get("/stocks?exchange=nyse")
         empty_html = empty.get_data(as_text=True)

@@ -10,10 +10,12 @@ from src import cache, db
 from src.access_control import role_required
 from src.models.market_metrics import MarketMetric
 from src.models.metrics import Metric
+from src.models.swe_by_sector import SweBySector
 from src.models.swe_market_metrics import SweMarketMetric
 from src.models.swe_metrics import SweMetric
 from src.models.swe_ticker import SweTicker
 from src.models.ticker import Ticker
+from src.models.us_by_sector import UsBySector
 from src.models.user import Role
 from src.services.cross_detection import SmaSnapshot, detect_all_patterns
 from src.services.kors_display import select_kors_display
@@ -369,6 +371,55 @@ def _display_sector(sector):
         text = text.replace(dash, " ")
     text = " ".join(text.split())
     return text or None
+
+
+_SECTOR_CURRENCY_ORDER = {"USD": 0, "SEK": 1}
+
+
+def _ratio_label(value):
+    """Readable percent from stored pct_uptrend (already 0–100). Do not × 100."""
+    n = _to_float(value)
+    if n is None:
+        return None
+    return f"{n:.1f}%"
+
+
+def _sector_row(record, currency):
+    z = _to_float(record.z_score_mean)
+    return {
+        "sector": _display_sector(record.sector) or record.sector,
+        "ticker_count": record.ticker_count,
+        "currency": currency,
+        "ratio_label": _ratio_label(record.pct_uptrend),
+        "heat_score": z,
+        "heat_color": heat_color_from_z(z),
+        "heat_hot": z is not None and round(z, 2) > 1,
+        "heat_title": _heat_title(z),
+        "kors": None,
+        "kors_title": "",
+    }
+
+
+def _latest_sector_records(model):
+    week = db.session.query(db.func.max(model.week_start)).scalar()
+    if week is None:
+        return []
+    return model.query.filter(model.week_start == week).all()
+
+
+def _load_sector_rows():
+    """Latest-week US + SWE sector rows. Do not scan history or use aktier_table."""
+    rows = []
+    for model, currency in ((UsBySector, "USD"), (SweBySector, "SEK")):
+        for record in _latest_sector_records(model):
+            rows.append(_sector_row(record, currency))
+    rows.sort(
+        key=lambda row: (
+            (row.get("sector") or "").casefold(),
+            _SECTOR_CURRENCY_ORDER.get(row.get("currency"), 9),
+        )
+    )
+    return rows
 
 
 def _ticker_map(ticker_model, symbols):
@@ -768,6 +819,7 @@ def stocks():
     stock_rows = []
     stock_total = 0
     stock_page = 1
+    sector_rows = []
     if selected_exchange:
         stock_rows, stock_total, stock_page = _load_table_page(
             current_user.id,
@@ -779,6 +831,8 @@ def stocks():
         _remember_aktier_view(
             selected_exchange, stock_page, sort_key=sort_key, direction=direction
         )
+    else:
+        sector_rows = _load_sector_rows()
     last_page = _page_count(stock_total)
     range_start = ((stock_page - 1) * PAGE_SIZE) + 1 if stock_total else 0
     range_end = min(stock_page * PAGE_SIZE, stock_total)
@@ -786,6 +840,7 @@ def stocks():
         "stocks.html",
         title="Aktier",
         stocks=stock_rows,
+        sectors=sector_rows,
         selected_exchange=selected_exchange,
         stock_total=stock_total,
         stock_page=stock_page,

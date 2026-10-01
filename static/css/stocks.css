@@ -179,6 +179,13 @@ th[aria-sort="descending"] .stocks-sort-link::after {
     color: #1a1a1a;
 }
 
+.sector-count-cell,
+.sector-ratio-cell {
+    text-align: right;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
 .stocks-paging {
     display: flex;
     flex-wrap: wrap;
