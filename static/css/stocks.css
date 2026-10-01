@@ -121,6 +121,19 @@
     background-color: var(--bs-table-bg, #212529);
 }
 
+/* Sector table: 10 data rows + header in view, then scroll (not 60vh). */
+#sector-table .table-responsive {
+    max-height: calc(2.55rem + 10 * 2.8125rem);
+    overflow-y: auto;
+}
+
+#sector-table .table-responsive > .table > thead > tr > th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background-color: var(--bs-table-bg, #212529);
+}
+
 /* Signal column: glossy status spheres (~40px). Modest row growth OK. */
 .table > :not(caption) > * > td.kors-cell {
     text-align: center;

@@ -384,7 +384,7 @@ def _ratio_label(value):
     return f"{n:.1f}%"
 
 
-def _sector_row(record, currency):
+def _sector_row(record, currency, kors=None, kors_title=""):
     z = _to_float(record.z_score_mean)
     return {
         "sector": _display_sector(record.sector) or record.sector,
@@ -395,9 +395,17 @@ def _sector_row(record, currency):
         "heat_color": heat_color_from_z(z),
         "heat_hot": z is not None and round(z, 2) > 1,
         "heat_title": _heat_title(z),
-        "kors": None,
-        "kors_title": "",
+        "kors": kors,
+        "kors_title": kors_title or "",
     }
+
+
+def _sector_momentum(record):
+    """Scale-free 50/200 ratio. Prefer median; do not average raw SMA prices."""
+    n = _to_float(record.momentum_median)
+    if n is None:
+        n = _to_float(record.momentum_mean)
+    return n
 
 
 def _latest_sector_records(model):
@@ -407,12 +415,58 @@ def _latest_sector_records(model):
     return model.query.filter(model.week_start == week).all()
 
 
+def _sector_momentum_history(model):
+    """Weekly momentum vs 1.0 as SMA snapshots, last SMA_HISTORY_WEEKS."""
+    cutoff = date.today() - timedelta(weeks=SMA_HISTORY_WEEKS)
+    rows = (
+        model.query.filter(model.week_start >= cutoff)
+        .order_by(model.sector.asc(), model.week_start.asc())
+        .all()
+    )
+    history = {}
+    for record in rows:
+        momentum = _sector_momentum(record)
+        if momentum is None:
+            continue
+        history.setdefault(record.sector, []).append(
+            SmaSnapshot(
+                trading_date=record.week_start,
+                sma_50=_to_decimal(momentum),
+                sma_200=Decimal("1"),
+            )
+        )
+    return history
+
+
+def _kors_for_sector(sector_slug, snapshots, latest_week, country=""):
+    try:
+        events = detect_all_patterns(
+            snapshots or [],
+            ticker=sector_slug,
+            country=country,
+        )
+        display = select_kors_display(events, latest_week)
+        return display.kors, display.kors_title
+    except Exception:
+        return None, ""
+
+
 def _load_sector_rows():
-    """Latest-week US + SWE sector rows. Do not scan history or use aktier_table."""
+    """Latest-week US + SWE sector rows with on-the-fly RFC-013 Signal."""
     rows = []
-    for model, currency in ((UsBySector, "USD"), (SweBySector, "SEK")):
+    for model, currency, country in (
+        (UsBySector, "USD", "us"),
+        (SweBySector, "SEK", "se"),
+    ):
+        history = _sector_momentum_history(model)
         for record in _latest_sector_records(model):
-            rows.append(_sector_row(record, currency))
+            kors, kors_title = _kors_for_sector(
+                record.sector,
+                history.get(record.sector),
+                record.week_start,
+                country,
+            )
+            rows.append(_sector_row(record, currency, kors=kors, kors_title=kors_title))
     rows.sort(
         key=lambda row: (
             (row.get("sector") or "").casefold(),
@@ -819,7 +873,7 @@ def stocks():
     stock_rows = []
     stock_total = 0
     stock_page = 1
-    sector_rows = []
+    sector_rows = _load_sector_rows()
     if selected_exchange:
         stock_rows, stock_total, stock_page = _load_table_page(
             current_user.id,
@@ -831,8 +885,6 @@ def stocks():
         _remember_aktier_view(
             selected_exchange, stock_page, sort_key=sort_key, direction=direction
         )
-    else:
-        sector_rows = _load_sector_rows()
     last_page = _page_count(stock_total)
     range_start = ((stock_page - 1) * PAGE_SIZE) + 1 if stock_total else 0
     range_end = min(stock_page * PAGE_SIZE, stock_total)

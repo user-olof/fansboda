@@ -66,8 +66,26 @@ def _seed_chart_summary(app, *, symbol, company, summary, swe=False):
         db.session.commit()
 
 
+def _theads(html):
+    return [chunk.split("</thead>", 1)[0] for chunk in html.split("<thead")[1:]]
+
+
+def _sector_thead(html):
+    for thead in _theads(html):
+        if "Antal aktier" in thead:
+            return thead
+    raise AssertionError("no sector thead")
+
+
+def _stock_thead(html):
+    for thead in _theads(html):
+        if "Bolag" in thead:
+            return thead
+    raise AssertionError("no stock thead")
+
+
 def _assert_signal_after_trend_before_bolag(html):
-    thead = html.split("<thead", 1)[1].split("</thead>", 1)[0]
+    thead = _stock_thead(html)
     trend_pos = thead.find("Trend")
     signal_pos = thead.find("Signal")
     bolag_pos = thead.find("Bolag")
@@ -82,7 +100,7 @@ def _assert_no_choose_bors(html):
 
 
 def _assert_sector_headers(html):
-    thead = html.split("<thead", 1)[1].split("</thead>", 1)[0]
+    thead = _sector_thead(html)
     names = ["Trend", "Signal", "Sektor", "Antal aktier", "Valuta", "Ratio"]
     positions = [thead.find(name) for name in names]
     assert all(pos != -1 for pos in positions), thead
@@ -95,6 +113,14 @@ def _assert_sector_headers(html):
     assert "Heat" not in thead
 
 
+def _assert_sector_above_stocks(html):
+    sector_pos = html.find('id="sector-table"')
+    stocks_pos = html.find('id="stocks-table"')
+    assert sector_pos != -1
+    assert stocks_pos != -1
+    assert sector_pos < stocks_pos
+
+
 def _seed_sector_row(
     app,
     *,
@@ -104,6 +130,8 @@ def _seed_sector_row(
     ticker_count,
     z_score_mean=None,
     pct_uptrend=None,
+    momentum_mean=None,
+    momentum_median=None,
 ):
     model = SweBySector if swe else UsBySector
     with app.app_context():
@@ -114,9 +142,60 @@ def _seed_sector_row(
                 ticker_count=ticker_count,
                 z_score_mean=z_score_mean,
                 pct_uptrend=pct_uptrend,
+                momentum_mean=momentum_mean,
+                momentum_median=momentum_median,
             )
         )
         db.session.commit()
+
+
+def _golden_momentum_series():
+    """Same Golden shape as name SMAs, as 50/200 ratio vs 1."""
+    return [
+        (0, "0.90"),
+        (1, "0.92"),
+        (2, "0.94"),
+        (3, "0.96"),
+        (4, "1.05"),
+    ]
+
+
+def _death_momentum_series():
+    return [
+        (0, "1.10"),
+        (1, "1.08"),
+        (2, "1.06"),
+        (3, "1.04"),
+        (4, "0.95"),
+    ]
+
+
+def _seed_sector_momentum_series(
+    app,
+    *,
+    sector,
+    series,
+    origin=None,
+    swe=False,
+    ticker_count=10,
+    pct_uptrend=None,
+    momentum_mean=None,
+    use_mean_only=False,
+):
+    origin = origin or _kors_series_origin()
+    for week, momentum in series:
+        median = None if use_mean_only else Decimal(momentum)
+        mean = Decimal(momentum) if use_mean_only else momentum_mean
+        _seed_sector_row(
+            app,
+            swe=swe,
+            sector=sector,
+            week_start=_week(week, origin),
+            ticker_count=ticker_count,
+            pct_uptrend=pct_uptrend,
+            momentum_median=median,
+            momentum_mean=mean,
+        )
 
 
 # Back-compat alias used during SPEC 013→014 transition in older diffs
@@ -446,12 +525,16 @@ class TestAktierRoutes:
         assert "55.6%" in html
         assert "72.631579" not in html
         assert "Bolag" not in html.split("<thead", 1)[1].split("</thead>", 1)[0]
+        assert 'id="sector-table"' in html
+        assert 'id="stocks-table"' not in html
         nasdaq = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
-        nasdaq_thead = nasdaq.split("<thead", 1)[1].split("</thead>", 1)[0]
-        assert "Antal aktier" not in nasdaq_thead
-        assert "Sektor" not in nasdaq_thead
-        assert "Ratio" not in nasdaq_thead
-        assert "Bolag" in nasdaq_thead
+        _assert_sector_above_stocks(nasdaq)
+        _assert_sector_headers(nasdaq)
+        nasdaq_stock_thead = _stock_thead(nasdaq)
+        assert "Antal aktier" not in nasdaq_stock_thead
+        assert "Sektor" not in nasdaq_stock_thead
+        assert "Ratio" not in nasdaq_stock_thead
+        assert "Bolag" in nasdaq_stock_thead
         _assert_no_choose_bors(nasdaq)
 
     def test_stocks_landing_trend_colour_and_empty_signal(self, client_with_user, app):
@@ -485,9 +568,112 @@ class TestAktierRoutes:
         assert template.count('aria-label="Golden"') >= 2
         assert template.count('aria-label="none"') >= 2
 
+    def test_stocks_sector_table_scrolls_after_ten_rows(self, client_with_user, app):
+        week = date(2026, 9, 28)
+        for i in range(11):
+            _seed_sector_row(
+                app,
+                sector=f"sec{i:02d}",
+                week_start=week,
+                ticker_count=i + 1,
+            )
+        html = client_with_user.get("/stocks").get_data(as_text=True)
+        for i in range(11):
+            assert f"sec{i:02d}" in html
+        assert "sector-table-scroll" in html
+        assert 'id="sector-table"' in html
+        assert 'id="stocks-table"' not in html
+        css = Path(__file__).resolve().parents[1].joinpath("static/css/stocks.css").read_text()
+        assert "#sector-table .table-responsive" in css
+        assert "10 * 2.8125rem" in css
+        assert "max-height: 60vh" not in css.split("#sector-table")[1].split(".kors-cell")[0]
+
+    def test_stocks_sector_signal_golden_death_and_empty_from_momentum(
+        self, client_with_user, app
+    ):
+        origin = _kors_series_origin()
+        crossover_iso = _week(4, origin).isoformat()
+        _seed_sector_momentum_series(
+            app,
+            sector="goldensector",
+            series=_golden_momentum_series(),
+            origin=origin,
+        )
+        _seed_sector_momentum_series(
+            app,
+            sector="deathsector",
+            series=_death_momentum_series(),
+            origin=origin,
+        )
+        _seed_sector_row(
+            app,
+            sector="emptysector",
+            week_start=_week(4, origin),
+            ticker_count=3,
+            pct_uptrend=Decimal("90.0"),
+            momentum_median=Decimal("1.00"),
+        )
+        html = client_with_user.get("/stocks").get_data(as_text=True)
+        assert "goldensector" in html
+        assert "deathsector" in html
+        assert "emptysector" in html
+        assert response_has_signal_cell(html, "Golden", title=crossover_iso)
+        assert response_has_signal_cell(html, "Death", title=crossover_iso)
+        assert response_has_signal_cell(html, "none")
+
+    def test_stocks_sector_signal_ignores_high_ratio_without_cross(
+        self, client_with_user, app
+    ):
+        _seed_sector_row(
+            app,
+            sector="hotsector",
+            week_start=date.today(),
+            ticker_count=50,
+            pct_uptrend=Decimal("95.0"),
+            momentum_median=Decimal("1.10"),
+        )
+        html = client_with_user.get("/stocks").get_data(as_text=True)
+        assert "hotsector" in html
+        assert "95.0%" in html
+        assert not response_has_signal_cell(html, "Golden")
+        assert not response_has_signal_cell(html, "Death")
+        assert response_has_signal_cell(html, "none")
+
+    def test_stocks_sector_signal_prefers_median_over_mean(self, client_with_user, app):
+        origin = _kors_series_origin()
+        crossover_iso = _week(4, origin).isoformat()
+        for week, momentum in _golden_momentum_series():
+            _seed_sector_row(
+                app,
+                sector="medianwins",
+                week_start=_week(week, origin),
+                ticker_count=8,
+                momentum_median=Decimal(momentum),
+                momentum_mean=Decimal("1.00"),
+            )
+        html = client_with_user.get("/stocks").get_data(as_text=True)
+        assert response_has_signal_cell(html, "Golden", title=crossover_iso)
+
+    def test_stocks_sector_signal_uses_mean_when_median_missing(
+        self, client_with_user, app
+    ):
+        origin = _kors_series_origin()
+        crossover_iso = _week(4, origin).isoformat()
+        _seed_sector_momentum_series(
+            app,
+            sector="meanonly",
+            series=_golden_momentum_series(),
+            origin=origin,
+            use_mean_only=True,
+        )
+        html = client_with_user.get("/stocks").get_data(as_text=True)
+        assert response_has_signal_cell(html, "Golden", title=crossover_iso)
+
     def test_stocks_trend_header_with_exchange_selected(self, client_with_user):
         html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
-        thead = html.split("<thead", 1)[1].split("</thead>", 1)[0]
+        _assert_sector_above_stocks(html)
+        _assert_sector_headers(html)
+        thead = _stock_thead(html)
         assert "Trend" in thead
         assert "Signal" in thead
         assert "Kors" not in thead
@@ -800,18 +986,24 @@ class TestAktierRoutes:
         assert "exchange-btn--selected" not in html
         _assert_no_choose_bors(html)
         _assert_sector_headers(html)
+        assert 'id="sector-table"' in html
+        assert 'id="stocks-table"' not in html
+        assert "js/stocks.js" not in html
 
         unknown = client_with_user.get("/stocks?exchange=tokyo").get_data(as_text=True)
         assert "Apple Inc." not in unknown
         assert "exchange-btn--selected" not in unknown
         _assert_sector_headers(unknown)
         _assert_no_choose_bors(unknown)
+        assert 'id="stocks-table"' not in unknown
 
         empty = client_with_user.get("/stocks?exchange=nyse")
         empty_html = empty.get_data(as_text=True)
         assert empty.status_code == 200
         assert "Inga aktier" in empty_html
         assert "Apple Inc." not in empty_html
+        _assert_sector_above_stocks(empty_html)
+        assert "js/stocks.js" in empty_html
 
     def test_chart_unknown_ticker_does_not_500(self, client_with_user):
         response = client_with_user.get("/stocks/chart/NOT-A-TICKER")
@@ -1102,7 +1294,12 @@ def _seed_paged_nyse(app, count=26, include_nasdaq=False):
 
 
 def _tbody_row_count(html):
-    tbody = html.split("<tbody", 1)[1].split("</tbody>", 1)[0]
+    """Count data rows in the stock table (second tbody when stacked)."""
+    if 'id="stocks-table"' in html:
+        card = html.split('id="stocks-table"', 1)[1]
+        tbody = card.split("<tbody", 1)[1].split("</tbody>", 1)[0]
+    else:
+        tbody = html.split("<tbody", 1)[1].split("</tbody>", 1)[0]
     return tbody.count("<tr>")
 
 
@@ -1207,7 +1404,7 @@ class TestAktierSort:
         html = client_with_user.get(
             "/stocks?exchange=nyse&sort=bolag&dir=asc"
         ).get_data(as_text=True)
-        thead = html.split("<thead", 1)[1].split("</thead>", 1)[0]
+        thead = _stock_thead(html)
         assert "Signal" in thead
         assert 'aria-sort="ascending"' in thead
         assert "sort=bolag" in html
