@@ -568,9 +568,9 @@ class TestAktierRoutes:
         assert template.count('aria-label="Golden"') >= 2
         assert template.count('aria-label="none"') >= 2
 
-    def test_stocks_sector_table_scrolls_after_ten_rows(self, client_with_user, app):
+    def test_stocks_sector_table_scrolls_after_five_rows(self, client_with_user, app):
         week = date(2026, 9, 28)
-        for i in range(11):
+        for i in range(6):
             _seed_sector_row(
                 app,
                 sector=f"sec{i:02d}",
@@ -578,15 +578,25 @@ class TestAktierRoutes:
                 ticker_count=i + 1,
             )
         html = client_with_user.get("/stocks").get_data(as_text=True)
-        for i in range(11):
+        for i in range(6):
             assert f"sec{i:02d}" in html
         assert "sector-table-scroll" in html
         assert 'id="sector-table"' in html
         assert 'id="stocks-table"' not in html
         css = Path(__file__).resolve().parents[1].joinpath("static/css/stocks.css").read_text()
-        assert "#sector-table .table-responsive" in css
-        assert "10 * 2.8125rem" in css
-        assert "max-height: 60vh" not in css.split("#sector-table")[1].split(".kors-cell")[0]
+        sector_css = css.split("#sector-table .table-responsive")[1].split("#sector-table .table-responsive >")[0]
+        assert "5 * 2.8125rem" in sector_css
+        assert "10 * 2.8125rem" not in sector_css
+        assert "60vh" not in sector_css
+
+    def test_stocks_table_clips_to_ten_visible_rows(self, client_with_user):
+        html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
+        assert 'id="stocks-table"' in html
+        assert "max-height: 60vh" not in html
+        css = Path(__file__).resolve().parents[1].joinpath("static/css/stocks.css").read_text()
+        stocks_rule = css.split("#stocks-table .table-responsive")[1].split("#stocks-table .table-responsive >")[0]
+        assert "10 * 2.8125rem" in stocks_rule
+        assert "60vh" not in stocks_rule
 
     def test_stocks_sector_signal_golden_death_and_empty_from_momentum(
         self, client_with_user, app

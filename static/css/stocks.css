@@ -103,6 +103,11 @@
    stacking level so scrolled Signal spheres cannot paint over column names.
    Empty spheres use opacity < 1, which creates a stacking context that draws
    above a sticky thead with z-index: auto. */
+#stocks-table .table-responsive {
+    max-height: calc(2.55rem + 10 * 2.8125rem);
+    overflow-y: auto;
+}
+
 #stocks-table .table-responsive > .table > thead > tr > th {
     position: sticky;
     top: 0;
@@ -121,9 +126,9 @@
     background-color: var(--bs-table-bg, #212529);
 }
 
-/* Sector table: 10 data rows + header in view, then scroll (not 60vh). */
+/* Sector table: 5 data rows + header in view, then scroll. */
 #sector-table .table-responsive {
-    max-height: calc(2.55rem + 10 * 2.8125rem);
+    max-height: calc(2.55rem + 5 * 2.8125rem);
     overflow-y: auto;
 }
 
