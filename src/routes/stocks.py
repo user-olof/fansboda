@@ -451,22 +451,24 @@ def _kors_for_sector(sector_slug, snapshots, latest_week, country=""):
         return None, ""
 
 
-def _load_sector_rows():
-    """Latest-week US + SWE sector rows with on-the-fly RFC-013 Signal."""
+def _load_sector_rows(market):
+    """Latest-week sector rows for one market with on-the-fly RFC-013 Signal."""
+    if market == "us":
+        model, currency, country = UsBySector, "USD", "us"
+    elif market == "se":
+        model, currency, country = SweBySector, "SEK", "se"
+    else:
+        return []
     rows = []
-    for model, currency, country in (
-        (UsBySector, "USD", "us"),
-        (SweBySector, "SEK", "se"),
-    ):
-        history = _sector_momentum_history(model)
-        for record in _latest_sector_records(model):
-            kors, kors_title = _kors_for_sector(
-                record.sector,
-                history.get(record.sector),
-                record.week_start,
-                country,
-            )
-            rows.append(_sector_row(record, currency, kors=kors, kors_title=kors_title))
+    history = _sector_momentum_history(model)
+    for record in _latest_sector_records(model):
+        kors, kors_title = _kors_for_sector(
+            record.sector,
+            history.get(record.sector),
+            record.week_start,
+            country,
+        )
+        rows.append(_sector_row(record, currency, kors=kors, kors_title=kors_title))
     rows.sort(
         key=lambda row: (
             (row.get("sector") or "").casefold(),
@@ -873,8 +875,9 @@ def stocks():
     stock_rows = []
     stock_total = 0
     stock_page = 1
-    sector_rows = _load_sector_rows()
+    sector_rows = []
     if selected_exchange:
+        sector_rows = _load_sector_rows(EXCHANGE_COUNTRY[selected_exchange])
         stock_rows, stock_total, stock_page = _load_table_page(
             current_user.id,
             selected_exchange,

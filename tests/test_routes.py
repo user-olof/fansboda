@@ -121,6 +121,58 @@ def _assert_sector_above_stocks(html):
     assert sector_pos < stocks_pos
 
 
+def _table_card(html, table_id):
+    marker = f'id="{table_id}"'
+    start = html.find(marker)
+    assert start != -1, table_id
+    later = []
+    for other in ("sector-table", "stocks-table"):
+        if other == table_id:
+            continue
+        pos = html.find(f'id="{other}"', start + 1)
+        if pos != -1:
+            later.append(pos)
+    end = min(later) if later else len(html)
+    return html[start:end]
+
+
+def _sector_tbody(html):
+    return _table_card(html, "sector-table").split("<tbody", 1)[1].split("</tbody>", 1)[0]
+
+
+def _stock_tbody(html):
+    return _table_card(html, "stocks-table").split("<tbody", 1)[1].split("</tbody>", 1)[0]
+
+
+def _assert_stock_headers(html):
+    thead = _stock_thead(html)
+    names = ["Trend", "Signal", "Bolag", "Symbol", "Valuta", "Pris", "Industri"]
+    positions = [thead.find(name) for name in names]
+    assert all(pos != -1 for pos in positions), thead
+    assert positions == sorted(positions)
+    assert "Antal aktier" not in thead
+    assert "Sektor" not in thead
+    assert "Ratio" not in thead
+    assert "Kors" not in thead
+    assert "Heat" not in thead
+
+
+def _assert_empty_landing_tables(html):
+    _assert_sector_above_stocks(html)
+    _assert_sector_headers(html)
+    _assert_stock_headers(html)
+    _assert_no_choose_bors(html)
+    assert "Inga sektorer" in html
+    assert "Inga aktier" in html
+    assert "heat-cell" not in _sector_tbody(html)
+    assert "heat-cell" not in _stock_tbody(html)
+    assert "stocks-sort-link" not in html
+    assert "js/stocks.js" not in html
+    assert "exchange-btn--selected" not in html
+    assert not _has_usable_paging_link(html, "Föregående")
+    assert not _has_usable_paging_link(html, "Nästa")
+
+
 def _seed_sector_row(
     app,
     *,
@@ -476,13 +528,11 @@ class TestAktierRoutes:
         assert "NASDAQ" in html
         assert "NYSE" in html
         assert "OMX Stockholm" in html
-        _assert_no_choose_bors(html)
-        assert "Inga aktier" not in html
         assert "Beskrivning" not in html
-        _assert_sector_headers(html)
+        _assert_empty_landing_tables(html)
         _assert_trend_legend(html)
 
-    def test_stocks_landing_sector_table_from_stored_rows(self, client_with_user, app):
+    def test_stocks_landing_hides_seeded_mixed_sectors(self, client_with_user, app):
         latest_us = date(2026, 9, 28)
         older_us = date(2026, 9, 21)
         _seed_sector_row(
@@ -511,31 +561,74 @@ class TestAktierRoutes:
             pct_uptrend=Decimal("55.555556"),
         )
         html = client_with_user.get("/stocks").get_data(as_text=True)
-        _assert_no_choose_bors(html)
-        _assert_sector_headers(html)
-        assert "energy" in html
-        assert "basic materials" in html
+        _assert_empty_landing_tables(html)
+        assert "energy" not in html
+        assert "basic materials" not in html
         assert "basic-materials" not in html
-        assert "190" in html
-        assert "999" not in html
-        assert "36" in html
-        assert "USD" in html
-        assert "SEK" in html
-        assert "72.6%" in html
-        assert "55.6%" in html
-        assert "72.631579" not in html
-        assert "Bolag" not in html.split("<thead", 1)[1].split("</thead>", 1)[0]
-        assert 'id="sector-table"' in html
-        assert 'id="stocks-table"' not in html
+        assert "72.6%" not in html
+        assert "55.6%" not in html
+        unknown = client_with_user.get("/stocks?exchange=tokyo").get_data(as_text=True)
+        _assert_empty_landing_tables(unknown)
+        assert "energy" not in unknown
+        assert "basic materials" not in unknown
+
         nasdaq = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
         _assert_sector_above_stocks(nasdaq)
         _assert_sector_headers(nasdaq)
-        nasdaq_stock_thead = _stock_thead(nasdaq)
-        assert "Antal aktier" not in nasdaq_stock_thead
-        assert "Sektor" not in nasdaq_stock_thead
-        assert "Ratio" not in nasdaq_stock_thead
-        assert "Bolag" in nasdaq_stock_thead
+        _assert_stock_headers(nasdaq)
+        nasdaq_sectors = _sector_tbody(nasdaq)
+        assert "energy" in nasdaq_sectors
+        assert "190" in nasdaq_sectors
+        assert "999" not in nasdaq_sectors
+        assert "USD" in nasdaq_sectors
+        assert "SEK" not in nasdaq_sectors
+        assert "basic materials" not in nasdaq_sectors
+        assert "72.6%" in nasdaq_sectors
+        assert "55.6%" not in nasdaq_sectors
+        assert "72.631579" not in nasdaq
         _assert_no_choose_bors(nasdaq)
+
+        nyse = client_with_user.get("/stocks?exchange=nyse").get_data(as_text=True)
+        nyse_sectors = _sector_tbody(nyse)
+        assert "energy" in nyse_sectors
+        assert "USD" in nyse_sectors
+        assert "SEK" not in nyse_sectors
+        assert "basic materials" not in nyse_sectors
+
+        omx = client_with_user.get("/stocks?exchange=omx_stockholm").get_data(as_text=True)
+        omx_sectors = _sector_tbody(omx)
+        assert "basic materials" in omx_sectors
+        assert "basic-materials" not in omx_sectors
+        assert "36" in omx_sectors
+        assert "SEK" in omx_sectors
+        assert "USD" not in omx_sectors
+        assert "energy" not in omx_sectors
+        assert "55.6%" in omx_sectors
+        assert "72.6%" not in omx_sectors
+        _assert_no_choose_bors(omx)
+
+    def test_stocks_exchange_sector_does_not_fall_back_to_other_market(
+        self, client_with_user, app
+    ):
+        _seed_sector_row(
+            app,
+            sector="energy",
+            week_start=date(2026, 9, 28),
+            ticker_count=190,
+            z_score_mean=Decimal("-2"),
+            pct_uptrend=Decimal("72.6"),
+        )
+        omx = client_with_user.get("/stocks?exchange=omx_stockholm").get_data(
+            as_text=True
+        )
+        assert "energy" not in omx
+        assert "USD" not in _sector_tbody(omx)
+        assert "Inga sektorer" in omx
+        nasdaq = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
+        assert "energy" in _sector_tbody(nasdaq)
+        assert "USD" in _sector_tbody(nasdaq)
+        assert "SEK" not in _sector_tbody(nasdaq)
+        assert "Inga sektorer" not in nasdaq
 
     def test_stocks_landing_trend_colour_and_empty_signal(self, client_with_user, app):
         _seed_sector_row(
@@ -554,7 +647,7 @@ class TestAktierRoutes:
             z_score_mean=None,
             pct_uptrend=None,
         )
-        html = client_with_user.get("/stocks").get_data(as_text=True)
+        html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
         assert "background-color: #1d4ed8" in html
         assert "background-color: #e5e7eb" in html
         assert re.search(r'class="heat-cell[^"]*"[^>]*>\s*</td>', html)
@@ -577,12 +670,12 @@ class TestAktierRoutes:
                 week_start=week,
                 ticker_count=i + 1,
             )
-        html = client_with_user.get("/stocks").get_data(as_text=True)
+        html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
         for i in range(6):
             assert f"sec{i:02d}" in html
         assert "sector-table-scroll" in html
         assert 'id="sector-table"' in html
-        assert 'id="stocks-table"' not in html
+        assert 'id="stocks-table"' in html
         css = Path(__file__).resolve().parents[1].joinpath("static/css/stocks.css").read_text()
         sector_css = css.split("#sector-table .table-responsive")[1].split("#sector-table .table-responsive >")[0]
         assert "5 * 2.8125rem" in sector_css
@@ -623,7 +716,7 @@ class TestAktierRoutes:
             pct_uptrend=Decimal("90.0"),
             momentum_median=Decimal("1.00"),
         )
-        html = client_with_user.get("/stocks").get_data(as_text=True)
+        html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
         assert "goldensector" in html
         assert "deathsector" in html
         assert "emptysector" in html
@@ -642,7 +735,7 @@ class TestAktierRoutes:
             pct_uptrend=Decimal("95.0"),
             momentum_median=Decimal("1.10"),
         )
-        html = client_with_user.get("/stocks").get_data(as_text=True)
+        html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
         assert "hotsector" in html
         assert "95.0%" in html
         assert not response_has_signal_cell(html, "Golden")
@@ -661,7 +754,7 @@ class TestAktierRoutes:
                 momentum_median=Decimal(momentum),
                 momentum_mean=Decimal("1.00"),
             )
-        html = client_with_user.get("/stocks").get_data(as_text=True)
+        html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
         assert response_has_signal_cell(html, "Golden", title=crossover_iso)
 
     def test_stocks_sector_signal_uses_mean_when_median_missing(
@@ -676,7 +769,7 @@ class TestAktierRoutes:
             origin=origin,
             use_mean_only=True,
         )
-        html = client_with_user.get("/stocks").get_data(as_text=True)
+        html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
         assert response_has_signal_cell(html, "Golden", title=crossover_iso)
 
     def test_stocks_trend_header_with_exchange_selected(self, client_with_user):
@@ -993,19 +1086,11 @@ class TestAktierRoutes:
 
         html = client_with_user.get("/stocks").get_data(as_text=True)
         assert "Apple Inc." not in html
-        assert "exchange-btn--selected" not in html
-        _assert_no_choose_bors(html)
-        _assert_sector_headers(html)
-        assert 'id="sector-table"' in html
-        assert 'id="stocks-table"' not in html
-        assert "js/stocks.js" not in html
+        _assert_empty_landing_tables(html)
 
         unknown = client_with_user.get("/stocks?exchange=tokyo").get_data(as_text=True)
         assert "Apple Inc." not in unknown
-        assert "exchange-btn--selected" not in unknown
-        _assert_sector_headers(unknown)
-        _assert_no_choose_bors(unknown)
-        assert 'id="stocks-table"' not in unknown
+        _assert_empty_landing_tables(unknown)
 
         empty = client_with_user.get("/stocks?exchange=nyse")
         empty_html = empty.get_data(as_text=True)
@@ -1013,6 +1098,7 @@ class TestAktierRoutes:
         assert "Inga aktier" in empty_html
         assert "Apple Inc." not in empty_html
         _assert_sector_above_stocks(empty_html)
+        _assert_stock_headers(empty_html)
         assert "js/stocks.js" in empty_html
 
     def test_chart_unknown_ticker_does_not_500(self, client_with_user):
