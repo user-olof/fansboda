@@ -16,11 +16,11 @@
             </h1>
 
             <nav class="exchange-buttons" aria-label="B&ouml;rs">
-                <a href="{{ url_for('stocks.stocks', exchange='nasdaq', sort=stock_sort, dir=stock_dir) if stock_sort else url_for('stocks.stocks', exchange='nasdaq') }}"
+                <a href="{{ url_for('stocks.stocks', exchange='nasdaq', **aktier_query) }}"
                    class="exchange-btn{% if selected_exchange == 'nasdaq' %} exchange-btn--selected{% endif %}">NASDAQ</a>
-                <a href="{{ url_for('stocks.stocks', exchange='nyse', sort=stock_sort, dir=stock_dir) if stock_sort else url_for('stocks.stocks', exchange='nyse') }}"
+                <a href="{{ url_for('stocks.stocks', exchange='nyse', **aktier_query) }}"
                    class="exchange-btn{% if selected_exchange == 'nyse' %} exchange-btn--selected{% endif %}">NYSE</a>
-                <a href="{{ url_for('stocks.stocks', exchange='omx_stockholm', sort=stock_sort, dir=stock_dir) if stock_sort else url_for('stocks.stocks', exchange='omx_stockholm') }}"
+                <a href="{{ url_for('stocks.stocks', exchange='omx_stockholm', **aktier_query) }}"
                    class="exchange-btn{% if selected_exchange == 'omx_stockholm' %} exchange-btn--selected{% endif %}">OMX Stockholm</a>
             </nav>
 
@@ -35,25 +35,59 @@
                 </div>
             </div>
 
-            <!-- Sector Trend Table (always first; 10-row scroll in CSS) -->
+            <!-- Sector Trend Table (always first; 5-row scroll in CSS) -->
             <div class="card mb-4" id="sector-table">
                 <div class="card-body p-0">
                     <div class="table-responsive sector-table-scroll">
                         <table class="table table-hover align-middle mb-0">
+                            <colgroup>
+                                <col class="aktier-col aktier-col-trend">
+                                <col class="aktier-col aktier-col-signal">
+                                <col class="aktier-col aktier-col-name">
+                                <col class="aktier-col aktier-col-id">
+                                <col class="aktier-col aktier-col-currency">
+                                <col class="aktier-col aktier-col-price">
+                                <col class="aktier-col aktier-col-last">
+                            </colgroup>
                             <thead class="table-dark">
                                 <tr>
+                                    {% if selected_exchange %}
+                                    <th scope="col" aria-sort="{{ sector_sort_aria.trend }}">
+                                        <a class="stocks-sort-link" href="{{ url_for('stocks.stocks', exchange=selected_exchange, page=1, sector_sort='trend', sector_dir=sector_sort_next_dir.trend, **stock_query) }}">
+                                            <i class="bi bi-thermometer-half me-1" aria-hidden="true"></i>Trend
+                                        </a>
+                                    </th>
+                                    <th scope="col" aria-sort="{{ sector_sort_aria.signal }}">
+                                        <a class="stocks-sort-link" href="{{ url_for('stocks.stocks', exchange=selected_exchange, page=1, sector_sort='signal', sector_dir=sector_sort_next_dir.signal, **stock_query) }}">Signal</a>
+                                    </th>
+                                    <th scope="col" aria-sort="{{ sector_sort_aria.index }}">
+                                        <a class="stocks-sort-link" href="{{ url_for('stocks.stocks', exchange=selected_exchange, page=1, sector_sort='index', sector_dir=sector_sort_next_dir.index, **stock_query) }}">
+                                            <i class="bi bi-card-text me-1" aria-hidden="true"></i>Index
+                                        </a>
+                                    </th>
+                                    {% else %}
                                     <th scope="col">
                                         <i class="bi bi-thermometer-half me-1" aria-hidden="true"></i>Trend
                                     </th>
                                     <th scope="col">Signal</th>
                                     <th scope="col">
-                                        <i class="bi bi-card-text me-1" aria-hidden="true"></i>Sektor
+                                        <i class="bi bi-card-text me-1" aria-hidden="true"></i>Index
                                     </th>
+                                    {% endif %}
                                     <th scope="col">Antal aktier</th>
                                     <th scope="col">
                                         <i class="bi bi-currency-exchange me-1"></i>Valuta
                                     </th>
+                                    <th scope="col">
+                                        <i class="bi bi-cash-coin me-1"></i>Pris
+                                    </th>
+                                    {% if selected_exchange %}
+                                    <th scope="col" aria-sort="{{ sector_sort_aria.ratio }}">
+                                        <a class="stocks-sort-link" href="{{ url_for('stocks.stocks', exchange=selected_exchange, page=1, sector_sort='ratio', sector_dir=sector_sort_next_dir.ratio, **stock_query) }}">Ratio</a>
+                                    </th>
+                                    {% else %}
                                     <th scope="col">Ratio</th>
+                                    {% endif %}
                                 </tr>
                             </thead>
                             <tbody>
@@ -87,15 +121,22 @@
                                              aria-label="none">
                                         {% endif %}
                                     </td>
-                                    <td class="fw-semibold">{{ sector.sector }}</td>
+                                    <td class="fw-semibold">
+                                        {% if sector.ticker %}
+                                        <a href="{{ url_for('stocks.index_chart', ticker=sector.ticker) }}">{{ sector.sector }}</a>
+                                        {% else %}
+                                        {{ sector.sector }}
+                                        {% endif %}
+                                    </td>
                                     <td class="sector-count-cell">{{ sector.ticker_count if sector.ticker_count is not none else "—" }}</td>
                                     <td>{{ sector.currency or "—" }}</td>
+                                    <td>{{ "%.2f"|format(sector.current_price) if sector.current_price is not none else "—" }}</td>
                                     <td class="sector-ratio-cell">{{ sector.ratio_label or "—" }}</td>
                                 </tr>
                                 {% endfor %}
                                 {% else %}
                                 <tr>
-                                    <td colspan="6" class="text-center text-muted py-4">
+                                    <td colspan="7" class="text-center text-muted py-4">
                                         Inga sektorer att visa &auml;nnu.
                                     </td>
                                 </tr>
@@ -111,19 +152,28 @@
                 <div class="card-body p-0">
                     <div class="table-responsive">
                         <table class="table table-hover align-middle mb-0">
+                            <colgroup>
+                                <col class="aktier-col aktier-col-trend">
+                                <col class="aktier-col aktier-col-signal">
+                                <col class="aktier-col aktier-col-name">
+                                <col class="aktier-col aktier-col-id">
+                                <col class="aktier-col aktier-col-currency">
+                                <col class="aktier-col aktier-col-price">
+                                <col class="aktier-col aktier-col-last">
+                            </colgroup>
                             <thead class="table-dark">
                                 <tr>
                                     {% if selected_exchange %}
                                     <th scope="col" aria-sort="{{ sort_aria.trend }}">
-                                        <a class="stocks-sort-link" href="{{ url_for('stocks.stocks', exchange=selected_exchange, page=1, sort='trend', dir=sort_next_dir.trend) }}">
+                                        <a class="stocks-sort-link" href="{{ url_for('stocks.stocks', exchange=selected_exchange, page=1, sort='trend', dir=sort_next_dir.trend, **sector_query) }}">
                                             <i class="bi bi-thermometer-half me-1" aria-hidden="true"></i>Trend
                                         </a>
                                     </th>
                                     <th scope="col" aria-sort="{{ sort_aria.signal }}">
-                                        <a class="stocks-sort-link" href="{{ url_for('stocks.stocks', exchange=selected_exchange, page=1, sort='signal', dir=sort_next_dir.signal) }}">Signal</a>
+                                        <a class="stocks-sort-link" href="{{ url_for('stocks.stocks', exchange=selected_exchange, page=1, sort='signal', dir=sort_next_dir.signal, **sector_query) }}">Signal</a>
                                     </th>
                                     <th scope="col" aria-sort="{{ sort_aria.bolag }}">
-                                        <a class="stocks-sort-link" href="{{ url_for('stocks.stocks', exchange=selected_exchange, page=1, sort='bolag', dir=sort_next_dir.bolag) }}">
+                                        <a class="stocks-sort-link" href="{{ url_for('stocks.stocks', exchange=selected_exchange, page=1, sort='bolag', dir=sort_next_dir.bolag, **sector_query) }}">
                                             <i class="bi bi-building me-1" aria-hidden="true"></i>Bolag
                                         </a>
                                     </th>
@@ -210,12 +260,12 @@
                 {% endif %}
                 <div class="stocks-paging-buttons">
                     {% if stock_page > 1 %}
-                    <a class="paging-btn" href="{{ url_for('stocks.stocks', exchange=selected_exchange, page=stock_page - 1, sort=stock_sort, dir=stock_dir) if stock_sort else url_for('stocks.stocks', exchange=selected_exchange, page=stock_page - 1) }}">Föregående</a>
+                    <a class="paging-btn" href="{{ url_for('stocks.stocks', exchange=selected_exchange, page=stock_page - 1, **aktier_query) }}">Föregående</a>
                     {% else %}
                     <span class="paging-btn paging-btn--disabled" aria-disabled="true">Föregående</span>
                     {% endif %}
                     {% if stock_page < stock_last_page %}
-                    <a class="paging-btn" href="{{ url_for('stocks.stocks', exchange=selected_exchange, page=stock_page + 1, sort=stock_sort, dir=stock_dir) if stock_sort else url_for('stocks.stocks', exchange=selected_exchange, page=stock_page + 1) }}">Nästa</a>
+                    <a class="paging-btn" href="{{ url_for('stocks.stocks', exchange=selected_exchange, page=stock_page + 1, **aktier_query) }}">Nästa</a>
                     {% else %}
                     <span class="paging-btn paging-btn--disabled" aria-disabled="true">Nästa</span>
                     {% endif %}

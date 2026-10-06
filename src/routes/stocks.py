@@ -10,12 +10,11 @@ from src import cache, db
 from src.access_control import role_required
 from src.models.market_metrics import MarketMetric
 from src.models.metrics import Metric
-from src.models.swe_by_sector import SweBySector
+from src.models.indices import Indice
 from src.models.swe_market_metrics import SweMarketMetric
 from src.models.swe_metrics import SweMetric
 from src.models.swe_ticker import SweTicker
 from src.models.ticker import Ticker
-from src.models.us_by_sector import UsBySector
 from src.models.user import Role
 from src.services.cross_detection import SmaSnapshot, detect_all_patterns
 from src.services.kors_display import select_kors_display
@@ -44,6 +43,13 @@ DEFAULT_SORT_DIR = {
     "trend": "desc",
     "bolag": "asc",
     "signal": "asc",
+}
+SECTOR_SORT_COLUMNS = frozenset({"trend", "signal", "index", "ratio"})
+SECTOR_DEFAULT_SORT_DIR = {
+    "trend": "desc",
+    "signal": "asc",
+    "index": "asc",
+    "ratio": "desc",
 }
 SIGNAL_SORT_RANK = {
     "Golden": 0,
@@ -111,6 +117,66 @@ def sort_stock_rows(rows, sort_key, direction):
         return ordered
 
     # signal
+    ordered.sort(
+        key=lambda row: SIGNAL_SORT_RANK.get(row.get("kors"), 2),
+        reverse=reverse,
+    )
+    return ordered
+
+
+def parse_sector_sort(sort_value, dir_value):
+    """Return ``(sort, dir)`` or ``(None, None)`` for 021 market-first order."""
+    sort_key = str(sort_value).strip().lower() if sort_value is not None else ""
+    direction = str(dir_value).strip().lower() if dir_value is not None else ""
+    if sort_key not in SECTOR_SORT_COLUMNS:
+        return None, None
+    if direction not in ("asc", "desc"):
+        return None, None
+    return sort_key, direction
+
+
+def next_sector_sort_direction(column, current_sort, current_dir):
+    if column not in SECTOR_SORT_COLUMNS:
+        return SECTOR_DEFAULT_SORT_DIR.get(column, "asc")
+    if current_sort == column and current_dir in ("asc", "desc"):
+        return "asc" if current_dir == "desc" else "desc"
+    return SECTOR_DEFAULT_SORT_DIR[column]
+
+
+def sort_sector_rows(rows, sort_key, direction):
+    """Sort loaded index rows. Secondary key is ticker ascending.
+
+    Trend/Ratio nulls sort last. Signal order (asc): Golden < Death < empty.
+    """
+    ordered = list(rows)
+    if not sort_key or sort_key not in SECTOR_SORT_COLUMNS:
+        return ordered
+    reverse = direction == "desc"
+
+    def ticker_key(row):
+        return (row.get("ticker") or "").casefold()
+
+    ordered.sort(key=ticker_key)
+
+    if sort_key == "trend":
+        valued = [row for row in ordered if row.get("heat_score") is not None]
+        missing = [row for row in ordered if row.get("heat_score") is None]
+        valued.sort(key=lambda row: float(row["heat_score"]), reverse=reverse)
+        return valued + missing
+
+    if sort_key == "index":
+        ordered.sort(
+            key=lambda row: (row.get("sector") or "").casefold(),
+            reverse=reverse,
+        )
+        return ordered
+
+    if sort_key == "ratio":
+        valued = [row for row in ordered if row.get("pct_uptrend") is not None]
+        missing = [row for row in ordered if row.get("pct_uptrend") is None]
+        valued.sort(key=lambda row: float(row["pct_uptrend"]), reverse=reverse)
+        return valued + missing
+
     ordered.sort(
         key=lambda row: SIGNAL_SORT_RANK.get(row.get("kors"), 2),
         reverse=reverse,
@@ -363,6 +429,31 @@ def get_last_weeks_metrics(ticker, weeks=52):
     ]
 
 
+def get_last_weeks_index_metrics(ticker, weeks=52):
+    """Return weekly index observations for `ticker` over the last `weeks` weeks."""
+    cutoff = date.today() - timedelta(weeks=weeks)
+    rows = (
+        Indice.query.filter(
+            Indice.ticker == ticker,
+            Indice.trading_date >= cutoff,
+        )
+        .order_by(Indice.trading_date.asc())
+        .all()
+    )
+    return [
+        {
+            "trading_date": row.trading_date,
+            "ticker": row.ticker,
+            "sma_50": float(row.sma_50) if row.sma_50 is not None else None,
+            "sma_200": float(row.sma_200) if row.sma_200 is not None else None,
+            "current_price": (
+                float(row.current_price) if row.current_price is not None else None
+            ),
+        }
+        for row in rows
+    ]
+
+
 def _display_sector(sector):
     if sector is None:
         return None
@@ -373,7 +464,22 @@ def _display_sector(sector):
     return text or None
 
 
-_SECTOR_CURRENCY_ORDER = {"USD": 0, "SEK": 1}
+MARKET_INDEX_TICKERS = frozenset({"US-IDX", "SWE-IDX"})
+
+
+def _indices_country(market):
+    """Map Aktier market (`us` / `se`) to `indices.country` (`us` / `swe`)."""
+    if market == "us":
+        return "us"
+    if market == "se":
+        return "swe"
+    return None
+
+
+def _rfc013_country(indices_country):
+    if indices_country == "swe":
+        return "se"
+    return indices_country or ""
 
 
 def _ratio_label(value):
@@ -384,12 +490,15 @@ def _ratio_label(value):
     return f"{n:.1f}%"
 
 
-def _sector_row(record, currency, kors=None, kors_title=""):
-    z = _to_float(record.z_score_mean)
+def _sector_row(record, kors=None, kors_title=""):
+    z = _to_float(record.z_score)
     return {
+        "ticker": record.ticker,
         "sector": _display_sector(record.sector) or record.sector,
         "ticker_count": record.ticker_count,
-        "currency": currency,
+        "currency": record.currency,
+        "current_price": _to_float(record.current_price),
+        "pct_uptrend": _to_float(record.pct_uptrend),
         "ratio_label": _ratio_label(record.pct_uptrend),
         "heat_score": z,
         "heat_color": heat_color_from_z(z),
@@ -400,49 +509,59 @@ def _sector_row(record, currency, kors=None, kors_title=""):
     }
 
 
-def _sector_momentum(record):
-    """Scale-free 50/200 ratio. Prefer median; do not average raw SMA prices."""
-    n = _to_float(record.momentum_median)
-    if n is None:
-        n = _to_float(record.momentum_mean)
-    return n
+def _latest_index_records(country):
+    latest_dates = (
+        db.session.query(
+            Indice.ticker,
+            db.func.max(Indice.trading_date).label("latest_date"),
+        )
+        .filter(Indice.country == country)
+        .group_by(Indice.ticker)
+        .subquery()
+    )
+    return (
+        db.session.query(Indice)
+        .join(
+            latest_dates,
+            db.and_(
+                Indice.ticker == latest_dates.c.ticker,
+                Indice.trading_date == latest_dates.c.latest_date,
+            ),
+        )
+        .all()
+    )
 
 
-def _latest_sector_records(model):
-    week = db.session.query(db.func.max(model.week_start)).scalar()
-    if week is None:
-        return []
-    return model.query.filter(model.week_start == week).all()
-
-
-def _sector_momentum_history(model):
-    """Weekly momentum vs 1.0 as SMA snapshots, last SMA_HISTORY_WEEKS."""
+def _index_sma_history(country):
+    """SMA snapshots per index ticker, last SMA_HISTORY_WEEKS."""
     cutoff = date.today() - timedelta(weeks=SMA_HISTORY_WEEKS)
     rows = (
-        model.query.filter(model.week_start >= cutoff)
-        .order_by(model.sector.asc(), model.week_start.asc())
+        Indice.query.filter(
+            Indice.country == country,
+            Indice.trading_date >= cutoff,
+        )
+        .order_by(Indice.ticker.asc(), Indice.trading_date.asc())
         .all()
     )
     history = {}
     for record in rows:
-        momentum = _sector_momentum(record)
-        if momentum is None:
+        if record.sma_50 is None or record.sma_200 is None:
             continue
-        history.setdefault(record.sector, []).append(
+        history.setdefault(record.ticker, []).append(
             SmaSnapshot(
-                trading_date=record.week_start,
-                sma_50=_to_decimal(momentum),
-                sma_200=Decimal("1"),
+                trading_date=record.trading_date,
+                sma_50=_to_decimal(record.sma_50),
+                sma_200=_to_decimal(record.sma_200),
             )
         )
     return history
 
 
-def _kors_for_sector(sector_slug, snapshots, latest_week, country=""):
+def _kors_for_sector(ticker, snapshots, latest_week, country=""):
     try:
         events = detect_all_patterns(
             snapshots or [],
-            ticker=sector_slug,
+            ticker=ticker,
             country=country,
         )
         display = select_kors_display(events, latest_week)
@@ -452,27 +571,25 @@ def _kors_for_sector(sector_slug, snapshots, latest_week, country=""):
 
 
 def _load_sector_rows(market):
-    """Latest-week sector rows for one market with on-the-fly RFC-013 Signal."""
-    if market == "us":
-        model, currency, country = UsBySector, "USD", "us"
-    elif market == "se":
-        model, currency, country = SweBySector, "SEK", "se"
-    else:
+    """Latest index rows for one market with on-the-fly RFC-013 Signal."""
+    country = _indices_country(market)
+    if not country:
         return []
     rows = []
-    history = _sector_momentum_history(model)
-    for record in _latest_sector_records(model):
+    history = _index_sma_history(country)
+    kors_country = _rfc013_country(country)
+    for record in _latest_index_records(country):
         kors, kors_title = _kors_for_sector(
-            record.sector,
-            history.get(record.sector),
-            record.week_start,
-            country,
+            record.ticker,
+            history.get(record.ticker),
+            record.trading_date,
+            kors_country,
         )
-        rows.append(_sector_row(record, currency, kors=kors, kors_title=kors_title))
+        rows.append(_sector_row(record, kors=kors, kors_title=kors_title))
     rows.sort(
         key=lambda row: (
+            0 if row.get("ticker") in MARKET_INDEX_TICKERS else 1,
             (row.get("sector") or "").casefold(),
-            _SECTOR_CURRENCY_ORDER.get(row.get("currency"), 9),
         )
     )
     return rows
@@ -824,11 +941,31 @@ def _warm_exchange_pages(user_id, exchange_key):
     return last, total
 
 
-def _aktier_query_args(exchange, page, sort_key=None, direction=None):
-    args = {"exchange": exchange, "page": page}
+def _optional_sort_args(
+    sort_key=None, direction=None, sector_sort=None, sector_dir=None
+):
+    args = {}
     if sort_key and direction:
         args["sort"] = sort_key
         args["dir"] = direction
+    if sector_sort and sector_dir:
+        args["sector_sort"] = sector_sort
+        args["sector_dir"] = sector_dir
+    return args
+
+
+def _aktier_query_args(
+    exchange,
+    page,
+    sort_key=None,
+    direction=None,
+    sector_sort=None,
+    sector_dir=None,
+):
+    args = {"exchange": exchange, "page": page}
+    args.update(
+        _optional_sort_args(sort_key, direction, sector_sort, sector_dir)
+    )
     return args
 
 
@@ -847,13 +984,31 @@ def _aktier_return_url():
         session.get("aktier_sort"),
         session.get("aktier_dir"),
     )
+    sector_sort, sector_dir = parse_sector_sort(
+        session.get("aktier_sector_sort"),
+        session.get("aktier_sector_dir"),
+    )
     return url_for(
         "stocks.stocks",
-        **_aktier_query_args(exchange, page, sort_key, direction),
+        **_aktier_query_args(
+            exchange,
+            page,
+            sort_key,
+            direction,
+            sector_sort,
+            sector_dir,
+        ),
     )
 
 
-def _remember_aktier_view(exchange_key, page, sort_key=None, direction=None):
+def _remember_aktier_view(
+    exchange_key,
+    page,
+    sort_key=None,
+    direction=None,
+    sector_sort=None,
+    sector_dir=None,
+):
     session["aktier_exchange"] = exchange_key
     session["aktier_page"] = page
     if sort_key and direction:
@@ -862,6 +1017,12 @@ def _remember_aktier_view(exchange_key, page, sort_key=None, direction=None):
     else:
         session.pop("aktier_sort", None)
         session.pop("aktier_dir", None)
+    if sector_sort and sector_dir:
+        session["aktier_sector_sort"] = sector_sort
+        session["aktier_sector_dir"] = sector_dir
+    else:
+        session.pop("aktier_sector_sort", None)
+        session.pop("aktier_sector_dir", None)
 
 
 @stocks_bp.route("/stocks")
@@ -872,12 +1033,20 @@ def stocks():
         request.args.get("sort"),
         request.args.get("dir"),
     )
+    sector_sort_key, sector_direction = parse_sector_sort(
+        request.args.get("sector_sort"),
+        request.args.get("sector_dir"),
+    )
     stock_rows = []
     stock_total = 0
     stock_page = 1
     sector_rows = []
     if selected_exchange:
         sector_rows = _load_sector_rows(EXCHANGE_COUNTRY[selected_exchange])
+        if sector_sort_key:
+            sector_rows = sort_sector_rows(
+                sector_rows, sector_sort_key, sector_direction
+            )
         stock_rows, stock_total, stock_page = _load_table_page(
             current_user.id,
             selected_exchange,
@@ -886,7 +1055,12 @@ def stocks():
             direction=direction,
         )
         _remember_aktier_view(
-            selected_exchange, stock_page, sort_key=sort_key, direction=direction
+            selected_exchange,
+            stock_page,
+            sort_key=sort_key,
+            direction=direction,
+            sector_sort=sector_sort_key,
+            sector_dir=sector_direction,
         )
     last_page = _page_count(stock_total)
     range_start = ((stock_page - 1) * PAGE_SIZE) + 1 if stock_total else 0
@@ -905,6 +1079,15 @@ def stocks():
         stock_range_end=range_end,
         stock_sort=sort_key,
         stock_dir=direction,
+        sector_sort=sector_sort_key,
+        sector_dir=sector_direction,
+        aktier_query=_optional_sort_args(
+            sort_key, direction, sector_sort_key, sector_direction
+        ),
+        stock_query=_optional_sort_args(sort_key, direction),
+        sector_query=_optional_sort_args(
+            sector_sort=sector_sort_key, sector_dir=sector_direction
+        ),
         sort_next_dir={
             column: next_sort_direction(column, sort_key, direction)
             for column in SORT_COLUMNS
@@ -912,6 +1095,16 @@ def stocks():
         sort_aria={
             column: aria_sort_value(column, sort_key, direction)
             for column in SORT_COLUMNS
+        },
+        sector_sort_next_dir={
+            column: next_sector_sort_direction(
+                column, sector_sort_key, sector_direction
+            )
+            for column in SECTOR_SORT_COLUMNS
+        },
+        sector_sort_aria={
+            column: aria_sort_value(column, sector_sort_key, sector_direction)
+            for column in SECTOR_SORT_COLUMNS
         },
     )
 
@@ -938,6 +1131,27 @@ def chart(ticker):
         ticker=ticker,
         company_name=company_name,
         business_summary=_summary_heading(_business_summary_for(ticker)),
+        history=history,
+        stocks_return_url=_aktier_return_url(),
+    )
+
+
+@stocks_bp.route("/stocks/index/<ticker>")
+@role_required(Role.USER, Role.ADMIN)
+def index_chart(ticker):
+    history = get_last_weeks_index_metrics(ticker)
+    latest = (
+        Indice.query.filter(Indice.ticker == ticker)
+        .order_by(Indice.trading_date.desc())
+        .first()
+    )
+    company_name = latest.sector if latest else ticker
+    return render_template(
+        "chart.html",
+        title=company_name,
+        ticker=ticker,
+        company_name=company_name,
+        business_summary=None,
         history=history,
         stocks_return_url=_aktier_return_url(),
     )

@@ -10,6 +10,7 @@ from src.models.swe_market_metrics import SweMarketMetric
 from src.models.swe_metrics import SweMetric
 from src.models.swe_ticker import SweTicker
 from src.models.ticker import Ticker
+from src.models.indices import Indice
 from src.models.us_by_sector import UsBySector
 from src import db
 
@@ -242,6 +243,48 @@ class TestSectorModels:
             found = db.session.get(SweBySector, ("basic-materials", date(2026, 9, 21)))
             assert found.ticker_count == 36
             assert float(found.pct_uptrend) == 55.555556
+
+    def test_indice_maps_indices_table(self, client):
+        assert Indice.__tablename__ == "indices"
+        pk = {column.name for column in Indice.__table__.primary_key.columns}
+        assert pk == {"ticker", "trading_date"}
+        for name in (
+            "sector",
+            "country",
+            "ticker_count",
+            "current_price",
+            "sma_50",
+            "sma_200",
+            "momentum",
+            "currency",
+            "pct_uptrend",
+            "z_score",
+            "updated_at",
+        ):
+            assert name in Indice.__table__.c
+
+    def test_indice_round_trip(self, client):
+        with client.application.app_context():
+            row = Indice(
+                ticker="US-IDX-ENERGY",
+                trading_date=date(2026, 9, 28),
+                sector="Energy",
+                country="us",
+                ticker_count=190,
+                current_price=Decimal("100.5"),
+                sma_50=Decimal("101"),
+                sma_200=Decimal("99"),
+                currency="USD",
+                pct_uptrend=Decimal("72.6"),
+                z_score=Decimal("-2"),
+            )
+            db.session.add(row)
+            db.session.commit()
+            found = db.session.get(Indice, ("US-IDX-ENERGY", date(2026, 9, 28)))
+            assert found.sector == "Energy"
+            assert found.country == "us"
+            assert found.ticker_count == 190
+            assert float(found.pct_uptrend) == 72.6
 
     def test_ratio_label_uses_stored_percent(self):
         from src.routes.stocks import _ratio_label

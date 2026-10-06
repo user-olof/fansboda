@@ -9,6 +9,7 @@ from src.models.swe_metrics import SweMetric
 from src.models.swe_by_sector import SweBySector
 from src.models.swe_ticker import SweTicker
 from src.models.ticker import Ticker
+from src.models.indices import Indice
 from src.models.us_by_sector import UsBySector
 from src.models.user import User
 from src import db
@@ -101,12 +102,12 @@ def _assert_no_choose_bors(html):
 
 def _assert_sector_headers(html):
     thead = _sector_thead(html)
-    names = ["Trend", "Signal", "Sektor", "Antal aktier", "Valuta", "Ratio"]
+    names = ["Trend", "Signal", "Index", "Antal aktier", "Valuta", "Pris", "Ratio"]
     positions = [thead.find(name) for name in names]
     assert all(pos != -1 for pos in positions), thead
     assert positions == sorted(positions)
+    assert "Sektor" not in thead
     assert "Bolag" not in thead
-    assert "Pris" not in thead
     assert "Industri" not in thead
     assert "Symbol" not in thead
     assert "Kors" not in thead
@@ -152,6 +153,7 @@ def _assert_stock_headers(html):
     assert positions == sorted(positions)
     assert "Antal aktier" not in thead
     assert "Sektor" not in thead
+    assert "Index" not in thead
     assert "Ratio" not in thead
     assert "Kors" not in thead
     assert "Heat" not in thead
@@ -199,6 +201,72 @@ def _seed_sector_row(
             )
         )
         db.session.commit()
+
+
+def _seed_index_row(
+    app,
+    *,
+    ticker,
+    sector,
+    country="us",
+    trading_date,
+    ticker_count=None,
+    current_price=100,
+    sma_50=None,
+    sma_200=None,
+    currency="USD",
+    pct_uptrend=None,
+    z_score=None,
+    momentum=None,
+):
+    with app.app_context():
+        db.session.add(
+            Indice(
+                ticker=ticker,
+                trading_date=trading_date,
+                sector=sector,
+                country=country,
+                ticker_count=ticker_count,
+                current_price=current_price,
+                sma_50=sma_50,
+                sma_200=sma_200,
+                currency=currency,
+                pct_uptrend=pct_uptrend,
+                z_score=z_score,
+                momentum=momentum,
+            )
+        )
+        db.session.commit()
+
+
+def _seed_index_sma_series(
+    app,
+    *,
+    ticker,
+    sector,
+    series,
+    country="us",
+    currency="USD",
+    ticker_count=10,
+    origin=None,
+    pct_uptrend=None,
+    z_score=None,
+):
+    origin = origin or _kors_series_origin()
+    for week, sma_50, sma_200 in series:
+        _seed_index_row(
+            app,
+            ticker=ticker,
+            sector=sector,
+            country=country,
+            trading_date=_week(week, origin),
+            ticker_count=ticker_count,
+            sma_50=None if sma_50 is None else Decimal(sma_50),
+            sma_200=None if sma_200 is None else Decimal(sma_200),
+            currency=currency,
+            pct_uptrend=pct_uptrend,
+            z_score=z_score,
+        )
 
 
 def _golden_momentum_series():
@@ -511,6 +579,9 @@ class TestAktierRoutes:
         warm = client.get("/stocks/warm?exchange=omx_stockholm")
         assert warm.status_code == 302
         assert "/login" in warm.location
+        index_chart = client.get("/stocks/index/US-IDX")
+        assert index_chart.status_code == 302
+        assert "/login" in index_chart.location
         body = response.get_data(as_text=True)
         assert "Positivt momentum kan indikera" not in body
         assert "Bearish" not in body
@@ -537,72 +608,116 @@ class TestAktierRoutes:
         older_us = date(2026, 9, 21)
         _seed_sector_row(
             app,
-            sector="energy",
-            week_start=older_us,
-            ticker_count=999,
-            z_score_mean=Decimal("0.1"),
-            pct_uptrend=Decimal("10.0"),
-        )
-        _seed_sector_row(
-            app,
-            sector="energy",
+            sector="overview-only",
             week_start=latest_us,
             ticker_count=190,
             z_score_mean=Decimal("-2"),
             pct_uptrend=Decimal("72.631579"),
         )
-        _seed_sector_row(
+        _seed_index_row(
             app,
-            swe=True,
-            sector="basic-materials",
-            week_start=older_us,
+            ticker="US-IDX",
+            sector="US Equity Index",
+            country="us",
+            trading_date=latest_us,
+            ticker_count=500,
+            currency="USD",
+            pct_uptrend=Decimal("60.0"),
+            z_score=Decimal("0.1"),
+        )
+        _seed_index_row(
+            app,
+            ticker="US-IDX-ENERGY",
+            sector="Energy",
+            country="us",
+            trading_date=older_us,
+            ticker_count=999,
+            currency="USD",
+            pct_uptrend=Decimal("10.0"),
+            z_score=Decimal("0.1"),
+        )
+        _seed_index_row(
+            app,
+            ticker="US-IDX-ENERGY",
+            sector="Energy",
+            country="us",
+            trading_date=latest_us,
+            ticker_count=190,
+            currency="USD",
+            pct_uptrend=Decimal("72.631579"),
+            z_score=Decimal("-2"),
+        )
+        _seed_index_row(
+            app,
+            ticker="SWE-IDX",
+            sector="OMX Equity Index",
+            country="swe",
+            trading_date=older_us,
+            ticker_count=690,
+            currency="SEK",
+            pct_uptrend=Decimal("50.0"),
+        )
+        _seed_index_row(
+            app,
+            ticker="SWE-IDX-BASIC-MATERIALS",
+            sector="Basic Materials",
+            country="swe",
+            trading_date=older_us,
             ticker_count=36,
-            z_score_mean=Decimal("0.101050"),
+            currency="SEK",
             pct_uptrend=Decimal("55.555556"),
         )
         html = client_with_user.get("/stocks").get_data(as_text=True)
         _assert_empty_landing_tables(html)
-        assert "energy" not in html
-        assert "basic materials" not in html
-        assert "basic-materials" not in html
+        assert "US Equity Index" not in html
+        assert "Energy" not in html
+        assert "overview-only" not in html
         assert "72.6%" not in html
         assert "55.6%" not in html
         unknown = client_with_user.get("/stocks?exchange=tokyo").get_data(as_text=True)
         _assert_empty_landing_tables(unknown)
-        assert "energy" not in unknown
-        assert "basic materials" not in unknown
+        assert "US Equity Index" not in unknown
+        assert "Energy" not in unknown
 
         nasdaq = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
         _assert_sector_above_stocks(nasdaq)
         _assert_sector_headers(nasdaq)
         _assert_stock_headers(nasdaq)
         nasdaq_sectors = _sector_tbody(nasdaq)
-        assert "energy" in nasdaq_sectors
+        assert "US Equity Index" in nasdaq_sectors
+        assert "Energy" in nasdaq_sectors
+        assert nasdaq_sectors.find("US Equity Index") < nasdaq_sectors.find("Energy")
         assert "190" in nasdaq_sectors
         assert "999" not in nasdaq_sectors
         assert "USD" in nasdaq_sectors
         assert "SEK" not in nasdaq_sectors
-        assert "basic materials" not in nasdaq_sectors
+        assert "Basic Materials" not in nasdaq_sectors
+        assert "OMX Equity Index" not in nasdaq_sectors
+        assert "overview-only" not in nasdaq
         assert "72.6%" in nasdaq_sectors
         assert "55.6%" not in nasdaq_sectors
         assert "72.631579" not in nasdaq
+        assert "/stocks/index/US-IDX-ENERGY" in nasdaq
         _assert_no_choose_bors(nasdaq)
 
         nyse = client_with_user.get("/stocks?exchange=nyse").get_data(as_text=True)
         nyse_sectors = _sector_tbody(nyse)
-        assert "energy" in nyse_sectors
+        assert "US Equity Index" in nyse_sectors
+        assert "Energy" in nyse_sectors
         assert "USD" in nyse_sectors
         assert "SEK" not in nyse_sectors
-        assert "basic materials" not in nyse_sectors
+        assert "Basic Materials" not in nyse_sectors
 
         omx = client_with_user.get("/stocks?exchange=omx_stockholm").get_data(as_text=True)
         omx_sectors = _sector_tbody(omx)
-        assert "basic materials" in omx_sectors
-        assert "basic-materials" not in omx_sectors
+        assert "OMX Equity Index" in omx_sectors
+        assert "Basic Materials" in omx_sectors
+        assert omx_sectors.find("OMX Equity Index") < omx_sectors.find("Basic Materials")
         assert "36" in omx_sectors
         assert "SEK" in omx_sectors
         assert "USD" not in omx_sectors
-        assert "energy" not in omx_sectors
+        assert "Energy" not in omx_sectors
+        assert "US Equity Index" not in omx_sectors
         assert "55.6%" in omx_sectors
         assert "72.6%" not in omx_sectors
         _assert_no_choose_bors(omx)
@@ -610,42 +725,50 @@ class TestAktierRoutes:
     def test_stocks_exchange_sector_does_not_fall_back_to_other_market(
         self, client_with_user, app
     ):
-        _seed_sector_row(
+        _seed_index_row(
             app,
-            sector="energy",
-            week_start=date(2026, 9, 28),
+            ticker="US-IDX-ENERGY",
+            sector="Energy",
+            country="us",
+            trading_date=date(2026, 9, 28),
             ticker_count=190,
-            z_score_mean=Decimal("-2"),
+            currency="USD",
             pct_uptrend=Decimal("72.6"),
+            z_score=Decimal("-2"),
         )
         omx = client_with_user.get("/stocks?exchange=omx_stockholm").get_data(
             as_text=True
         )
-        assert "energy" not in omx
+        assert "Energy" not in omx
         assert "USD" not in _sector_tbody(omx)
         assert "Inga sektorer" in omx
         nasdaq = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
-        assert "energy" in _sector_tbody(nasdaq)
+        assert "Energy" in _sector_tbody(nasdaq)
         assert "USD" in _sector_tbody(nasdaq)
         assert "SEK" not in _sector_tbody(nasdaq)
         assert "Inga sektorer" not in nasdaq
 
     def test_stocks_landing_trend_colour_and_empty_signal(self, client_with_user, app):
-        _seed_sector_row(
+        _seed_index_row(
             app,
-            sector="energy",
-            week_start=date(2026, 9, 28),
+            ticker="US-IDX-ENERGY",
+            sector="Energy",
+            country="us",
+            trading_date=date(2026, 9, 28),
             ticker_count=190,
-            z_score_mean=Decimal("-2"),
+            currency="USD",
             pct_uptrend=Decimal("72.6"),
+            z_score=Decimal("-2"),
         )
-        _seed_sector_row(
+        _seed_index_row(
             app,
-            sector="utilities",
-            week_start=date(2026, 9, 28),
+            ticker="US-IDX-UTILITIES",
+            sector="Utilities",
+            country="us",
+            trading_date=date(2026, 9, 28),
             ticker_count=11,
-            z_score_mean=None,
-            pct_uptrend=None,
+            currency="USD",
+            z_score=None,
         )
         html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
         assert "background-color: #1d4ed8" in html
@@ -664,11 +787,14 @@ class TestAktierRoutes:
     def test_stocks_sector_table_scrolls_after_five_rows(self, client_with_user, app):
         week = date(2026, 9, 28)
         for i in range(6):
-            _seed_sector_row(
+            _seed_index_row(
                 app,
+                ticker=f"US-IDX-SEC{i:02d}",
                 sector=f"sec{i:02d}",
-                week_start=week,
+                country="us",
+                trading_date=week,
                 ticker_count=i + 1,
+                currency="USD",
             )
         html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
         for i in range(6):
@@ -691,30 +817,36 @@ class TestAktierRoutes:
         assert "10 * 2.8125rem" in stocks_rule
         assert "60vh" not in stocks_rule
 
-    def test_stocks_sector_signal_golden_death_and_empty_from_momentum(
+    def test_stocks_sector_signal_golden_death_and_empty_from_sma(
         self, client_with_user, app
     ):
         origin = _kors_series_origin()
         crossover_iso = _week(4, origin).isoformat()
-        _seed_sector_momentum_series(
+        _seed_index_sma_series(
             app,
+            ticker="US-IDX-GOLDEN",
             sector="goldensector",
-            series=_golden_momentum_series(),
+            series=_golden_sma_series(),
             origin=origin,
         )
-        _seed_sector_momentum_series(
+        _seed_index_sma_series(
             app,
+            ticker="US-IDX-DEATH",
             sector="deathsector",
-            series=_death_momentum_series(),
+            series=_death_sma_series(),
             origin=origin,
         )
-        _seed_sector_row(
+        _seed_index_row(
             app,
+            ticker="US-IDX-EMPTY",
             sector="emptysector",
-            week_start=_week(4, origin),
+            country="us",
+            trading_date=_week(4, origin),
             ticker_count=3,
+            sma_50=Decimal("100"),
+            sma_200=Decimal("100"),
+            currency="USD",
             pct_uptrend=Decimal("90.0"),
-            momentum_median=Decimal("1.00"),
         )
         html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
         assert "goldensector" in html
@@ -727,13 +859,17 @@ class TestAktierRoutes:
     def test_stocks_sector_signal_ignores_high_ratio_without_cross(
         self, client_with_user, app
     ):
-        _seed_sector_row(
+        _seed_index_row(
             app,
+            ticker="US-IDX-HOT",
             sector="hotsector",
-            week_start=date.today(),
+            country="us",
+            trading_date=date.today(),
             ticker_count=50,
+            sma_50=Decimal("110"),
+            sma_200=Decimal("100"),
+            currency="USD",
             pct_uptrend=Decimal("95.0"),
-            momentum_median=Decimal("1.10"),
         )
         html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
         assert "hotsector" in html
@@ -742,35 +878,40 @@ class TestAktierRoutes:
         assert not response_has_signal_cell(html, "Death")
         assert response_has_signal_cell(html, "none")
 
-    def test_stocks_sector_signal_prefers_median_over_mean(self, client_with_user, app):
+    def test_index_chart_shows_price_and_sma_series(self, client_with_user, app):
         origin = _kors_series_origin()
-        crossover_iso = _week(4, origin).isoformat()
-        for week, momentum in _golden_momentum_series():
-            _seed_sector_row(
-                app,
-                sector="medianwins",
-                week_start=_week(week, origin),
-                ticker_count=8,
-                momentum_median=Decimal(momentum),
-                momentum_mean=Decimal("1.00"),
-            )
-        html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
-        assert response_has_signal_cell(html, "Golden", title=crossover_iso)
-
-    def test_stocks_sector_signal_uses_mean_when_median_missing(
-        self, client_with_user, app
-    ):
-        origin = _kors_series_origin()
-        crossover_iso = _week(4, origin).isoformat()
-        _seed_sector_momentum_series(
+        _seed_index_sma_series(
             app,
-            sector="meanonly",
-            series=_golden_momentum_series(),
+            ticker="US-IDX-ENERGY",
+            sector="Energy",
+            series=_golden_sma_series(),
             origin=origin,
-            use_mean_only=True,
+            ticker_count=190,
+            pct_uptrend=Decimal("72.6"),
+            z_score=Decimal("-2"),
         )
-        html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
-        assert response_has_signal_cell(html, "Golden", title=crossover_iso)
+        response = client_with_user.get("/stocks/index/US-IDX-ENERGY")
+        html = response.get_data(as_text=True)
+        assert response.status_code == 200
+        assert "Energy" in html
+        assert "SMA 50" in html
+        assert "SMA 200" in html
+        assert "Kurs" in html
+        assert "stockChart" in html
+        assert "Tillbaka till Aktier" in html
+        assert "sma_50" in html
+        assert "sma_200" in html
+        assert "current_price" in html
+        header = _chart_header_html(html)
+        assert "chart-business-summary" not in header
+
+    def test_index_chart_unknown_ticker_empty_course(self, client_with_user):
+        response = client_with_user.get("/stocks/index/NOT-AN-INDEX")
+        html = response.get_data(as_text=True)
+        assert response.status_code == 200
+        assert "Ingen kursdata" in html
+        assert "NOT-AN-INDEX" in html
+        assert "stockChart" not in html
 
     def test_stocks_trend_header_with_exchange_selected(self, client_with_user):
         html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
@@ -1610,7 +1751,7 @@ class TestAktierSort:
             "/stocks?exchange=nyse&page=2&sort=bolag&dir=asc"
         ).get_data(as_text=True)
         assert "page=1" in html
-        assert "sort=trend" in html
+        assert "sort=trend" in _stock_thead(html)
 
     def test_chart_back_preserves_sort(self, client_with_user, app):
         _seed_paged_nyse(app, count=26)
@@ -1620,6 +1761,145 @@ class TestAktierSort:
         assert "page=2" in html
         assert "sort=bolag" in html
         assert "dir=asc" in html
+
+
+class TestSectorPrisSort:
+    """SPEC 022: Pris, Index header, independent sector sort, aligned columns."""
+
+    def test_sector_pris_and_index_header(self, client_with_user, app):
+        week = date(2026, 9, 28)
+        _seed_index_row(
+            app,
+            ticker="US-IDX",
+            sector="US Equity Index",
+            country="us",
+            trading_date=week,
+            ticker_count=500,
+            current_price=Decimal("123.456"),
+            currency="USD",
+            pct_uptrend=Decimal("60.0"),
+        )
+        _seed_index_row(
+            app,
+            ticker="US-IDX-ENERGY",
+            sector="Energy",
+            country="us",
+            trading_date=week,
+            ticker_count=190,
+            current_price=None,
+            currency="USD",
+            pct_uptrend=Decimal("10.0"),
+        )
+        landing = client_with_user.get("/stocks").get_data(as_text=True)
+        _assert_empty_landing_tables(landing)
+        assert "123.46" not in landing
+        nasdaq = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
+        _assert_sector_headers(nasdaq)
+        _assert_stock_headers(nasdaq)
+        sectors = _sector_tbody(nasdaq)
+        assert "123.46" in sectors
+        energy_row = sectors.split("Energy", 1)[1].split("</tr>", 1)[0]
+        assert "—" in energy_row
+        assert "/stocks/index/US-IDX-ENERGY" in nasdaq
+        thead = _sector_thead(nasdaq)
+        assert "sector_sort=ratio" in thead
+        assert "sector_sort=pris" not in nasdaq.lower()
+        assert 'href="' in thead
+        pris_header = thead.split("Pris", 1)[0].rsplit("<th", 1)[-1]
+        assert "stocks-sort-link" not in pris_header
+
+    def test_sector_sort_is_independent_of_stock_sort(self, client_with_user, app):
+        week = date(2026, 9, 28)
+        _seed_index_row(
+            app,
+            ticker="US-IDX",
+            sector="US Equity Index",
+            country="us",
+            trading_date=week,
+            ticker_count=1,
+            pct_uptrend=Decimal("10.0"),
+            z_score=Decimal("0.1"),
+        )
+        _seed_index_row(
+            app,
+            ticker="US-IDX-ZETA",
+            sector="Zeta Index",
+            country="us",
+            trading_date=week,
+            ticker_count=2,
+            pct_uptrend=Decimal("90.0"),
+            z_score=Decimal("1.5"),
+        )
+        _seed_index_row(
+            app,
+            ticker="US-IDX-ALPHA",
+            sector="Alpha Index",
+            country="us",
+            trading_date=week,
+            ticker_count=3,
+            pct_uptrend=Decimal("50.0"),
+            z_score=Decimal("-0.5"),
+        )
+        _seed_paged_nyse(app, count=3)
+        default = client_with_user.get("/stocks?exchange=nyse").get_data(as_text=True)
+        names = _sector_tbody(default)
+        assert names.find("US Equity Index") < names.find("Alpha Index")
+        assert names.find("US Equity Index") < names.find("Zeta Index")
+        both = client_with_user.get(
+            "/stocks?exchange=nyse&sort=bolag&dir=asc&sector_sort=ratio&sector_dir=desc"
+        ).get_data(as_text=True)
+        ratio_names = _sector_tbody(both)
+        assert ratio_names.find("Zeta Index") < ratio_names.find("Alpha Index")
+        assert ratio_names.find("Alpha Index") < ratio_names.find("US Equity Index")
+        assert "sector_sort=ratio" in both
+        assert "sort=bolag" in _stock_thead(both)
+        assert "Paged Co 01" in _stock_tbody(both)
+        by_index = client_with_user.get(
+            "/stocks?exchange=nyse&sector_sort=index&sector_dir=asc"
+        ).get_data(as_text=True)
+        index_names = _sector_tbody(by_index)
+        assert index_names.find("Alpha Index") < index_names.find("US Equity Index")
+        assert index_names.find("US Equity Index") < index_names.find("Zeta Index")
+        reversed_index = client_with_user.get(
+            "/stocks?exchange=nyse&sector_sort=index&sector_dir=desc"
+        ).get_data(as_text=True)
+        reversed_names = _sector_tbody(reversed_index)
+        assert reversed_names.find("Zeta Index") < reversed_names.find("Alpha Index")
+        stock_only = client_with_user.get(
+            "/stocks?exchange=nyse&sort=bolag&dir=asc"
+        ).get_data(as_text=True)
+        nyse_sectors = _sector_tbody(stock_only)
+        assert nyse_sectors.find("US Equity Index") < nyse_sectors.find("Alpha Index")
+        invalid = client_with_user.get(
+            "/stocks?exchange=nyse&sector_sort=nope&sector_dir=asc"
+        ).get_data(as_text=True)
+        invalid_names = _sector_tbody(invalid)
+        assert invalid_names.find("US Equity Index") < invalid_names.find("Alpha Index")
+        assert "sector_sort=nope" not in invalid
+
+    def test_aktier_column_width_rules_align_tables(self):
+        css = (
+            Path(__file__)
+            .resolve()
+            .parents[1]
+            .joinpath("static/css/stocks.css")
+            .read_text()
+        )
+        assert "#sector-table table" in css
+        assert "#stocks-table table" in css
+        assert "table-layout: fixed" in css
+        for name in (
+            "aktier-col-trend",
+            "aktier-col-signal",
+            "aktier-col-name",
+            "aktier-col-id",
+            "aktier-col-currency",
+            "aktier-col-price",
+            "aktier-col-last",
+        ):
+            assert name in css
+        assert "5 * 2.8125rem" in css
+        assert "10 * 2.8125rem" in css
 
 
 class TestErrorHandlers:

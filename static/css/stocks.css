@@ -99,6 +99,41 @@
     color: #fff;
 }
 
+/* Shared seven-column widths so the stacked Aktier tables line up. */
+#sector-table table,
+#stocks-table table {
+    table-layout: fixed;
+    width: 100%;
+}
+
+.aktier-col-trend {
+    width: 8%;
+}
+
+.aktier-col-signal {
+    width: 8%;
+}
+
+.aktier-col-name {
+    width: 26%;
+}
+
+.aktier-col-id {
+    width: 14%;
+}
+
+.aktier-col-currency {
+    width: 10%;
+}
+
+.aktier-col-price {
+    width: 12%;
+}
+
+.aktier-col-last {
+    width: 22%;
+}
+
 /* Sticky column headers: stick on <th> (not only <thead>) with an explicit
    stacking level so scrolled Signal spheres cannot paint over column names.
    Empty spheres use opacity < 1, which creates a stacking context that draws
