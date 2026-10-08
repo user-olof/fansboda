@@ -9,6 +9,8 @@ from src.models.swe_metrics import SweMetric
 from src.models.swe_by_sector import SweBySector
 from src.models.swe_ticker import SweTicker
 from src.models.ticker import Ticker
+from src.models.uk_metrics import UkMetric
+from src.models.uk_ticker import UkTicker
 from src.models.indices import Indice
 from src.models.us_by_sector import UsBySector
 from src.models.user import User
@@ -73,14 +75,14 @@ def _theads(html):
 
 def _sector_thead(html):
     for thead in _theads(html):
-        if "Antal aktier" in thead:
+        if "Antal Bolag" in thead:
             return thead
     raise AssertionError("no sector thead")
 
 
 def _stock_thead(html):
     for thead in _theads(html):
-        if "Bolag" in thead:
+        if "Industri" in thead and "Symbol" in thead:
             return thead
     raise AssertionError("no stock thead")
 
@@ -102,12 +104,13 @@ def _assert_no_choose_bors(html):
 
 def _assert_sector_headers(html):
     thead = _sector_thead(html)
-    names = ["Trend", "Signal", "Index", "Antal aktier", "Valuta", "Pris", "Ratio"]
+    names = ["Trend", "Signal", "Index", "Antal Bolag", "Valuta", "Pris", "Ratio"]
     positions = [thead.find(name) for name in names]
     assert all(pos != -1 for pos in positions), thead
     assert positions == sorted(positions)
+    assert "Antal aktier" not in thead
     assert "Sektor" not in thead
-    assert "Bolag" not in thead
+    assert "bi-building" not in thead
     assert "Industri" not in thead
     assert "Symbol" not in thead
     assert "Kors" not in thead
@@ -152,6 +155,7 @@ def _assert_stock_headers(html):
     assert all(pos != -1 for pos in positions), thead
     assert positions == sorted(positions)
     assert "Antal aktier" not in thead
+    assert "Antal Bolag" not in thead
     assert "Sektor" not in thead
     assert "Index" not in thead
     assert "Ratio" not in thead
@@ -579,6 +583,9 @@ class TestAktierRoutes:
         warm = client.get("/stocks/warm?exchange=omx_stockholm")
         assert warm.status_code == 302
         assert "/login" in warm.location
+        ftse = client.get("/stocks?exchange=ftse")
+        assert ftse.status_code == 302
+        assert "/login" in ftse.location
         index_chart = client.get("/stocks/index/US-IDX")
         assert index_chart.status_code == 302
         assert "/login" in index_chart.location
@@ -590,7 +597,9 @@ class TestAktierRoutes:
         assert "Golden" not in body
         assert "Death" not in body
         assert "Antal aktier" not in body
+        assert "Antal Bolag" not in body
         assert "Sektor" not in body
+        assert "FTSE" not in body
 
     def test_stocks_empty_table_when_logged_in(self, client_with_user):
         response = client_with_user.get("/stocks")
@@ -599,6 +608,10 @@ class TestAktierRoutes:
         assert "NASDAQ" in html
         assert "NYSE" in html
         assert "OMX Stockholm" in html
+        assert "FTSE" in html
+        assert html.find("NASDAQ") < html.find("NYSE") < html.find("OMX Stockholm") < html.find(
+            ">FTSE<"
+        )
         assert "Beskrivning" not in html
         _assert_empty_landing_tables(html)
         _assert_trend_legend(html)
@@ -1900,6 +1913,159 @@ class TestSectorPrisSort:
             assert name in css
         assert "5 * 2.8125rem" in css
         assert "10 * 2.8125rem" in css
+        assert "white-space: nowrap" in css
+
+
+class TestFtseHeaderLabels:
+    """SPEC 023: Antal Bolag, FTSE UK market, stored index names."""
+
+    def test_ftse_empty_and_uk_only(self, client_with_user, app):
+        week = date(2026, 9, 28)
+        trading_day = date.today() - timedelta(days=7)
+        _seed_index_row(
+            app,
+            ticker="UK-IDX",
+            sector="FTSE Equity Index",
+            country="uk",
+            trading_date=week,
+            ticker_count=400,
+            currency="GBP",
+            pct_uptrend=Decimal("40.0"),
+            z_score=Decimal("0.2"),
+        )
+        _seed_index_row(
+            app,
+            ticker="UK-IDX-ENERGY",
+            sector="Energy",
+            country="uk",
+            trading_date=week,
+            ticker_count=40,
+            currency="GBP",
+            pct_uptrend=Decimal("20.0"),
+        )
+        _seed_index_row(
+            app,
+            ticker="US-IDX",
+            sector="US Equity Index",
+            country="us",
+            trading_date=week,
+            ticker_count=500,
+            currency="USD",
+            pct_uptrend=Decimal("60.0"),
+        )
+        _seed_index_row(
+            app,
+            ticker="SWE-IDX",
+            sector="OMX Equity Index",
+            country="swe",
+            trading_date=week,
+            ticker_count=700,
+            currency="SEK",
+            pct_uptrend=Decimal("50.0"),
+        )
+        with app.app_context():
+            db.session.add(
+                UkTicker(
+                    symbol="AZN.L",
+                    company="AstraZeneca PLC",
+                    market="gb_market",
+                    exchange_name="LSE",
+                )
+            )
+            db.session.add(
+                UkMetric(
+                    ticker="AZN.L",
+                    company="AstraZeneca PLC",
+                    trading_date=trading_day,
+                    current_price=120.0,
+                    currency="GBP",
+                )
+            )
+            db.session.add(
+                Ticker(
+                    symbol="AAPL",
+                    company="Apple Inc.",
+                    market="us_market",
+                    exchange_name="NASDAQ",
+                )
+            )
+            db.session.add(
+                Metric(
+                    ticker="AAPL",
+                    company="Apple Inc.",
+                    trading_date=trading_day,
+                    current_price=190.0,
+                    currency="USD",
+                )
+            )
+            db.session.commit()
+
+        empty = client_with_user.get("/stocks?exchange=ftse")
+        # Reload after seed is already done; first request with data:
+        html = empty.get_data(as_text=True)
+        _assert_sector_headers(html)
+        _assert_stock_headers(html)
+        sectors = _sector_tbody(html)
+        stocks = _stock_tbody(html)
+        assert "FTSE Equity Index" in sectors
+        assert "Energy" in sectors
+        assert sectors.find("FTSE Equity Index") < sectors.find("Energy")
+        assert "AstraZeneca PLC" in stocks
+        assert "Apple Inc." not in stocks
+        assert "US Equity Index" not in sectors
+        assert "OMX Equity Index" not in sectors
+        assert "NYSE & Nasdaq" not in html
+        assert "FTSE London" not in html
+        assert "exchange=ftse" in html
+        assert "exchange-btn--selected" in html
+
+        nasdaq = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
+        nasdaq_sectors = _sector_tbody(nasdaq)
+        nasdaq_stocks = _stock_tbody(nasdaq)
+        assert "US Equity Index" in nasdaq_sectors
+        assert "FTSE Equity Index" not in nasdaq_sectors
+        assert "AstraZeneca PLC" not in nasdaq_stocks
+        assert "Apple Inc." in nasdaq_stocks
+
+    def test_ftse_empty_fixtures_do_not_invent_rows(self, client_with_user):
+        html = client_with_user.get("/stocks?exchange=ftse").get_data(as_text=True)
+        _assert_sector_headers(html)
+        _assert_stock_headers(html)
+        assert "heat-cell" not in _sector_tbody(html)
+        assert "heat-cell" not in _stock_tbody(html)
+        assert "Inga sektorer" in html
+        assert "Inga aktier" in html
+        assert "FTSE" in html
+
+    def test_ftse_chart_return_keeps_exchange(self, client_with_user, app):
+        trading_day = date.today() - timedelta(days=7)
+        with app.app_context():
+            db.session.add(
+                UkTicker(
+                    symbol="AZN.L",
+                    company="AstraZeneca PLC",
+                    market="gb_market",
+                    exchange_name="LSE",
+                    business_summary="AstraZeneca develops medicines.",
+                )
+            )
+            db.session.add(
+                UkMetric(
+                    ticker="AZN.L",
+                    company="AstraZeneca PLC",
+                    trading_date=trading_day,
+                    current_price=120.0,
+                    sma_50=118.0,
+                    sma_200=110.0,
+                    currency="GBP",
+                )
+            )
+            db.session.commit()
+        client_with_user.get("/stocks?exchange=ftse")
+        html = client_with_user.get("/stocks/chart/AZN.L").get_data(as_text=True)
+        assert "AstraZeneca PLC" in html
+        assert "Tillbaka till Aktier" in html
+        assert "exchange=ftse" in html
 
 
 class TestErrorHandlers:

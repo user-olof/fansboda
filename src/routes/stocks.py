@@ -15,6 +15,9 @@ from src.models.swe_market_metrics import SweMarketMetric
 from src.models.swe_metrics import SweMetric
 from src.models.swe_ticker import SweTicker
 from src.models.ticker import Ticker
+from src.models.uk_market_metrics import UkMarketMetric
+from src.models.uk_metrics import UkMetric
+from src.models.uk_ticker import UkTicker
 from src.models.user import Role
 from src.services.cross_detection import SmaSnapshot, detect_all_patterns
 from src.services.kors_display import select_kors_display
@@ -25,12 +28,14 @@ EXCHANGE_QUERY = {
     "nasdaq": "NASDAQ",
     "nyse": "NYSE",
     "omx_stockholm": "OMX Stockholm",
+    "ftse": "FTSE",
 }
 
 EXCHANGE_COUNTRY = {
     "nasdaq": "us",
     "nyse": "us",
     "omx_stockholm": "se",
+    "ftse": "uk",
 }
 
 PAGE_SIZE = 25
@@ -288,12 +293,21 @@ def exchange_name_matches(stored, exchange_key):
         return text.startswith("nyse")
     if exchange_key == "omx_stockholm":
         return text in {"sto", "xsto"} or "stockholm" in text
+    if exchange_key == "ftse":
+        return (
+            text in {"lse", "xlon"}
+            or text.startswith("lse")
+            or "london" in text
+            or "ftse" in text
+        )
     return False
 
 
 def _tables_for_country(country):
     if country == "se":
         return SweMetric, SweTicker, SweMarketMetric
+    if country == "uk":
+        return UkMetric, UkTicker, UkMarketMetric
     return Metric, Ticker, MarketMetric
 
 
@@ -363,27 +377,24 @@ def _metric_history(metric_model, ticker, cutoff):
 
 
 def _latest_observation(ticker):
-    latest = (
-        db.session.query(Metric)
-        .filter(Metric.ticker == ticker)
-        .order_by(Metric.trading_date.desc())
-        .first()
-    )
-    if latest is not None:
-        return latest
-    return (
-        db.session.query(SweMetric)
-        .filter(SweMetric.ticker == ticker)
-        .order_by(SweMetric.trading_date.desc())
-        .first()
-    )
+    for model in (Metric, SweMetric, UkMetric):
+        latest = (
+            db.session.query(model)
+            .filter(model.ticker == ticker)
+            .order_by(model.trading_date.desc())
+            .first()
+        )
+        if latest is not None:
+            return latest
+    return None
 
 
 def _directory_ticker(symbol):
-    row = db.session.get(Ticker, symbol)
-    if row is not None:
-        return row
-    return db.session.get(SweTicker, symbol)
+    for model in (Ticker, SweTicker, UkTicker):
+        row = db.session.get(model, symbol)
+        if row is not None:
+            return row
+    return None
 
 
 SUMMARY_PREVIEW_CHARS = 200
@@ -414,6 +425,8 @@ def get_last_weeks_metrics(ticker, weeks=52):
     rows = _metric_history(Metric, ticker, cutoff)
     if not rows:
         rows = _metric_history(SweMetric, ticker, cutoff)
+    if not rows:
+        rows = _metric_history(UkMetric, ticker, cutoff)
 
     return [
         {
@@ -464,15 +477,17 @@ def _display_sector(sector):
     return text or None
 
 
-MARKET_INDEX_TICKERS = frozenset({"US-IDX", "SWE-IDX"})
+MARKET_INDEX_TICKERS = frozenset({"US-IDX", "SWE-IDX", "UK-IDX"})
 
 
 def _indices_country(market):
-    """Map Aktier market (`us` / `se`) to `indices.country` (`us` / `swe`)."""
+    """Map Aktier market (`us` / `se` / `uk`) to `indices.country` (`us` / `swe` / `uk`)."""
     if market == "us":
         return "us"
     if market == "se":
         return "swe"
+    if market == "uk":
+        return "uk"
     return None
 
 
@@ -1160,8 +1175,12 @@ def index_chart(ticker):
 @stocks_bp.route("/stocks/latest", methods=["GET"])
 @role_required(Role.USER, Role.ADMIN)
 def latest_stock_prices():
-    """Return the latest price per ticker from US and Swedish metrics."""
-    metrics = _get_latest_metrics(Metric) + _get_latest_metrics(SweMetric)
+    """Return the latest price per ticker from US, Swedish, and UK metrics."""
+    metrics = (
+        _get_latest_metrics(Metric)
+        + _get_latest_metrics(SweMetric)
+        + _get_latest_metrics(UkMetric)
+    )
     return jsonify(
         [
             {

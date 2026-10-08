@@ -10,6 +10,9 @@ from src.models.swe_market_metrics import SweMarketMetric
 from src.models.swe_metrics import SweMetric
 from src.models.swe_ticker import SweTicker
 from src.models.ticker import Ticker
+from src.models.uk_market_metrics import UkMarketMetric
+from src.models.uk_metrics import UkMetric
+from src.models.uk_ticker import UkTicker
 from src.models.indices import Indice
 from src.models.us_by_sector import UsBySector
 from src import db
@@ -104,6 +107,52 @@ class TestMetricModel:
             assert found.business_summary == "Volvo AB manufactures trucks and buses."
             assert "business_summary" in SweTicker.__table__.c
 
+    def test_uk_tables_map_neon_names(self, client):
+        assert UkTicker.__tablename__ == "uk_tickers"
+        assert UkMetric.__tablename__ == "uk_metrics"
+        assert UkMarketMetric.__tablename__ == "uk_market_metrics"
+        with client.application.app_context():
+            ticker = UkTicker(
+                symbol="AZN.L",
+                company="AstraZeneca PLC",
+                market="gb_market",
+                exchange_name="LSE",
+                business_summary="AstraZeneca develops medicines.",
+            )
+            db.session.add(ticker)
+            db.session.add(
+                UkMetric(
+                    ticker="AZN.L",
+                    company="AstraZeneca PLC",
+                    trading_date=date(2026, 7, 1),
+                    current_price=120.50,
+                    sma_50=118.0,
+                    sma_200=110.0,
+                    currency="GBP",
+                    momentum=1.02,
+                    z_score=0.1,
+                )
+            )
+            db.session.add(
+                UkMarketMetric(
+                    market="gb_market",
+                    week_start=date(2026, 6, 30),
+                    momentum_mean=1.01,
+                    momentum_std=0.12,
+                )
+            )
+            db.session.commit()
+            found = db.session.get(UkTicker, "AZN.L")
+            assert found.exchange_name == "LSE"
+            assert found.business_summary == "AstraZeneca develops medicines."
+            metric = UkMetric.query.filter_by(ticker="AZN.L").one()
+            assert float(metric.current_price) == 120.50
+            market = db.session.get(UkMarketMetric, ("gb_market", date(2026, 6, 30)))
+            assert float(market.momentum_mean) == 1.01
+            assert "week_start" in UkMarketMetric.__table__.c
+            assert "momentum" in UkMetric.__table__.c
+            assert "z_score" in UkMetric.__table__.c
+
     def test_metric_creation(self, client):
         """Test creating a metric with optional display fields."""
         with client.application.app_context():
@@ -129,13 +178,17 @@ class TestMetricModel:
             assert float(found.z_score) == 0.0
 
     def test_observation_models_drop_raw_columns(self):
-        for model in (Metric, SweMetric, MarketMetric, SweMarketMetric):
+        for model in (Metric, SweMetric, UkMetric, MarketMetric, SweMarketMetric, UkMarketMetric):
             raw_columns = [name for name in model.__table__.c.keys() if name.startswith("raw_")]
             assert raw_columns == []
         assert "momentum" in Metric.__table__.c
         assert "z_score" in Metric.__table__.c
         assert "momentum" in SweMetric.__table__.c
         assert "z_score" in SweMetric.__table__.c
+        assert "momentum" in UkMetric.__table__.c
+        assert "z_score" in UkMetric.__table__.c
+        assert "momentum_mean" in UkMarketMetric.__table__.c
+        assert "momentum_std" in UkMarketMetric.__table__.c
         assert "momentum_mean" in MarketMetric.__table__.c
         assert "momentum_std" in MarketMetric.__table__.c
         assert "momentum_mean" in SweMarketMetric.__table__.c

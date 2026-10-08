@@ -107,15 +107,15 @@
 }
 
 .aktier-col-trend {
-    width: 8%;
+    width: 11%;
 }
 
 .aktier-col-signal {
-    width: 8%;
+    width: 10%;
 }
 
 .aktier-col-name {
-    width: 26%;
+    width: 24%;
 }
 
 .aktier-col-id {
@@ -131,7 +131,14 @@
 }
 
 .aktier-col-last {
-    width: 22%;
+    width: 19%;
+}
+
+#sector-table thead th:nth-child(1),
+#sector-table thead th:nth-child(2),
+#stocks-table thead th:nth-child(1),
+#stocks-table thead th:nth-child(2) {
+    white-space: nowrap;
 }
 
 /* Sticky column headers: stick on <th> (not only <thead>) with an explicit
