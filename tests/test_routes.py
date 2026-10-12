@@ -2,6 +2,7 @@ import re
 from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 from src.models.market_metrics import MarketMetric
 from src.models.metrics import Metric
@@ -161,6 +162,117 @@ def _assert_stock_headers(html):
     assert "Ratio" not in thead
     assert "Kors" not in thead
     assert "Heat" not in thead
+
+
+def _aterstall_href(html, kind):
+    match = re.search(
+        rf'href="([^"]+)"\s+class="aterstall-btn aterstall-btn--{kind}"',
+        html,
+    )
+    assert match is not None, kind
+    return match.group(1).replace("&amp;", "&")
+
+
+def _query_params(href):
+    return parse_qs(urlparse(href).query)
+
+
+def _exchange_href(html, name):
+    match = re.search(rf'href="([^"]+)"[^>]*>{re.escape(name)}<', html)
+    assert match is not None, name
+    return match.group(1).replace("&amp;", "&")
+
+
+def _industri_cells(html):
+    return [
+        cell.strip()
+        for cell in re.findall(
+            r'class="industri-cell">([^<]*)</td>', _stock_tbody(html)
+        )
+    ]
+
+
+def _seed_industry_filter_nyse(app):
+    """26 Technology + 2 Healthcare + 1 empty Industri; US market index + Energy."""
+    trading_day = date.today() - timedelta(days=7)
+    week = date(2026, 9, 28)
+    with app.app_context():
+        for index in range(1, 27):
+            symbol = f"T{index:02d}"
+            db.session.add(
+                Ticker(
+                    symbol=symbol,
+                    company=f"Tech Co {index:02d}",
+                    market="us_market",
+                    sector="Technology",
+                    exchange_name="NYSE",
+                )
+            )
+            db.session.add(
+                Metric(
+                    ticker=symbol,
+                    company=f"Tech Co {index:02d}",
+                    trading_date=trading_day,
+                    current_price=float(index),
+                    currency="USD",
+                )
+            )
+        for symbol, company in (("H01", "Health Co 01"), ("H02", "Health Co 02")):
+            db.session.add(
+                Ticker(
+                    symbol=symbol,
+                    company=company,
+                    market="us_market",
+                    sector="Healthcare",
+                    exchange_name="NYSE",
+                )
+            )
+            db.session.add(
+                Metric(
+                    ticker=symbol,
+                    company=company,
+                    trading_date=trading_day,
+                    current_price=1.0,
+                    currency="USD",
+                )
+            )
+        db.session.add(
+            Ticker(
+                symbol="E01",
+                company="Empty Industri Co",
+                market="us_market",
+                sector=None,
+                exchange_name="NYSE",
+            )
+        )
+        db.session.add(
+            Metric(
+                ticker="E01",
+                company="Empty Industri Co",
+                trading_date=trading_day,
+                current_price=1.0,
+                currency="USD",
+            )
+        )
+        db.session.commit()
+    _seed_index_row(
+        app,
+        ticker="US-IDX",
+        sector="US Equity Index",
+        country="us",
+        trading_date=week,
+        ticker_count=1,
+        pct_uptrend=Decimal("10.0"),
+    )
+    _seed_index_row(
+        app,
+        ticker="US-IDX-ENERGY",
+        sector="Energy",
+        country="us",
+        trading_date=week,
+        ticker_count=2,
+        pct_uptrend=Decimal("20.0"),
+    )
 
 
 def _assert_empty_landing_tables(html):
@@ -600,6 +712,7 @@ class TestAktierRoutes:
         assert "Antal Bolag" not in body
         assert "Sektor" not in body
         assert "FTSE" not in body
+        assert "Återställ" not in body
 
     def test_stocks_empty_table_when_logged_in(self, client_with_user):
         response = client_with_user.get("/stocks")
@@ -1914,6 +2027,12 @@ class TestSectorPrisSort:
         assert "5 * 2.8125rem" in css
         assert "10 * 2.8125rem" in css
         assert "white-space: nowrap" in css
+        assert "#sector-table thead th:nth-child(4)" in css
+        assert "#sector-table thead th:nth-child(5)" in css
+        assert "#stocks-table thead th:nth-child(5)" in css
+        buttons = re.search(r"\.exchange-buttons\s*\{([^}]+)\}", css)
+        assert buttons is not None
+        assert "nowrap" in buttons.group(1)
 
 
 class TestFtseHeaderLabels:
@@ -2066,6 +2185,216 @@ class TestFtseHeaderLabels:
         assert "AstraZeneca PLC" in html
         assert "Tillbaka till Aktier" in html
         assert "exchange=ftse" in html
+
+
+class TestHeaderNowrapReset:
+    """SPEC 024: Antal Bolag/Valuta one line, FTSE beside OMX, Återställ."""
+
+    def test_landing_buttons_and_aterstall(self, client_with_user):
+        html = client_with_user.get("/stocks").get_data(as_text=True)
+        _assert_sector_headers(html)
+        _assert_stock_headers(html)
+        assert html.find("NASDAQ") < html.find("NYSE") < html.find(
+            "OMX Stockholm"
+        ) < html.find(">FTSE<")
+        assert html.count("Återställ") == 2
+        assert 'aterstall-btn--sector' in html
+        assert 'aterstall-btn--stocks' in html
+        assert _aterstall_href(html, "sector").endswith("/stocks")
+        assert _aterstall_href(html, "stocks").endswith("/stocks")
+
+    def test_aterstall_omits_the_matching_sort_pair(self, client_with_user, app):
+        _seed_paged_nyse(app, count=26)
+        week = date(2026, 9, 28)
+        _seed_index_row(
+            app,
+            ticker="US-IDX",
+            sector="US Equity Index",
+            country="us",
+            trading_date=week,
+            ticker_count=1,
+            pct_uptrend=Decimal("10.0"),
+        )
+        html = client_with_user.get(
+            "/stocks?exchange=nyse&sort=bolag&dir=asc&sector_sort=ratio"
+            "&sector_dir=desc&page=2"
+        ).get_data(as_text=True)
+        sector_q = _query_params(_aterstall_href(html, "sector"))
+        stocks_q = _query_params(_aterstall_href(html, "stocks"))
+        assert sector_q.get("exchange") == ["nyse"]
+        assert sector_q.get("sort") == ["bolag"]
+        assert sector_q.get("dir") == ["asc"]
+        assert "sector_sort" not in sector_q
+        assert "sector_dir" not in sector_q
+        assert stocks_q.get("exchange") == ["nyse"]
+        assert stocks_q.get("page") == ["1"]
+        assert stocks_q.get("sector_sort") == ["ratio"]
+        assert stocks_q.get("sector_dir") == ["desc"]
+        assert "sort" not in stocks_q
+        assert "dir" not in stocks_q
+
+    def test_index_reset_restores_market_first(self, client_with_user, app):
+        week = date(2026, 9, 28)
+        _seed_index_row(
+            app,
+            ticker="US-IDX",
+            sector="US Equity Index",
+            country="us",
+            trading_date=week,
+            ticker_count=1,
+            pct_uptrend=Decimal("10.0"),
+            z_score=Decimal("0.1"),
+        )
+        _seed_index_row(
+            app,
+            ticker="US-IDX-ZETA",
+            sector="Zeta Index",
+            country="us",
+            trading_date=week,
+            ticker_count=2,
+            pct_uptrend=Decimal("90.0"),
+            z_score=Decimal("1.0"),
+        )
+        sorted_html = client_with_user.get(
+            "/stocks?exchange=nasdaq&sector_sort=index&sector_dir=desc"
+        ).get_data(as_text=True)
+        names = _sector_tbody(sorted_html)
+        assert names.find("Zeta Index") < names.find("US Equity Index")
+        reset = client_with_user.get(_aterstall_href(sorted_html, "sector")).get_data(
+            as_text=True
+        )
+        reset_names = _sector_tbody(reset)
+        assert reset_names.find("US Equity Index") < reset_names.find("Zeta Index")
+        assert "sector_sort=" not in _aterstall_href(reset, "sector")
+
+    def test_stock_reset_default_order_from_page_one(self, client_with_user, app):
+        _seed_paged_nyse(app, count=26)
+        sorted_html = client_with_user.get(
+            "/stocks?exchange=nyse&sort=bolag&dir=desc&page=2"
+        ).get_data(as_text=True)
+        assert "Paged Co 01" in _stock_tbody(sorted_html)
+        reset = client_with_user.get(_aterstall_href(sorted_html, "stocks")).get_data(
+            as_text=True
+        )
+        stocks = _stock_tbody(reset)
+        assert "Paged Co 01" in stocks
+        assert "Paged Co 26" not in stocks
+        reset_q = _query_params(_aterstall_href(reset, "stocks"))
+        assert "sort" not in reset_q
+        assert reset_q.get("page") == ["1"] or "page" not in reset_q
+
+
+class TestTrendScaleWidth:
+    """SPEC 025: Bearish–Bullish colour line matches the index table width."""
+
+    def test_trend_scale_css_fills_index_table_column(self):
+        css = (
+            Path(__file__)
+            .resolve()
+            .parents[1]
+            .joinpath("static/css/stocks.css")
+            .read_text()
+        )
+        scale = re.search(r"\.trend-scale\s*\{([^}]+)\}", css)
+        assert scale is not None
+        body = scale.group(1)
+        assert "width: 100%" in body
+        assert "max-width: 36rem" not in body
+        assert "max-width: 36rem" not in css
+        assert "#1d4ed8" in css
+        assert "#991b1b" in css
+
+    def test_landing_keeps_legend_and_full_width_scale(self, client_with_user):
+        html = client_with_user.get("/stocks").get_data(as_text=True)
+        _assert_trend_legend(html)
+        assert 'class="trend-scale"' in html
+        assert html.find("trend-scale") < html.find('id="sector-table"')
+
+
+class TestIndustriSectorFilter:
+    """SPEC 026: stock-table Industri filters by stored sector type."""
+
+    def test_landing_has_no_industry_control(self, client_with_user):
+        html = client_with_user.get("/stocks").get_data(as_text=True)
+        thead = _stock_thead(html)
+        assert "industry=" not in thead
+        assert ">Alla<" not in thead
+        assert "sort=industri" not in html
+
+    def test_filter_links_use_stored_labels_not_market_index(
+        self, client_with_user, app
+    ):
+        _seed_industry_filter_nyse(app)
+        html = client_with_user.get("/stocks?exchange=nyse").get_data(as_text=True)
+        thead = _stock_thead(html)
+        assert ">Alla<" in thead
+        assert "industry=Technology" in thead
+        assert "industry=Healthcare" in thead
+        assert "US Equity Index" not in thead
+        assert "sort=industri" not in html
+        assert "Energy" in _sector_tbody(html)
+
+    def test_known_industry_filters_full_set_from_page_one(
+        self, client_with_user, app
+    ):
+        _seed_industry_filter_nyse(app)
+        html = client_with_user.get(
+            "/stocks?exchange=nyse&industry=Technology"
+        ).get_data(as_text=True)
+        cells = _industri_cells(html)
+        assert cells
+        assert all(cell == "Technology" for cell in cells)
+        assert "Health Co 01" not in html
+        assert "Empty Industri Co" not in html
+        assert "1–25 av 26" in html or "1&ndash;25 av 26" in html
+        assert "Tech Co 01" in html
+        assert "Tech Co 26" not in html
+        assert "US Equity Index" in _sector_tbody(html)
+        assert "Energy" in _sector_tbody(html)
+
+    def test_industry_plus_bolag_sort_still_filters(self, client_with_user, app):
+        _seed_industry_filter_nyse(app)
+        html = client_with_user.get(
+            "/stocks?exchange=nyse&industry=Healthcare&sort=bolag&dir=asc"
+        ).get_data(as_text=True)
+        cells = _industri_cells(html)
+        assert cells == ["Healthcare", "Healthcare"]
+        assert "Health Co 01" in html
+        assert "Tech Co 01" not in html
+        assert "sort=bolag" in _stock_thead(html)
+
+    def test_unknown_industry_shows_all_names(self, client_with_user, app):
+        _seed_industry_filter_nyse(app)
+        html = client_with_user.get(
+            "/stocks?exchange=nyse&industry=NotASector"
+        ).get_data(as_text=True)
+        assert "Tech Co 01" in html
+        assert "Health Co 01" in html
+        assert "Empty Industri Co" in html
+        assert "1–25 av 29" in html or "1&ndash;25 av 29" in html
+
+    def test_aterstall_and_bors_omit_or_keep_industry(self, client_with_user, app):
+        _seed_industry_filter_nyse(app)
+        html = client_with_user.get(
+            "/stocks?exchange=nyse&industry=Technology&sort=bolag&dir=asc"
+            "&sector_sort=ratio&sector_dir=desc"
+        ).get_data(as_text=True)
+        stocks_q = _query_params(_aterstall_href(html, "stocks"))
+        sector_q = _query_params(_aterstall_href(html, "sector"))
+        nasdaq_q = _query_params(_exchange_href(html, "NASDAQ"))
+        assert "industry" not in stocks_q
+        assert stocks_q.get("page") == ["1"]
+        assert "sort" not in stocks_q
+        assert sector_q.get("industry") == ["Technology"]
+        assert "industry" not in nasdaq_q
+        assert nasdaq_q.get("sort") == ["bolag"]
+
+    def test_signed_out_stocks_has_no_filter(self, client):
+        response = client.get("/stocks")
+        assert response.status_code == 302
+        html = response.get_data(as_text=True)
+        assert "industry=" not in html
+        assert "Industri" not in html
 
 
 class TestErrorHandlers:

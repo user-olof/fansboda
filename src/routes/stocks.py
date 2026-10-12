@@ -129,6 +129,52 @@ def sort_stock_rows(rows, sort_key, direction):
     return ordered
 
 
+def industry_options(rows, exclude_labels=None):
+    """Distinct non-empty Industri labels, A → Z. Never market-index names."""
+    excluded = {
+        str(label).strip().casefold()
+        for label in (exclude_labels or ())
+        if label
+    }
+    seen = set()
+    labels = []
+    for row in rows:
+        label = (row.get("industry") or "").strip()
+        if not label:
+            continue
+        key = label.casefold()
+        if key in seen or key in excluded:
+            continue
+        seen.add(key)
+        labels.append(label)
+    labels.sort(key=str.casefold)
+    return labels
+
+
+def parse_industry_filter(value, options):
+    """Return the canonical option label, or ``None`` for no filter."""
+    raw = str(value).strip() if value is not None else ""
+    if not raw:
+        return None
+    wanted = raw.casefold()
+    for label in options:
+        if label.casefold() == wanted:
+            return label
+    return None
+
+
+def filter_stock_rows(rows, industry):
+    """Keep rows whose Industri matches ``industry``. Empty cells drop out."""
+    if not industry:
+        return list(rows)
+    wanted = industry.casefold()
+    return [
+        row
+        for row in rows
+        if (row.get("industry") or "").strip().casefold() == wanted
+    ]
+
+
 def parse_sector_sort(sort_value, dir_value):
     """Return ``(sort, dir)`` or ``(None, None)`` for 021 market-first order."""
     sort_key = str(sort_value).strip().lower() if sort_value is not None else ""
@@ -585,6 +631,14 @@ def _kors_for_sector(ticker, snapshots, latest_week, country=""):
         return None, ""
 
 
+def _market_index_labels(sector_rows):
+    return [
+        (row.get("sector") or "").strip()
+        for row in sector_rows
+        if row.get("ticker") in MARKET_INDEX_TICKERS
+    ]
+
+
 def _load_sector_rows(market):
     """Latest index rows for one market with on-the-fly RFC-013 Signal."""
     country = _indices_country(market)
@@ -887,12 +941,19 @@ def _ensure_full_rows(user_id, exchange_key):
 
 
 def _load_table_page(
-    user_id, exchange_key, requested_page, sort_key=None, direction=None
+    user_id,
+    exchange_key,
+    requested_page,
+    sort_key=None,
+    direction=None,
+    industry=None,
 ):
-    """Load one page. With sort: full dataset → sort → paginate. Without: may lazy-slice."""
-    if sort_key:
-        all_rows, total = _ensure_full_rows(user_id, exchange_key)
-        ordered = sort_stock_rows(all_rows, sort_key, direction)
+    """Load one page. With sort or industry filter: full set → filter → sort → page."""
+    if sort_key or industry:
+        all_rows, _unfiltered = _ensure_full_rows(user_id, exchange_key)
+        filtered = filter_stock_rows(all_rows, industry)
+        ordered = sort_stock_rows(filtered, sort_key, direction)
+        total = len(ordered)
         page = parse_page(requested_page, total)
         return _slice_page(ordered, page), total, page
 
@@ -957,7 +1018,11 @@ def _warm_exchange_pages(user_id, exchange_key):
 
 
 def _optional_sort_args(
-    sort_key=None, direction=None, sector_sort=None, sector_dir=None
+    sort_key=None,
+    direction=None,
+    sector_sort=None,
+    sector_dir=None,
+    industry=None,
 ):
     args = {}
     if sort_key and direction:
@@ -966,6 +1031,8 @@ def _optional_sort_args(
     if sector_sort and sector_dir:
         args["sector_sort"] = sector_sort
         args["sector_dir"] = sector_dir
+    if industry:
+        args["industry"] = industry
     return args
 
 
@@ -976,10 +1043,13 @@ def _aktier_query_args(
     direction=None,
     sector_sort=None,
     sector_dir=None,
+    industry=None,
 ):
     args = {"exchange": exchange, "page": page}
     args.update(
-        _optional_sort_args(sort_key, direction, sector_sort, sector_dir)
+        _optional_sort_args(
+            sort_key, direction, sector_sort, sector_dir, industry=industry
+        )
     )
     return args
 
@@ -1003,6 +1073,7 @@ def _aktier_return_url():
         session.get("aktier_sector_sort"),
         session.get("aktier_sector_dir"),
     )
+    industry = session.get("aktier_industry")
     return url_for(
         "stocks.stocks",
         **_aktier_query_args(
@@ -1012,6 +1083,7 @@ def _aktier_return_url():
             direction,
             sector_sort,
             sector_dir,
+            industry=industry,
         ),
     )
 
@@ -1023,6 +1095,7 @@ def _remember_aktier_view(
     direction=None,
     sector_sort=None,
     sector_dir=None,
+    industry=None,
 ):
     session["aktier_exchange"] = exchange_key
     session["aktier_page"] = page
@@ -1038,6 +1111,10 @@ def _remember_aktier_view(
     else:
         session.pop("aktier_sector_sort", None)
         session.pop("aktier_sector_dir", None)
+    if industry:
+        session["aktier_industry"] = industry
+    else:
+        session.pop("aktier_industry", None)
 
 
 @stocks_bp.route("/stocks")
@@ -1056,18 +1133,30 @@ def stocks():
     stock_total = 0
     stock_page = 1
     sector_rows = []
+    industry_filter = None
+    industry_choices = []
     if selected_exchange:
         sector_rows = _load_sector_rows(EXCHANGE_COUNTRY[selected_exchange])
         if sector_sort_key:
             sector_rows = sort_sector_rows(
                 sector_rows, sector_sort_key, sector_direction
             )
+        all_rows, _unfiltered_total = _ensure_full_rows(
+            current_user.id, selected_exchange
+        )
+        industry_choices = industry_options(
+            all_rows, exclude_labels=_market_index_labels(sector_rows)
+        )
+        industry_filter = parse_industry_filter(
+            request.args.get("industry"), industry_choices
+        )
         stock_rows, stock_total, stock_page = _load_table_page(
             current_user.id,
             selected_exchange,
             request.args.get("page"),
             sort_key=sort_key,
             direction=direction,
+            industry=industry_filter,
         )
         _remember_aktier_view(
             selected_exchange,
@@ -1076,6 +1165,7 @@ def stocks():
             direction=direction,
             sector_sort=sector_sort_key,
             sector_dir=sector_direction,
+            industry=industry_filter,
         )
     last_page = _page_count(stock_total)
     range_start = ((stock_page - 1) * PAGE_SIZE) + 1 if stock_total else 0
@@ -1096,12 +1186,28 @@ def stocks():
         stock_dir=direction,
         sector_sort=sector_sort_key,
         sector_dir=sector_direction,
+        industry_filter=industry_filter,
+        industry_options=industry_choices,
         aktier_query=_optional_sort_args(
             sort_key, direction, sector_sort_key, sector_direction
         ),
-        stock_query=_optional_sort_args(sort_key, direction),
+        stock_query=_optional_sort_args(
+            sort_key, direction, industry=industry_filter
+        ),
         sector_query=_optional_sort_args(
             sector_sort=sector_sort_key, sector_dir=sector_direction
+        ),
+        stock_sort_query=_optional_sort_args(
+            sector_sort=sector_sort_key,
+            sector_dir=sector_direction,
+            industry=industry_filter,
+        ),
+        paging_query=_optional_sort_args(
+            sort_key,
+            direction,
+            sector_sort_key,
+            sector_direction,
+            industry=industry_filter,
         ),
         sort_next_dir={
             column: next_sort_direction(column, sort_key, direction)

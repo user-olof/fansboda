@@ -1,6 +1,6 @@
 .exchange-buttons {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 1rem;
     margin-bottom: 1.25rem;
 }
@@ -60,7 +60,7 @@
 }
 
 .trend-scale {
-    max-width: 36rem;
+    width: 100%;
 }
 
 /* Hex stops match src/routes/stocks.py _HEAT_STOPS (011 polarity). */
@@ -115,15 +115,15 @@
 }
 
 .aktier-col-name {
-    width: 24%;
+    width: 22%;
 }
 
 .aktier-col-id {
-    width: 14%;
+    width: 16%;
 }
 
 .aktier-col-currency {
-    width: 10%;
+    width: 12%;
 }
 
 .aktier-col-price {
@@ -131,14 +131,45 @@
 }
 
 .aktier-col-last {
-    width: 19%;
+    width: 17%;
 }
 
 #sector-table thead th:nth-child(1),
 #sector-table thead th:nth-child(2),
+#sector-table thead th:nth-child(4),
+#sector-table thead th:nth-child(5),
 #stocks-table thead th:nth-child(1),
-#stocks-table thead th:nth-child(2) {
+#stocks-table thead th:nth-child(2),
+#stocks-table thead th:nth-child(5) {
     white-space: nowrap;
+}
+
+.aktier-reset-row {
+    display: flex;
+    justify-content: flex-end;
+    margin: 0 0 0.35rem;
+}
+
+.aterstall-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 1.75rem;
+    padding: 0.2rem 0.65rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    line-height: 1.2;
+    color: #1a1a1a;
+    text-decoration: none;
+    background-color: #f3f4f6;
+    border: 1px solid #9ca3af;
+    border-radius: 0.3rem;
+}
+
+.aterstall-btn:hover,
+.aterstall-btn:focus {
+    background-color: #e5e7eb;
+    color: #1a1a1a;
 }
 
 /* Sticky column headers: stick on <th> (not only <thead>) with an explicit
@@ -207,6 +238,54 @@
 
 .signal-icon--empty {
     opacity: 0.92;
+}
+
+.industri-filter-th {
+    overflow: visible;
+}
+
+.industri-filter {
+    position: relative;
+}
+
+.industri-filter > summary {
+    list-style: none;
+    cursor: pointer;
+    color: inherit;
+    white-space: nowrap;
+}
+
+.industri-filter > summary::-webkit-details-marker {
+    display: none;
+}
+
+.industri-filter-menu {
+    position: absolute;
+    right: 0;
+    top: 100%;
+    z-index: 4;
+    min-width: 11rem;
+    max-height: 16rem;
+    overflow-y: auto;
+    background-color: #212529;
+    border: 1px solid #495057;
+    border-radius: 0.25rem;
+    padding: 0.35rem 0;
+}
+
+.industri-filter-menu a {
+    display: block;
+    padding: 0.25rem 0.75rem;
+    color: #fff;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.industri-filter-menu a:hover,
+.industri-filter-menu a:focus,
+.industri-filter-menu a[aria-current="true"] {
+    background-color: #1d4ed8;
+    color: #fff;
 }
 
 .stocks-sort-link {
