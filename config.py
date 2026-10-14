@@ -3,6 +3,8 @@ from datetime import timedelta
 from dotenv import load_dotenv
 from cachelib.file import FileSystemCache
 
+from src.allowed_emails import parse_allowed_emails
+
 load_dotenv()
 
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -120,7 +122,7 @@ class DevConfig(Config):
     PORT = 5000
     HOST = "localhost"
 
-    ALLOWED_EMAILS = os.getenv("ALLOWED_EMAILS", "").replace(" ", "").split(";")
+    ALLOWED_EMAILS = parse_allowed_emails(os.getenv("ALLOWED_EMAILS", ""))
 
     CACHE_TYPE = "SimpleCache"
     CACHE_DEFAULT_TIMEOUT = 300
@@ -161,7 +163,7 @@ class ProdConfig(Config):
     PORT = 8080
     HOST = "0.0.0.0"
 
-    ALLOWED_EMAILS = os.getenv("ALLOWED_EMAILS", "").replace(" ", "").split(";")
+    ALLOWED_EMAILS = parse_allowed_emails(os.getenv("ALLOWED_EMAILS", ""))
 
     # Use SimpleCache instead of Redis (cost saving)
     CACHE_TYPE = "SimpleCache"

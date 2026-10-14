@@ -8,6 +8,7 @@ services:
       - .env
     volumes:
       - ./static:/app/static:ro # Mount static files for nginx
+      - ./secrets:/fansboda/secrets:ro # Mount secrets directory
     networks:
       - fansboda-network
     healthcheck:

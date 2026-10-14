@@ -24,7 +24,15 @@ $(document).ready(function () {
      */
     function calculateDistribution() {
         // Get the electricity bill value
-        const electricityBill = parseFloat($('#floatingInput').val()) || 0;
+        const electricityBill = parseFloat($('#floatingInput').val());
+        if (Number.isNaN(electricityBill) || electricityBill <= 0) {
+            $('#telecomFormControlInput').val('');
+            $('#johanOchEmilBilserviceControlInput').val('');
+            $('#jaBilserviceControlInput').val('');
+            $('#tkMatserviceControlInput').val('');
+            $('.card').removeClass('border-success border-warning');
+            return;
+        }
 
         // Calculate distributions
         const telekomAmount = electricityBill * DISTRIBUTION.telekom;

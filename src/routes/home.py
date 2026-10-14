@@ -1,5 +1,5 @@
 # src/routes/home.py
-from flask import Blueprint, render_template, request, jsonify
+from flask import Blueprint, current_app, render_template, request, jsonify
 from src.access_control import allowed_user_required, admin_required
 from src.models.user import User
 from src.route_protection import dev_only
@@ -59,6 +59,22 @@ def get_last_month_swedish():
     return SWEDISH_MONTHS[last_month - 1]
 
 
+def _parse_positive_amount(amount):
+    """Return a positive Decimal amount, or None if missing/invalid/non-positive."""
+    if amount is None:
+        return None
+    raw = str(amount).strip().replace("\u00a0", " ").replace(" ", "").replace(",", ".")
+    if raw == "":
+        return None
+    try:
+        value = Decimal(raw)
+    except InvalidOperation:
+        return None
+    if value <= 0:
+        return None
+    return value
+
+
 def format_amount_swedish(amount) -> str:
     """
     Format a numeric string or number for Swedish text: space as thousands separator,
@@ -106,11 +122,11 @@ def index():
 def send_electricity_email():
     """Endpoint to send electricity bill email via Gmail API."""
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True) or {}
         service_key = data.get("service")
-        amount = data.get("amount")
+        amount = _parse_positive_amount(data.get("amount"))
 
-        if not service_key or not amount:
+        if not service_key or amount is None:
             return (
                 jsonify({"success": False, "error": "Missing service or amount"}),
                 400,
@@ -121,17 +137,8 @@ def send_electricity_email():
         if not company_info:
             return jsonify({"success": False, "error": "Invalid service"}), 400
 
-        # Validate email is set
         if not company_info["email"]:
-            return (
-                jsonify(
-                    {
-                        "success": False,
-                        "error": f"Email address not configured for {service_key}",
-                    }
-                ),
-                500,
-            )
+            return jsonify({"success": False, "error": "Could not send email"}), 500
 
         # Get last month in Swedish and its calendar year (Dec bill in Jan → prior year)
         last_month = get_last_month_swedish()
@@ -155,16 +162,11 @@ def send_electricity_email():
 
         if result["success"]:
             return jsonify({"success": True, "message": "Email sent successfully"}), 200
-        else:
-            return (
-                jsonify(
-                    {"success": False, "error": result.get("error", "Unknown error")}
-                ),
-                500,
-            )
+        return jsonify({"success": False, "error": "Could not send email"}), 500
 
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+    except Exception:
+        current_app.logger.exception("Electricity email failed")
+        return jsonify({"success": False, "error": "Could not send email"}), 500
 
 
 @home_bp.route("/users")

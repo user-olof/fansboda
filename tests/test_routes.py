@@ -1,5 +1,507 @@
+import re
+from datetime import date, timedelta
+from decimal import Decimal
+from pathlib import Path
+from urllib.parse import parse_qs, urlparse
+
+from src.models.market_metrics import MarketMetric
+from src.models.metrics import Metric
+from src.models.swe_metrics import SweMetric
+from src.models.swe_by_sector import SweBySector
+from src.models.swe_ticker import SweTicker
+from src.models.ticker import Ticker
+from src.models.uk_metrics import UkMetric
+from src.models.uk_ticker import UkTicker
+from src.models.indices import Indice
+from src.models.us_by_sector import UsBySector
 from src.models.user import User
 from src import db
+
+
+def _chart_header_html(html):
+    match = re.search(
+        r'<div class="chart-header">(.*?)</div>',
+        html,
+        flags=re.DOTALL,
+    )
+    assert match is not None
+    return match.group(1)
+
+
+def _chart_details_tag(html):
+    header = _chart_header_html(html)
+    match = re.search(r"<details\b([^>]*)>", header, flags=re.IGNORECASE)
+    return match.group(1) if match else None
+
+
+def _chart_summary_inner(html):
+    header = _chart_header_html(html)
+    match = re.search(r"<summary[^>]*>(.*?)</summary>", header, flags=re.DOTALL)
+    assert match is not None
+    return match.group(1)
+
+
+def _seed_chart_summary(app, *, symbol, company, summary, swe=False):
+    trading_day = date.today() - timedelta(days=7)
+    metric_cls = SweMetric if swe else Metric
+    ticker_cls = SweTicker if swe else Ticker
+    with app.app_context():
+        db.session.add(
+            metric_cls(
+                ticker=symbol,
+                company=company,
+                trading_date=trading_day,
+                current_price=190.0,
+                sma_50=185.0,
+                sma_200=170.0,
+                currency="SEK" if swe else "USD",
+            )
+        )
+        ticker_kwargs = {
+            "symbol": symbol,
+            "company": company,
+            "business_summary": summary,
+        }
+        if swe:
+            ticker_kwargs["exchange_name"] = "OMX Stockholm"
+        else:
+            ticker_kwargs["exchange_name"] = "NASDAQ"
+        db.session.add(ticker_cls(**ticker_kwargs))
+        db.session.commit()
+
+
+def _theads(html):
+    return [chunk.split("</thead>", 1)[0] for chunk in html.split("<thead")[1:]]
+
+
+def _sector_thead(html):
+    for thead in _theads(html):
+        if "Antal Bolag" in thead:
+            return thead
+    raise AssertionError("no sector thead")
+
+
+def _stock_thead(html):
+    for thead in _theads(html):
+        if "Industri" in thead and "Symbol" in thead:
+            return thead
+    raise AssertionError("no stock thead")
+
+
+def _assert_signal_after_trend_before_bolag(html):
+    thead = _stock_thead(html)
+    trend_pos = thead.find("Trend")
+    signal_pos = thead.find("Signal")
+    bolag_pos = thead.find("Bolag")
+    assert trend_pos != -1 and signal_pos != -1 and bolag_pos != -1
+    assert trend_pos < signal_pos < bolag_pos
+    assert "Kors" not in thead
+
+
+def _assert_no_choose_bors(html):
+    assert "Välj en börs" not in html
+    assert "V&auml;lj en b&ouml;rs" not in html
+
+
+def _assert_sector_headers(html):
+    thead = _sector_thead(html)
+    names = ["Trend", "Signal", "Index", "Antal Bolag", "Valuta", "Pris", "Ratio"]
+    positions = [thead.find(name) for name in names]
+    assert all(pos != -1 for pos in positions), thead
+    assert positions == sorted(positions)
+    assert "Antal aktier" not in thead
+    assert "Sektor" not in thead
+    assert "bi-building" not in thead
+    assert "Industri" not in thead
+    assert "Symbol" not in thead
+    assert "Kors" not in thead
+    assert "Heat" not in thead
+
+
+def _assert_sector_above_stocks(html):
+    sector_pos = html.find('id="sector-table"')
+    stocks_pos = html.find('id="stocks-table"')
+    assert sector_pos != -1
+    assert stocks_pos != -1
+    assert sector_pos < stocks_pos
+
+
+def _table_card(html, table_id):
+    marker = f'id="{table_id}"'
+    start = html.find(marker)
+    assert start != -1, table_id
+    later = []
+    for other in ("sector-table", "stocks-table"):
+        if other == table_id:
+            continue
+        pos = html.find(f'id="{other}"', start + 1)
+        if pos != -1:
+            later.append(pos)
+    end = min(later) if later else len(html)
+    return html[start:end]
+
+
+def _sector_tbody(html):
+    return _table_card(html, "sector-table").split("<tbody", 1)[1].split("</tbody>", 1)[0]
+
+
+def _stock_tbody(html):
+    return _table_card(html, "stocks-table").split("<tbody", 1)[1].split("</tbody>", 1)[0]
+
+
+def _assert_stock_headers(html):
+    thead = _stock_thead(html)
+    names = ["Trend", "Signal", "Bolag", "Symbol", "Valuta", "Pris", "Industri"]
+    positions = [thead.find(name) for name in names]
+    assert all(pos != -1 for pos in positions), thead
+    assert positions == sorted(positions)
+    assert "Antal aktier" not in thead
+    assert "Antal Bolag" not in thead
+    assert "Sektor" not in thead
+    assert "Index" not in thead
+    assert "Ratio" not in thead
+    assert "Kors" not in thead
+    assert "Heat" not in thead
+
+
+def _aterstall_href(html, kind):
+    match = re.search(
+        rf'href="([^"]+)"\s+class="aterstall-btn aterstall-btn--{kind}"',
+        html,
+    )
+    assert match is not None, kind
+    return match.group(1).replace("&amp;", "&")
+
+
+def _query_params(href):
+    return parse_qs(urlparse(href).query)
+
+
+def _exchange_href(html, name):
+    match = re.search(rf'href="([^"]+)"[^>]*>{re.escape(name)}<', html)
+    assert match is not None, name
+    return match.group(1).replace("&amp;", "&")
+
+
+def _industri_cells(html):
+    return [
+        cell.strip()
+        for cell in re.findall(
+            r'class="industri-cell">([^<]*)</td>', _stock_tbody(html)
+        )
+    ]
+
+
+def _seed_industry_filter_nyse(app):
+    """26 Technology + 2 Healthcare + 1 empty Industri; US market index + Energy."""
+    trading_day = date.today() - timedelta(days=7)
+    week = date(2026, 9, 28)
+    with app.app_context():
+        for index in range(1, 27):
+            symbol = f"T{index:02d}"
+            db.session.add(
+                Ticker(
+                    symbol=symbol,
+                    company=f"Tech Co {index:02d}",
+                    market="us_market",
+                    sector="Technology",
+                    exchange_name="NYSE",
+                )
+            )
+            db.session.add(
+                Metric(
+                    ticker=symbol,
+                    company=f"Tech Co {index:02d}",
+                    trading_date=trading_day,
+                    current_price=float(index),
+                    currency="USD",
+                )
+            )
+        for symbol, company in (("H01", "Health Co 01"), ("H02", "Health Co 02")):
+            db.session.add(
+                Ticker(
+                    symbol=symbol,
+                    company=company,
+                    market="us_market",
+                    sector="Healthcare",
+                    exchange_name="NYSE",
+                )
+            )
+            db.session.add(
+                Metric(
+                    ticker=symbol,
+                    company=company,
+                    trading_date=trading_day,
+                    current_price=1.0,
+                    currency="USD",
+                )
+            )
+        db.session.add(
+            Ticker(
+                symbol="E01",
+                company="Empty Industri Co",
+                market="us_market",
+                sector=None,
+                exchange_name="NYSE",
+            )
+        )
+        db.session.add(
+            Metric(
+                ticker="E01",
+                company="Empty Industri Co",
+                trading_date=trading_day,
+                current_price=1.0,
+                currency="USD",
+            )
+        )
+        db.session.commit()
+    _seed_index_row(
+        app,
+        ticker="US-IDX",
+        sector="US Equity Index",
+        country="us",
+        trading_date=week,
+        ticker_count=1,
+        pct_uptrend=Decimal("10.0"),
+    )
+    _seed_index_row(
+        app,
+        ticker="US-IDX-ENERGY",
+        sector="Energy",
+        country="us",
+        trading_date=week,
+        ticker_count=2,
+        pct_uptrend=Decimal("20.0"),
+    )
+
+
+def _assert_empty_landing_tables(html):
+    _assert_sector_above_stocks(html)
+    _assert_sector_headers(html)
+    _assert_stock_headers(html)
+    _assert_no_choose_bors(html)
+    assert "Inga sektorer" in html
+    assert "Inga aktier" in html
+    assert "heat-cell" not in _sector_tbody(html)
+    assert "heat-cell" not in _stock_tbody(html)
+    assert "stocks-sort-link" not in html
+    assert "js/stocks.js" not in html
+    assert "exchange-btn--selected" not in html
+    assert not _has_usable_paging_link(html, "Föregående")
+    assert not _has_usable_paging_link(html, "Nästa")
+
+
+def _seed_sector_row(
+    app,
+    *,
+    swe=False,
+    sector,
+    week_start,
+    ticker_count,
+    z_score_mean=None,
+    pct_uptrend=None,
+    momentum_mean=None,
+    momentum_median=None,
+):
+    model = SweBySector if swe else UsBySector
+    with app.app_context():
+        db.session.add(
+            model(
+                sector=sector,
+                week_start=week_start,
+                ticker_count=ticker_count,
+                z_score_mean=z_score_mean,
+                pct_uptrend=pct_uptrend,
+                momentum_mean=momentum_mean,
+                momentum_median=momentum_median,
+            )
+        )
+        db.session.commit()
+
+
+def _seed_index_row(
+    app,
+    *,
+    ticker,
+    sector,
+    country="us",
+    trading_date,
+    ticker_count=None,
+    current_price=100,
+    sma_50=None,
+    sma_200=None,
+    currency="USD",
+    pct_uptrend=None,
+    z_score=None,
+    momentum=None,
+):
+    with app.app_context():
+        db.session.add(
+            Indice(
+                ticker=ticker,
+                trading_date=trading_date,
+                sector=sector,
+                country=country,
+                ticker_count=ticker_count,
+                current_price=current_price,
+                sma_50=sma_50,
+                sma_200=sma_200,
+                currency=currency,
+                pct_uptrend=pct_uptrend,
+                z_score=z_score,
+                momentum=momentum,
+            )
+        )
+        db.session.commit()
+
+
+def _seed_index_sma_series(
+    app,
+    *,
+    ticker,
+    sector,
+    series,
+    country="us",
+    currency="USD",
+    ticker_count=10,
+    origin=None,
+    pct_uptrend=None,
+    z_score=None,
+):
+    origin = origin or _kors_series_origin()
+    for week, sma_50, sma_200 in series:
+        _seed_index_row(
+            app,
+            ticker=ticker,
+            sector=sector,
+            country=country,
+            trading_date=_week(week, origin),
+            ticker_count=ticker_count,
+            sma_50=None if sma_50 is None else Decimal(sma_50),
+            sma_200=None if sma_200 is None else Decimal(sma_200),
+            currency=currency,
+            pct_uptrend=pct_uptrend,
+            z_score=z_score,
+        )
+
+
+def _golden_momentum_series():
+    """Same Golden shape as name SMAs, as 50/200 ratio vs 1."""
+    return [
+        (0, "0.90"),
+        (1, "0.92"),
+        (2, "0.94"),
+        (3, "0.96"),
+        (4, "1.05"),
+    ]
+
+
+def _death_momentum_series():
+    return [
+        (0, "1.10"),
+        (1, "1.08"),
+        (2, "1.06"),
+        (3, "1.04"),
+        (4, "0.95"),
+    ]
+
+
+def _seed_sector_momentum_series(
+    app,
+    *,
+    sector,
+    series,
+    origin=None,
+    swe=False,
+    ticker_count=10,
+    pct_uptrend=None,
+    momentum_mean=None,
+    use_mean_only=False,
+):
+    origin = origin or _kors_series_origin()
+    for week, momentum in series:
+        median = None if use_mean_only else Decimal(momentum)
+        mean = Decimal(momentum) if use_mean_only else momentum_mean
+        _seed_sector_row(
+            app,
+            swe=swe,
+            sector=sector,
+            week_start=_week(week, origin),
+            ticker_count=ticker_count,
+            pct_uptrend=pct_uptrend,
+            momentum_median=median,
+            momentum_mean=mean,
+        )
+
+
+# Back-compat alias used during SPEC 013→014 transition in older diffs
+_assert_kors_after_trend_before_bolag = _assert_signal_after_trend_before_bolag
+
+
+def _week(n: int, origin: date | None = None) -> date:
+    base = origin or date.today()
+    return base + timedelta(weeks=n)
+
+
+def _seed_kors_ticker(
+    app,
+    *,
+    symbol: str,
+    company: str,
+    series: list[tuple[int, str | None, str | None]],
+    exchange_name: str = "NASDAQ",
+    origin: date | None = None,
+):
+    """Seed ticker + weekly Metric SMA history for Kors fixtures."""
+    with app.app_context():
+        db.session.add(
+            Ticker(
+                symbol=symbol,
+                company=company,
+                market="us_market",
+                sector="Technology",
+                exchange_name=exchange_name,
+            )
+        )
+        for week, sma_50, sma_200 in series:
+            db.session.add(
+                Metric(
+                    ticker=symbol,
+                    company=company,
+                    trading_date=_week(week, origin),
+                    current_price=100.0,
+                    sma_50=None if sma_50 is None else Decimal(sma_50),
+                    sma_200=None if sma_200 is None else Decimal(sma_200),
+                    currency="USD",
+                    z_score=0,
+                )
+            )
+        db.session.commit()
+
+
+def _golden_sma_series():
+    return [
+        (0, "90", "100"),
+        (1, "92", "100"),
+        (2, "94", "100"),
+        (3, "96", "100"),
+        (4, "105", "100"),
+    ]
+
+
+def _death_sma_series():
+    return [
+        (0, "110", "100"),
+        (1, "108", "100"),
+        (2, "106", "100"),
+        (3, "104", "100"),
+        (4, "95", "100"),
+    ]
+
+
+def _kors_series_origin():
+    """Five-week series ending near today so it stays inside the 52-week lookback."""
+    return date.today() - timedelta(weeks=4)
 
 
 class TestRoutes:
@@ -99,6 +601,1801 @@ class TestRoutes:
             assert response.status_code == 302
             assert "/login" in response.location
 
+    def test_signup_logs_user_in(self, client):
+        """Test that successful signup logs the user in and grants dashboard access."""
+        client.application.config["ALLOWED_EMAILS"] = ["newuser@example.com"]
+
+        response = client.post(
+            "/signup",
+            data={
+                "email": "newuser@example.com",
+                "password": "newpass",
+                "password_confirm": "newpass",
+            },
+            follow_redirects=False,
+        )
+        assert response.status_code == 302
+        assert "/" in response.location
+
+        dashboard = client.get("/")
+        assert dashboard.status_code == 200
+
+    def test_login_uninvited_user_is_rejected(self, client, app):
+        """Existing account not on ALLOWED_EMAILS cannot sign in."""
+        original_allowed = list(app.config.get("ALLOWED_EMAILS") or [])
+        app.config["ALLOWED_EMAILS"] = ["invited@example.com"]
+        try:
+            with client.application.app_context():
+                user = User(email="other@example.com")
+                user.password_hash = "testpass"
+                db.session.add(user)
+                db.session.commit()
+
+            response = client.post(
+                "/login",
+                data={"email": "other@example.com", "password": "testpass"},
+                follow_redirects=False,
+            )
+            assert response.status_code == 302
+            assert "/login" in response.location
+            assert client.get("/").status_code == 302
+        finally:
+            app.config["ALLOWED_EMAILS"] = original_allowed
+
+
+class TestElectricityEmail:
+    """Landing-page bill email endpoint."""
+
+    def test_landing_has_aktier_link(self, client_with_user):
+        response = client_with_user.get("/")
+        assert response.status_code == 200
+        html = response.get_data(as_text=True)
+        assert "Aktier" in html
+        assert "/stocks" in html
+
+    def test_send_email_requires_login(self, client):
+        response = client.post(
+            "/send-email",
+            json={"service": "telekom", "amount": "200.00"},
+        )
+        assert response.status_code in (302, 401)
+
+    def test_send_email_rejects_missing_payload(self, client_with_user):
+        response = client_with_user.post("/send-email", json={})
+        assert response.status_code == 400
+        assert response.get_json()["success"] is False
+
+    def test_send_email_rejects_non_positive_amount(self, client_with_user):
+        response = client_with_user.post(
+            "/send-email",
+            json={"service": "telekom", "amount": "0"},
+        )
+        assert response.status_code == 400
+
+        response = client_with_user.post(
+            "/send-email",
+            json={"service": "telekom", "amount": "-10"},
+        )
+        assert response.status_code == 400
+
+
+class TestAktierRoutes:
+    """Aktier table and 52-week chart."""
+
+    def test_stocks_redirect_when_not_logged_in(self, client):
+        response = client.get("/stocks")
+        assert response.status_code == 302
+        assert "/login" in response.location
+        filtered = client.get("/stocks?exchange=nasdaq")
+        assert filtered.status_code == 302
+        assert "/login" in filtered.location
+        paged = client.get("/stocks?exchange=omx_stockholm&page=2")
+        assert paged.status_code == 302
+        assert "/login" in paged.location
+        warm = client.get("/stocks/warm?exchange=omx_stockholm")
+        assert warm.status_code == 302
+        assert "/login" in warm.location
+        ftse = client.get("/stocks?exchange=ftse")
+        assert ftse.status_code == 302
+        assert "/login" in ftse.location
+        index_chart = client.get("/stocks/index/US-IDX")
+        assert index_chart.status_code == 302
+        assert "/login" in index_chart.location
+        body = response.get_data(as_text=True)
+        assert "Positivt momentum kan indikera" not in body
+        assert "Bearish" not in body
+        assert "Kors" not in body
+        assert "Signal" not in body
+        assert "Golden" not in body
+        assert "Death" not in body
+        assert "Antal aktier" not in body
+        assert "Antal Bolag" not in body
+        assert "Sektor" not in body
+        assert "FTSE" not in body
+        assert "Återställ" not in body
+
+    def test_stocks_empty_table_when_logged_in(self, client_with_user):
+        response = client_with_user.get("/stocks")
+        html = response.get_data(as_text=True)
+        assert response.status_code == 200
+        assert "NASDAQ" in html
+        assert "NYSE" in html
+        assert "OMX Stockholm" in html
+        assert "FTSE" in html
+        assert html.find("NASDAQ") < html.find("NYSE") < html.find("OMX Stockholm") < html.find(
+            ">FTSE<"
+        )
+        assert "Beskrivning" not in html
+        _assert_empty_landing_tables(html)
+        _assert_trend_legend(html)
+
+    def test_stocks_landing_hides_seeded_mixed_sectors(self, client_with_user, app):
+        latest_us = date(2026, 9, 28)
+        older_us = date(2026, 9, 21)
+        _seed_sector_row(
+            app,
+            sector="overview-only",
+            week_start=latest_us,
+            ticker_count=190,
+            z_score_mean=Decimal("-2"),
+            pct_uptrend=Decimal("72.631579"),
+        )
+        _seed_index_row(
+            app,
+            ticker="US-IDX",
+            sector="US Equity Index",
+            country="us",
+            trading_date=latest_us,
+            ticker_count=500,
+            currency="USD",
+            pct_uptrend=Decimal("60.0"),
+            z_score=Decimal("0.1"),
+        )
+        _seed_index_row(
+            app,
+            ticker="US-IDX-ENERGY",
+            sector="Energy",
+            country="us",
+            trading_date=older_us,
+            ticker_count=999,
+            currency="USD",
+            pct_uptrend=Decimal("10.0"),
+            z_score=Decimal("0.1"),
+        )
+        _seed_index_row(
+            app,
+            ticker="US-IDX-ENERGY",
+            sector="Energy",
+            country="us",
+            trading_date=latest_us,
+            ticker_count=190,
+            currency="USD",
+            pct_uptrend=Decimal("72.631579"),
+            z_score=Decimal("-2"),
+        )
+        _seed_index_row(
+            app,
+            ticker="SWE-IDX",
+            sector="OMX Equity Index",
+            country="swe",
+            trading_date=older_us,
+            ticker_count=690,
+            currency="SEK",
+            pct_uptrend=Decimal("50.0"),
+        )
+        _seed_index_row(
+            app,
+            ticker="SWE-IDX-BASIC-MATERIALS",
+            sector="Basic Materials",
+            country="swe",
+            trading_date=older_us,
+            ticker_count=36,
+            currency="SEK",
+            pct_uptrend=Decimal("55.555556"),
+        )
+        html = client_with_user.get("/stocks").get_data(as_text=True)
+        _assert_empty_landing_tables(html)
+        assert "US Equity Index" not in html
+        assert "Energy" not in html
+        assert "overview-only" not in html
+        assert "72.6%" not in html
+        assert "55.6%" not in html
+        unknown = client_with_user.get("/stocks?exchange=tokyo").get_data(as_text=True)
+        _assert_empty_landing_tables(unknown)
+        assert "US Equity Index" not in unknown
+        assert "Energy" not in unknown
+
+        nasdaq = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
+        _assert_sector_above_stocks(nasdaq)
+        _assert_sector_headers(nasdaq)
+        _assert_stock_headers(nasdaq)
+        nasdaq_sectors = _sector_tbody(nasdaq)
+        assert "US Equity Index" in nasdaq_sectors
+        assert "Energy" in nasdaq_sectors
+        assert nasdaq_sectors.find("US Equity Index") < nasdaq_sectors.find("Energy")
+        assert "190" in nasdaq_sectors
+        assert "999" not in nasdaq_sectors
+        assert "USD" in nasdaq_sectors
+        assert "SEK" not in nasdaq_sectors
+        assert "Basic Materials" not in nasdaq_sectors
+        assert "OMX Equity Index" not in nasdaq_sectors
+        assert "overview-only" not in nasdaq
+        assert "72.6%" in nasdaq_sectors
+        assert "55.6%" not in nasdaq_sectors
+        assert "72.631579" not in nasdaq
+        assert "/stocks/index/US-IDX-ENERGY" in nasdaq
+        _assert_no_choose_bors(nasdaq)
+
+        nyse = client_with_user.get("/stocks?exchange=nyse").get_data(as_text=True)
+        nyse_sectors = _sector_tbody(nyse)
+        assert "US Equity Index" in nyse_sectors
+        assert "Energy" in nyse_sectors
+        assert "USD" in nyse_sectors
+        assert "SEK" not in nyse_sectors
+        assert "Basic Materials" not in nyse_sectors
+
+        omx = client_with_user.get("/stocks?exchange=omx_stockholm").get_data(as_text=True)
+        omx_sectors = _sector_tbody(omx)
+        assert "OMX Equity Index" in omx_sectors
+        assert "Basic Materials" in omx_sectors
+        assert omx_sectors.find("OMX Equity Index") < omx_sectors.find("Basic Materials")
+        assert "36" in omx_sectors
+        assert "SEK" in omx_sectors
+        assert "USD" not in omx_sectors
+        assert "Energy" not in omx_sectors
+        assert "US Equity Index" not in omx_sectors
+        assert "55.6%" in omx_sectors
+        assert "72.6%" not in omx_sectors
+        _assert_no_choose_bors(omx)
+
+    def test_stocks_exchange_sector_does_not_fall_back_to_other_market(
+        self, client_with_user, app
+    ):
+        _seed_index_row(
+            app,
+            ticker="US-IDX-ENERGY",
+            sector="Energy",
+            country="us",
+            trading_date=date(2026, 9, 28),
+            ticker_count=190,
+            currency="USD",
+            pct_uptrend=Decimal("72.6"),
+            z_score=Decimal("-2"),
+        )
+        omx = client_with_user.get("/stocks?exchange=omx_stockholm").get_data(
+            as_text=True
+        )
+        assert "Energy" not in omx
+        assert "USD" not in _sector_tbody(omx)
+        assert "Inga sektorer" in omx
+        nasdaq = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
+        assert "Energy" in _sector_tbody(nasdaq)
+        assert "USD" in _sector_tbody(nasdaq)
+        assert "SEK" not in _sector_tbody(nasdaq)
+        assert "Inga sektorer" not in nasdaq
+
+    def test_stocks_landing_trend_colour_and_empty_signal(self, client_with_user, app):
+        _seed_index_row(
+            app,
+            ticker="US-IDX-ENERGY",
+            sector="Energy",
+            country="us",
+            trading_date=date(2026, 9, 28),
+            ticker_count=190,
+            currency="USD",
+            pct_uptrend=Decimal("72.6"),
+            z_score=Decimal("-2"),
+        )
+        _seed_index_row(
+            app,
+            ticker="US-IDX-UTILITIES",
+            sector="Utilities",
+            country="us",
+            trading_date=date(2026, 9, 28),
+            ticker_count=11,
+            currency="USD",
+            z_score=None,
+        )
+        html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
+        assert "background-color: #1d4ed8" in html
+        assert "background-color: #e5e7eb" in html
+        assert re.search(r'class="heat-cell[^"]*"[^>]*>\s*</td>', html)
+        visible = html.replace("z=-2.00", "")
+        assert "-2.00" not in visible
+        assert response_has_signal_cell(html, "none")
+        assert not response_has_signal_cell(html, "Golden")
+        assert not response_has_signal_cell(html, "Death")
+        template = Path(__file__).resolve().parents[1].joinpath("templates/stocks.html").read_text()
+        assert template.count('aria-label="Death"') >= 2
+        assert template.count('aria-label="Golden"') >= 2
+        assert template.count('aria-label="none"') >= 2
+
+    def test_stocks_sector_table_scrolls_after_five_rows(self, client_with_user, app):
+        week = date(2026, 9, 28)
+        for i in range(6):
+            _seed_index_row(
+                app,
+                ticker=f"US-IDX-SEC{i:02d}",
+                sector=f"sec{i:02d}",
+                country="us",
+                trading_date=week,
+                ticker_count=i + 1,
+                currency="USD",
+            )
+        html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
+        for i in range(6):
+            assert f"sec{i:02d}" in html
+        assert "sector-table-scroll" in html
+        assert 'id="sector-table"' in html
+        assert 'id="stocks-table"' in html
+        css = Path(__file__).resolve().parents[1].joinpath("static/css/stocks.css").read_text()
+        sector_css = css.split("#sector-table .table-responsive")[1].split("#sector-table .table-responsive >")[0]
+        assert "5 * 2.8125rem" in sector_css
+        assert "10 * 2.8125rem" not in sector_css
+        assert "60vh" not in sector_css
+
+    def test_stocks_table_clips_to_ten_visible_rows(self, client_with_user):
+        html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
+        assert 'id="stocks-table"' in html
+        assert "max-height: 60vh" not in html
+        css = Path(__file__).resolve().parents[1].joinpath("static/css/stocks.css").read_text()
+        stocks_rule = css.split("#stocks-table .table-responsive")[1].split("#stocks-table .table-responsive >")[0]
+        assert "10 * 2.8125rem" in stocks_rule
+        assert "60vh" not in stocks_rule
+
+    def test_stocks_sector_signal_golden_death_and_empty_from_sma(
+        self, client_with_user, app
+    ):
+        origin = _kors_series_origin()
+        crossover_iso = _week(4, origin).isoformat()
+        _seed_index_sma_series(
+            app,
+            ticker="US-IDX-GOLDEN",
+            sector="goldensector",
+            series=_golden_sma_series(),
+            origin=origin,
+        )
+        _seed_index_sma_series(
+            app,
+            ticker="US-IDX-DEATH",
+            sector="deathsector",
+            series=_death_sma_series(),
+            origin=origin,
+        )
+        _seed_index_row(
+            app,
+            ticker="US-IDX-EMPTY",
+            sector="emptysector",
+            country="us",
+            trading_date=_week(4, origin),
+            ticker_count=3,
+            sma_50=Decimal("100"),
+            sma_200=Decimal("100"),
+            currency="USD",
+            pct_uptrend=Decimal("90.0"),
+        )
+        html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
+        assert "goldensector" in html
+        assert "deathsector" in html
+        assert "emptysector" in html
+        assert response_has_signal_cell(html, "Golden", title=crossover_iso)
+        assert response_has_signal_cell(html, "Death", title=crossover_iso)
+        assert response_has_signal_cell(html, "none")
+
+    def test_stocks_sector_signal_ignores_high_ratio_without_cross(
+        self, client_with_user, app
+    ):
+        _seed_index_row(
+            app,
+            ticker="US-IDX-HOT",
+            sector="hotsector",
+            country="us",
+            trading_date=date.today(),
+            ticker_count=50,
+            sma_50=Decimal("110"),
+            sma_200=Decimal("100"),
+            currency="USD",
+            pct_uptrend=Decimal("95.0"),
+        )
+        html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
+        assert "hotsector" in html
+        assert "95.0%" in html
+        assert not response_has_signal_cell(html, "Golden")
+        assert not response_has_signal_cell(html, "Death")
+        assert response_has_signal_cell(html, "none")
+
+    def test_index_chart_shows_price_and_sma_series(self, client_with_user, app):
+        origin = _kors_series_origin()
+        _seed_index_sma_series(
+            app,
+            ticker="US-IDX-ENERGY",
+            sector="Energy",
+            series=_golden_sma_series(),
+            origin=origin,
+            ticker_count=190,
+            pct_uptrend=Decimal("72.6"),
+            z_score=Decimal("-2"),
+        )
+        response = client_with_user.get("/stocks/index/US-IDX-ENERGY")
+        html = response.get_data(as_text=True)
+        assert response.status_code == 200
+        assert "Energy" in html
+        assert "SMA 50" in html
+        assert "SMA 200" in html
+        assert "Kurs" in html
+        assert "stockChart" in html
+        assert "Tillbaka till Aktier" in html
+        assert "sma_50" in html
+        assert "sma_200" in html
+        assert "current_price" in html
+        header = _chart_header_html(html)
+        assert "chart-business-summary" not in header
+
+    def test_index_chart_unknown_ticker_empty_course(self, client_with_user):
+        response = client_with_user.get("/stocks/index/NOT-AN-INDEX")
+        html = response.get_data(as_text=True)
+        assert response.status_code == 200
+        assert "Ingen kursdata" in html
+        assert "NOT-AN-INDEX" in html
+        assert "stockChart" not in html
+
+    def test_stocks_trend_header_with_exchange_selected(self, client_with_user):
+        html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
+        _assert_sector_above_stocks(html)
+        _assert_sector_headers(html)
+        thead = _stock_thead(html)
+        assert "Trend" in thead
+        assert "Signal" in thead
+        assert "Kors" not in thead
+        assert "Heat" not in thead
+        assert "Bolag" in thead
+        assert "Industri" in thead
+        _assert_signal_after_trend_before_bolag(html)
+        assert 'colspan="7"' in html or "colspan='7'" in html
+        _assert_trend_legend(html)
+        _assert_no_choose_bors(html)
+        assert "Antal aktier" not in thead
+        assert "Sektor" not in thead
+        assert "Ratio" not in thead
+
+    def test_stocks_admin_sees_kors_header(self, client_with_admin_user):
+        html = client_with_admin_user.get("/stocks?exchange=nasdaq").get_data(
+            as_text=True
+        )
+        assert "Signal" in html
+        assert "Kors" not in html.split("<thead", 1)[1].split("</thead>", 1)[0]
+        _assert_signal_after_trend_before_bolag(html)
+
+    def test_stocks_kors_golden_death_and_empty(self, client_with_user, app):
+        origin = _kors_series_origin()
+        crossover_iso = _week(4, origin).isoformat()
+        _seed_kors_ticker(
+            app,
+            symbol="GOLD",
+            company="Golden Co",
+            series=_golden_sma_series(),
+            origin=origin,
+        )
+        _seed_kors_ticker(
+            app,
+            symbol="DEAD",
+            company="Death Co",
+            series=_death_sma_series(),
+            origin=origin,
+        )
+        _seed_kors_ticker(
+            app,
+            symbol="NONE",
+            company="None Co",
+            series=[(0, "100", "100"), (1, "101", "100")],
+            origin=origin,
+        )
+        html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
+        assert response_has_signal_cell(html, "Golden", title=crossover_iso)
+        assert response_has_signal_cell(html, "Death", title=crossover_iso)
+        assert "None Co" in html
+        # Empty placeholder sphere for non-qualifying row
+        assert response_has_signal_cell(html, "none")
+        # Empty sphere cells must not imply a crossover via title
+        for match in re.finditer(
+            r'<td class="kors-cell"([^>]*)>\s*<img[^>]*aria-label="none"[^>]*>\s*</td>',
+            html,
+            flags=re.DOTALL,
+        ):
+            assert "title=" not in match.group(1)
+
+    def test_stocks_kors_stale_golden_clears(self, client_with_user, app):
+        origin = _kors_series_origin() - timedelta(weeks=1)
+        # Golden completes at week 4; add a later week so latest != crossover.
+        series = _golden_sma_series() + [(5, "106", "100")]
+        _seed_kors_ticker(
+            app,
+            symbol="STALE",
+            company="Stale Cross Co",
+            series=series,
+            origin=origin,
+        )
+        html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
+        assert "Stale Cross Co" in html
+        assert not response_has_signal_cell(html, "Golden")
+        assert response_has_signal_cell(html, "none")
+
+
+    def test_stocks_heatmap_uses_z_score_vs_market(self, client_with_user, app):
+        trading_day = date.today() - timedelta(days=7)
+        with app.app_context():
+            db.session.add(
+                Ticker(
+                    symbol="AAPL",
+                    company="Apple Inc.",
+                    market="us_market",
+                    sector="Technology",
+                    exchange_name="NASDAQ",
+                )
+            )
+            db.session.add(
+                Metric(
+                    ticker="AAPL",
+                    company="Apple Inc.",
+                    trading_date=trading_day,
+                    current_price=100.0,
+                    sma_50=90.0,
+                    sma_200=80.0,
+                    currency="USD",
+                    momentum=0.89,
+                    z_score=-2,
+                )
+            )
+            db.session.add(
+                MarketMetric(
+                    market="us_market",
+                    trading_date=trading_day,
+                    momentum_mean=0.95,
+                    momentum_std=0.05,
+                )
+            )
+            db.session.add(
+                Metric(
+                    ticker="MSFT",
+                    company="Microsoft",
+                    trading_date=trading_day,
+                    current_price=200.0,
+                    sma_50=190.0,
+                    sma_200=180.0,
+                    currency="USD",
+                    momentum=1.05,
+                    z_score=2,
+                )
+            )
+            db.session.add(
+                Ticker(
+                    symbol="MSFT",
+                    company="Microsoft",
+                    market="us_market",
+                    sector="   ",
+                    exchange_name="NASDAQ",
+                )
+            )
+            db.session.commit()
+
+        response = client_with_user.get("/stocks?exchange=nasdaq")
+        html = response.get_data(as_text=True)
+        assert response.status_code == 200
+        assert "background-color: #1d4ed8" in html
+        assert "background-color: #991b1b" in html
+        assert "z=-2.00" in html
+        assert "z=2.00" in html
+        assert "z50=" not in html
+        assert "z200=" not in html
+        assert re.search(r'class="heat-cell[^"]*"[^>]*>\s*</td>', html)
+        visible_heat = html.replace("z=-2.00", "").replace("z=2.00", "")
+        assert "-2.00" not in visible_heat
+        assert "2.00" not in visible_heat
+        assert "Industri" in html
+        thead = html.split("<thead", 1)[1].split("</thead>", 1)[0]
+        assert "Trend" in thead
+        assert "Signal" in thead
+        assert "Kors" not in thead
+        assert "Heat" not in thead
+        _assert_signal_after_trend_before_bolag(html)
+        assert "Technology" in html
+        assert "Beskrivning" not in html
+        assert "industri-cell" in html
+        assert re.search(r'class="industri-cell">\s*</td>', html)
+
+    def test_stocks_industri_replaces_dashes_with_spaces(self, client_with_user, app):
+        trading_day = date.today() - timedelta(days=7)
+        with app.app_context():
+            db.session.add(
+                Ticker(
+                    symbol="GOOGL",
+                    company="Alphabet Inc.",
+                    market="us_market",
+                    sector="communication-services",
+                    exchange_name="NASDAQ",
+                )
+            )
+            db.session.add(
+                Metric(
+                    ticker="GOOGL",
+                    company="Alphabet Inc.",
+                    trading_date=trading_day,
+                    current_price=100.0,
+                    sma_50=90.0,
+                    sma_200=80.0,
+                    currency="USD",
+                )
+            )
+            db.session.commit()
+
+        html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
+        assert "communication services" in html
+        assert "communication-services" not in html
+        assert "Industri" in html
+
+    def test_stocks_filters_by_exchange_name(self, client_with_user, app):
+        trading_day = date.today() - timedelta(days=7)
+        with app.app_context():
+            db.session.add(
+                Ticker(
+                    symbol="AAPL",
+                    company="Apple Inc.",
+                    market="us_market",
+                    exchange_name="NASDAQ",
+                )
+            )
+            db.session.add(
+                Ticker(
+                    symbol="IBM",
+                    company="IBM",
+                    market="us_market",
+                    exchange_name="NYSE",
+                )
+            )
+            db.session.add(
+                Ticker(
+                    symbol="ORCL",
+                    company="Oracle",
+                    market="us_market",
+                    exchange_name="",
+                )
+            )
+            db.session.add(
+                SweTicker(
+                    symbol="VOLV-B.ST",
+                    company="Volvo AB",
+                    market="se_market",
+                    exchange_name="OMX Stockholm",
+                )
+            )
+            for ticker, company, currency, model in (
+                ("AAPL", "Apple Inc.", "USD", Metric),
+                ("IBM", "IBM", "USD", Metric),
+                ("ORCL", "Oracle", "USD", Metric),
+                ("VOLV-B.ST", "Volvo AB", "SEK", SweMetric),
+            ):
+                db.session.add(
+                    model(
+                        ticker=ticker,
+                        company=company,
+                        trading_date=trading_day,
+                        current_price=100.0,
+                        currency=currency,
+                    )
+                )
+            db.session.commit()
+
+        nasdaq = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
+        assert "Apple Inc." in nasdaq
+        assert "IBM" not in nasdaq
+        assert "Oracle" not in nasdaq
+        assert "Volvo AB" not in nasdaq
+        assert "exchange-btn--selected" in nasdaq
+
+        nyse = client_with_user.get("/stocks?exchange=nyse").get_data(as_text=True)
+        assert "IBM" in nyse
+        assert "Apple Inc." not in nyse
+        assert "Volvo AB" not in nyse
+
+        omx = client_with_user.get("/stocks?exchange=omx_stockholm").get_data(
+            as_text=True
+        )
+        assert "Volvo AB" in omx
+        assert "Apple Inc." not in omx
+        assert "IBM" not in omx
+
+    def test_stocks_nasdaq_matches_nasdaqgs(self, client_with_user, app):
+        trading_day = date.today() - timedelta(days=7)
+        with app.app_context():
+            db.session.add(
+                Ticker(
+                    symbol="AAPL",
+                    company="Apple Inc.",
+                    market="us_market",
+                    exchange_name="NasdaqGS",
+                )
+            )
+            db.session.add(
+                Metric(
+                    ticker="AAPL",
+                    company="Apple Inc.",
+                    trading_date=trading_day,
+                    current_price=100.0,
+                    currency="USD",
+                )
+            )
+            db.session.commit()
+
+        html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
+        assert "Apple Inc." in html
+
+    def test_stocks_first_visit_does_not_list_mixed_rows(self, client_with_user, app):
+        trading_day = date.today() - timedelta(days=7)
+        with app.app_context():
+            db.session.add(
+                Ticker(
+                    symbol="AAPL",
+                    company="Apple Inc.",
+                    market="us_market",
+                    exchange_name="NASDAQ",
+                )
+            )
+            db.session.add(
+                Metric(
+                    ticker="AAPL",
+                    company="Apple Inc.",
+                    trading_date=trading_day,
+                    current_price=100.0,
+                    currency="USD",
+                )
+            )
+            db.session.commit()
+
+        html = client_with_user.get("/stocks").get_data(as_text=True)
+        assert "Apple Inc." not in html
+        _assert_empty_landing_tables(html)
+
+        unknown = client_with_user.get("/stocks?exchange=tokyo").get_data(as_text=True)
+        assert "Apple Inc." not in unknown
+        _assert_empty_landing_tables(unknown)
+
+        empty = client_with_user.get("/stocks?exchange=nyse")
+        empty_html = empty.get_data(as_text=True)
+        assert empty.status_code == 200
+        assert "Inga aktier" in empty_html
+        assert "Apple Inc." not in empty_html
+        _assert_sector_above_stocks(empty_html)
+        _assert_stock_headers(empty_html)
+        assert "js/stocks.js" in empty_html
+
+    def test_chart_unknown_ticker_does_not_500(self, client_with_user):
+        response = client_with_user.get("/stocks/chart/NOT-A-TICKER")
+        html = response.get_data(as_text=True)
+        assert response.status_code == 200
+        assert "Ingen kursdata" in html
+        assert "NOT-A-TICKER" in html
+        header = _chart_header_html(html)
+        assert "chart-ticker" not in header
+        assert "chart-business-summary" not in header
+
+    def test_latest_prices_require_login(self, client):
+        response = client.get("/stocks/latest")
+        assert response.status_code == 302
+        assert "/login" in response.location
+
+    def test_chart_redirect_when_not_logged_in(self, client):
+        response = client.get("/stocks/chart/VOLV-B.ST")
+        assert response.status_code == 302
+        assert "/login" in response.location
+
+    def test_chart_shows_stock_series_without_market_sma(self, client_with_user, app):
+        trading_day = date.today() - timedelta(days=7)
+        with app.app_context():
+            db.session.add(
+                Metric(
+                    ticker="VOLV-B.ST",
+                    company="Volvo AB",
+                    trading_date=trading_day,
+                    current_price=265.5,
+                    sma_50=250.0,
+                    sma_200=230.0,
+                    currency="SEK",
+                )
+            )
+            db.session.add(
+                MarketMetric(
+                    market="se_market",
+                    trading_date=trading_day,
+                    momentum_mean=2400.25,
+                    momentum_std=0.2,
+                )
+            )
+            db.session.commit()
+
+        response = client_with_user.get("/stocks/chart/VOLV-B.ST")
+        html = response.get_data(as_text=True)
+        assert response.status_code == 200
+        assert "Volvo AB" in html
+        assert "label: 'Kurs'" in html
+        assert "label: 'SMA 50'" in html
+        assert "label: 'SMA 200'" in html
+        assert "Market SMA-200" not in html
+        assert "2400.25" not in html
+        assert "yAxisID: 'y1'" not in html
+        header = _chart_header_html(html)
+        assert "Volvo AB" in header
+        assert "chart-ticker" not in header
+        assert "chart-business-summary" not in header
+        assert "VOLV-B.ST" not in header
+
+    def test_chart_shows_us_business_summary_under_company_name(
+        self, client_with_user, app
+    ):
+        trading_day = date.today() - timedelta(days=7)
+        summary = "Apple Inc. designs, manufactures, and markets smartphones."
+        with app.app_context():
+            db.session.add(
+                Metric(
+                    ticker="AAPL",
+                    company="Apple Inc.",
+                    trading_date=trading_day,
+                    current_price=190.0,
+                    sma_50=185.0,
+                    sma_200=170.0,
+                    currency="USD",
+                )
+            )
+            db.session.add(
+                Ticker(
+                    symbol="AAPL",
+                    company="Apple Inc.",
+                    exchange_name="NASDAQ",
+                    business_summary=summary,
+                )
+            )
+            db.session.commit()
+
+        html = client_with_user.get("/stocks/chart/AAPL").get_data(as_text=True)
+        header = _chart_header_html(html)
+        assert "Apple Inc." in header
+        assert summary in header
+        assert "chart-business-summary" in header
+        assert "chart-ticker" not in header
+        assert "AAPL" not in header
+        assert "Visa mer" not in header
+        assert "<details" not in header
+
+    def test_chart_shows_swe_business_summary_under_company_name(
+        self, client_with_user, app
+    ):
+        trading_day = date.today() - timedelta(days=7)
+        summary = "Volvo AB manufactures trucks, buses, and construction equipment."
+        with app.app_context():
+            db.session.add(
+                SweMetric(
+                    ticker="VOLV-B.ST",
+                    company="Volvo AB",
+                    trading_date=trading_day,
+                    current_price=265.5,
+                    sma_50=250.0,
+                    sma_200=230.0,
+                    currency="SEK",
+                )
+            )
+            db.session.add(
+                SweTicker(
+                    symbol="VOLV-B.ST",
+                    company="Volvo AB",
+                    exchange_name="OMX Stockholm",
+                    business_summary=summary,
+                )
+            )
+            db.session.commit()
+
+        html = client_with_user.get("/stocks/chart/VOLV-B.ST").get_data(as_text=True)
+        header = _chart_header_html(html)
+        assert "Volvo AB" in header
+        assert summary in header
+        assert "chart-business-summary" in header
+        assert "chart-ticker" not in header
+        assert "VOLV-B.ST" not in header
+        assert "Visa mer" not in header
+        assert "<details" not in header
+
+    def test_chart_omits_whitespace_only_business_summary(
+        self, client_with_user, app
+    ):
+        trading_day = date.today() - timedelta(days=7)
+        with app.app_context():
+            db.session.add(
+                Metric(
+                    ticker="MSFT",
+                    company="Microsoft Corporation",
+                    trading_date=trading_day,
+                    current_price=400.0,
+                    sma_50=390.0,
+                    sma_200=350.0,
+                    currency="USD",
+                )
+            )
+            db.session.add(
+                Ticker(
+                    symbol="MSFT",
+                    company="Microsoft Corporation",
+                    exchange_name="NASDAQ",
+                    business_summary="   ",
+                )
+            )
+            db.session.commit()
+
+        html = client_with_user.get("/stocks/chart/MSFT").get_data(as_text=True)
+        header = _chart_header_html(html)
+        assert "Microsoft Corporation" in header
+        assert "chart-business-summary" not in header
+        assert "chart-ticker" not in header
+        assert "MSFT" not in header
+        assert "Visa mer" not in header
+        assert "<details" not in header
+
+    def test_chart_truncates_long_business_summary_to_200_chars(
+        self, client_with_user, app
+    ):
+        summary = ("A" * 200) + "TAILMARKER"
+        _seed_chart_summary(
+            app, symbol="LONG", company="Long Summary Co", summary=summary
+        )
+        html = client_with_user.get("/stocks/chart/LONG").get_data(as_text=True)
+        preview = _chart_summary_inner(html)
+        assert "A" * 200 in preview
+        assert "TAILMARKER" not in preview
+        assert "Visa mer" in preview
+        assert "&hellip;" in preview or "…" in preview
+        details_attrs = _chart_details_tag(html)
+        assert details_attrs is not None
+        assert "open" not in details_attrs.lower()
+        header = _chart_header_html(html)
+        assert summary in header
+        assert "Visa mindre" in header
+        assert "chart-ticker" not in header
+
+    def test_chart_shows_full_summary_at_exactly_200_chars(
+        self, client_with_user, app
+    ):
+        summary = "B" * 200
+        _seed_chart_summary(
+            app, symbol="EXACT", company="Exact Length Co", summary=summary
+        )
+        html = client_with_user.get("/stocks/chart/EXACT").get_data(as_text=True)
+        header = _chart_header_html(html)
+        assert summary in header
+        assert "Visa mer" not in header
+        assert "<details" not in header
+        assert "chart-business-summary" in header
+
+
+def response_has_signal_cell(html, label, title=None):
+    """Match Signal cell by aria-label (Death|Golden|none); legacy em dash empty."""
+    if label in ("—", "&mdash;"):
+        pattern = r'class="kors-cell"[^>]*>\s*(?:—|&mdash;)\s*</td>'
+        match = re.search(pattern, html)
+        if not match:
+            return False
+        return True
+    # Icon cell: aria-label on img/svg inside kors-cell
+    cell_pattern = rf'<td class="kors-cell"([^>]*)>.*?aria-label="{re.escape(label)}".*?</td>'
+    match = re.search(cell_pattern, html, flags=re.DOTALL)
+    if not match:
+        return False
+    if title is None:
+        return True
+    attrs = match.group(1)
+    return f'title="{title}"' in attrs or f"title='{title}'" in attrs
+
+
+response_has_kors_cell = response_has_signal_cell
+
+def _assert_trend_legend(html):
+    assert (
+        "Positivt momentum kan indikera en potentiell uppåtgående (bullish) trend, medan negativt momentum kan indikera en nedåtgående (bearish) trend."
+        in html
+    )
+    assert (
+        "I bred bemärkelse kan momentum mätas både mellan olika tillgångsslag och för enskilda värdepapper, där marknadsmomentum i synnerhet avser den övergripande marknaden."
+        in html
+    )
+    assert (
+        "Trend mäts här som 50-dagars genomsnittligt pris dividerat med 200-dagars genomsnittligt pris."
+        in html
+    )
+    assert "Bearish" in html
+    assert "Bullish" in html
+    assert "min-height: 15rem" not in html
+
+
+def _seed_paged_nyse(app, count=26, include_nasdaq=False):
+    trading_day = date.today() - timedelta(days=7)
+    with app.app_context():
+        if include_nasdaq:
+            db.session.add(
+                Ticker(
+                    symbol="AAPL",
+                    company="Apple Inc.",
+                    market="us_market",
+                    exchange_name="NASDAQ",
+                )
+            )
+            db.session.add(
+                Metric(
+                    ticker="AAPL",
+                    company="Apple Inc.",
+                    trading_date=trading_day,
+                    current_price=100.0,
+                    currency="USD",
+                )
+            )
+        for index in range(1, count + 1):
+            symbol = f"P{index:02d}"
+            company = f"Paged Co {index:02d}"
+            db.session.add(
+                Ticker(
+                    symbol=symbol,
+                    company=company,
+                    market="us_market",
+                    exchange_name="NYSE",
+                )
+            )
+            db.session.add(
+                Metric(
+                    ticker=symbol,
+                    company=company,
+                    trading_date=trading_day,
+                    current_price=float(index),
+                    currency="USD",
+                )
+            )
+        db.session.commit()
+
+
+def _tbody_row_count(html):
+    """Count data rows in the stock table (second tbody when stacked)."""
+    if 'id="stocks-table"' in html:
+        card = html.split('id="stocks-table"', 1)[1]
+        tbody = card.split("<tbody", 1)[1].split("</tbody>", 1)[0]
+    else:
+        tbody = html.split("<tbody", 1)[1].split("</tbody>", 1)[0]
+    return tbody.count("<tr>")
+
+
+def _has_usable_paging_link(html, label):
+    return re.search(rf"<a[^>]*class=\"[^\"]*paging-btn[^\"]*\"[^>]*>\s*{label}", html) is not None
+
+
+class TestAktierPaging:
+    """25-row Aktier pages, totals, warm cache, and chart return."""
+
+    def test_first_page_caps_at_25_and_shows_total(self, client_with_user, app):
+        _seed_paged_nyse(app, count=26)
+        html = client_with_user.get("/stocks?exchange=nyse").get_data(as_text=True)
+        assert "1–25 av 26" in html or "1&ndash;25 av 26" in html
+        assert "Paged Co 01" in html
+        assert "Paged Co 25" in html
+        assert "Paged Co 26" not in html
+        assert _tbody_row_count(html) == 25
+        assert "stocks.js" in html
+
+    def test_page_two_has_26th_not_first(self, client_with_user, app):
+        _seed_paged_nyse(app, count=26)
+        html = client_with_user.get("/stocks?exchange=nyse&page=2").get_data(as_text=True)
+        assert "26–26 av 26" in html or "26&ndash;26 av 26" in html
+        assert "Paged Co 26" in html
+        assert "Paged Co 01" not in html
+        assert _tbody_row_count(html) == 1
+
+    def test_first_page_has_no_usable_previous(self, client_with_user, app):
+        _seed_paged_nyse(app, count=26)
+        html = client_with_user.get("/stocks?exchange=nyse").get_data(as_text=True)
+        assert "Föregående" in html
+        assert "Nästa" in html
+        assert not _has_usable_paging_link(html, "Föregående")
+        assert _has_usable_paging_link(html, "Nästa")
+        assert "page=2" in html
+        assert "page=0" not in html
+
+    def test_last_page_has_no_usable_next(self, client_with_user, app):
+        _seed_paged_nyse(app, count=26)
+        html = client_with_user.get("/stocks?exchange=nyse&page=2").get_data(as_text=True)
+        assert _has_usable_paging_link(html, "Föregående")
+        assert not _has_usable_paging_link(html, "Nästa")
+
+    def test_page_99_clamps_to_last_page(self, client_with_user, app):
+        _seed_paged_nyse(app, count=26)
+        html = client_with_user.get("/stocks?exchange=nyse&page=99").get_data(as_text=True)
+        assert "Paged Co 26" in html
+        assert "Paged Co 01" not in html
+        assert "26–26 av 26" in html or "26&ndash;26 av 26" in html
+
+    def test_chart_back_keeps_exchange_and_page(self, client_with_user, app):
+        _seed_paged_nyse(app, count=26)
+        client_with_user.get("/stocks?exchange=nyse&page=2")
+        html = client_with_user.get("/stocks/chart/P26").get_data(as_text=True)
+        assert "Tillbaka till Aktier" in html
+        assert "exchange=nyse" in html
+        assert "page=2" in html
+
+    def test_warm_requires_login(self, client):
+        response = client.get("/stocks/warm?exchange=nyse")
+        assert response.status_code == 302
+        assert "/login" in response.location
+
+    def test_warm_unknown_exchange_is_not_ok(self, client_with_user):
+        response = client_with_user.get("/stocks/warm?exchange=tokyo")
+        assert response.status_code == 400
+        assert response.get_json()["ok"] is False
+
+    def test_warm_fills_pages_for_logged_in_user(self, client_with_user, app):
+        _seed_paged_nyse(app, count=26)
+        response = client_with_user.get("/stocks/warm?exchange=nyse")
+        assert response.status_code == 200
+        payload = response.get_json()
+        assert payload["ok"] is True
+        assert payload["total"] == 26
+        assert payload["pages_cached"] == 2
+        page_two = client_with_user.get("/stocks?exchange=nyse&page=2").get_data(
+            as_text=True
+        )
+        assert "kors-cell" in page_two
+        assert "Paged Co 26" in page_two
+
+    def test_switching_exchange_does_not_mix_venues(self, client_with_user, app):
+        _seed_paged_nyse(app, count=26, include_nasdaq=True)
+        page_two = client_with_user.get("/stocks?exchange=nyse&page=2").get_data(
+            as_text=True
+        )
+        assert "Paged Co 26" in page_two
+        assert "Apple Inc." not in page_two
+        nasdaq = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
+        assert "Apple Inc." in nasdaq
+        assert "Paged Co 26" not in nasdaq
+        assert "Paged Co 01" not in nasdaq
+
+
+class TestAktierSort:
+    """SPEC 014: full-exchange sort then paginate."""
+
+    def test_sort_headers_and_aria(self, client_with_user, app):
+        _seed_paged_nyse(app, count=3)
+        html = client_with_user.get(
+            "/stocks?exchange=nyse&sort=bolag&dir=asc"
+        ).get_data(as_text=True)
+        thead = _stock_thead(html)
+        assert "Signal" in thead
+        assert 'aria-sort="ascending"' in thead
+        assert "sort=bolag" in html
+        assert "dir=desc" in html  # next click toggles
+
+    def test_bolag_sort_is_global_across_pages(self, client_with_user, app):
+        trading_day = date.today() - timedelta(days=7)
+        with app.app_context():
+            # 26 rows: Z-company is alphabetically last → page 2 under bolag asc
+            for index in range(1, 26):
+                symbol = f"P{index:02d}"
+                db.session.add(
+                    Ticker(
+                        symbol=symbol,
+                        company=f"Paged Co {index:02d}",
+                        market="us_market",
+                        exchange_name="NYSE",
+                    )
+                )
+                db.session.add(
+                    Metric(
+                        ticker=symbol,
+                        company=f"Paged Co {index:02d}",
+                        trading_date=trading_day,
+                        current_price=float(index),
+                        currency="USD",
+                        z_score=0,
+                    )
+                )
+            db.session.add(
+                Ticker(
+                    symbol="ZZZ",
+                    company="Zeta Last",
+                    market="us_market",
+                    exchange_name="NYSE",
+                )
+            )
+            db.session.add(
+                Metric(
+                    ticker="ZZZ",
+                    company="Zeta Last",
+                    trading_date=trading_day,
+                    current_price=1.0,
+                    currency="USD",
+                    z_score=0,
+                )
+            )
+            db.session.commit()
+
+        page1 = client_with_user.get(
+            "/stocks?exchange=nyse&sort=bolag&dir=asc&page=1"
+        ).get_data(as_text=True)
+        assert "Paged Co 01" in page1
+        assert "Zeta Last" not in page1
+        page2 = client_with_user.get(
+            "/stocks?exchange=nyse&sort=bolag&dir=asc&page=2"
+        ).get_data(as_text=True)
+        assert "Zeta Last" in page2
+        assert "Paged Co 01" not in page2
+        assert "sort=bolag" in page2
+        assert "dir=asc" in page2
+
+    def test_trend_sort_brings_high_z_to_page_one(self, client_with_user, app):
+        trading_day = date.today() - timedelta(days=7)
+        with app.app_context():
+            for index in range(1, 27):
+                symbol = f"P{index:02d}"
+                z = 5.0 if symbol == "P26" else float(index) / 100.0
+                db.session.add(
+                    Ticker(
+                        symbol=symbol,
+                        company=f"Paged Co {index:02d}",
+                        market="us_market",
+                        exchange_name="NYSE",
+                    )
+                )
+                db.session.add(
+                    Metric(
+                        ticker=symbol,
+                        company=f"Paged Co {index:02d}",
+                        trading_date=trading_day,
+                        current_price=float(index),
+                        currency="USD",
+                        z_score=z,
+                    )
+                )
+            db.session.commit()
+
+        html = client_with_user.get(
+            "/stocks?exchange=nyse&sort=trend&dir=desc&page=1"
+        ).get_data(as_text=True)
+        assert "Paged Co 26" in html
+        assert 'aria-sort="descending"' in html
+
+    def test_invalid_sort_falls_back_to_symbol_order(self, client_with_user, app):
+        _seed_paged_nyse(app, count=26)
+        html = client_with_user.get(
+            "/stocks?exchange=nyse&sort=nope&dir=asc&page=1"
+        ).get_data(as_text=True)
+        assert "Paged Co 01" in html
+        assert "Paged Co 26" not in html
+        assert "sort=nope" not in html
+
+    def test_sort_change_resets_to_page_one_in_header_links(self, client_with_user, app):
+        _seed_paged_nyse(app, count=26)
+        html = client_with_user.get(
+            "/stocks?exchange=nyse&page=2&sort=bolag&dir=asc"
+        ).get_data(as_text=True)
+        assert "page=1" in html
+        assert "sort=trend" in _stock_thead(html)
+
+    def test_chart_back_preserves_sort(self, client_with_user, app):
+        _seed_paged_nyse(app, count=26)
+        client_with_user.get("/stocks?exchange=nyse&page=2&sort=bolag&dir=asc")
+        html = client_with_user.get("/stocks/chart/P26").get_data(as_text=True)
+        assert "exchange=nyse" in html
+        assert "page=2" in html
+        assert "sort=bolag" in html
+        assert "dir=asc" in html
+
+
+class TestSectorPrisSort:
+    """SPEC 022: Pris, Index header, independent sector sort, aligned columns."""
+
+    def test_sector_pris_and_index_header(self, client_with_user, app):
+        week = date(2026, 9, 28)
+        _seed_index_row(
+            app,
+            ticker="US-IDX",
+            sector="US Equity Index",
+            country="us",
+            trading_date=week,
+            ticker_count=500,
+            current_price=Decimal("123.456"),
+            currency="USD",
+            pct_uptrend=Decimal("60.0"),
+        )
+        _seed_index_row(
+            app,
+            ticker="US-IDX-ENERGY",
+            sector="Energy",
+            country="us",
+            trading_date=week,
+            ticker_count=190,
+            current_price=None,
+            currency="USD",
+            pct_uptrend=Decimal("10.0"),
+        )
+        landing = client_with_user.get("/stocks").get_data(as_text=True)
+        _assert_empty_landing_tables(landing)
+        assert "123.46" not in landing
+        nasdaq = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
+        _assert_sector_headers(nasdaq)
+        _assert_stock_headers(nasdaq)
+        sectors = _sector_tbody(nasdaq)
+        assert "123.46" in sectors
+        energy_row = sectors.split("Energy", 1)[1].split("</tr>", 1)[0]
+        assert "—" in energy_row
+        assert "/stocks/index/US-IDX-ENERGY" in nasdaq
+        thead = _sector_thead(nasdaq)
+        assert "sector_sort=ratio" in thead
+        assert "sector_sort=pris" not in nasdaq.lower()
+        assert 'href="' in thead
+        pris_header = thead.split("Pris", 1)[0].rsplit("<th", 1)[-1]
+        assert "stocks-sort-link" not in pris_header
+
+    def test_sector_sort_is_independent_of_stock_sort(self, client_with_user, app):
+        week = date(2026, 9, 28)
+        _seed_index_row(
+            app,
+            ticker="US-IDX",
+            sector="US Equity Index",
+            country="us",
+            trading_date=week,
+            ticker_count=1,
+            pct_uptrend=Decimal("10.0"),
+            z_score=Decimal("0.1"),
+        )
+        _seed_index_row(
+            app,
+            ticker="US-IDX-ZETA",
+            sector="Zeta Index",
+            country="us",
+            trading_date=week,
+            ticker_count=2,
+            pct_uptrend=Decimal("90.0"),
+            z_score=Decimal("1.5"),
+        )
+        _seed_index_row(
+            app,
+            ticker="US-IDX-ALPHA",
+            sector="Alpha Index",
+            country="us",
+            trading_date=week,
+            ticker_count=3,
+            pct_uptrend=Decimal("50.0"),
+            z_score=Decimal("-0.5"),
+        )
+        _seed_paged_nyse(app, count=3)
+        default = client_with_user.get("/stocks?exchange=nyse").get_data(as_text=True)
+        names = _sector_tbody(default)
+        assert names.find("US Equity Index") < names.find("Alpha Index")
+        assert names.find("US Equity Index") < names.find("Zeta Index")
+        both = client_with_user.get(
+            "/stocks?exchange=nyse&sort=bolag&dir=asc&sector_sort=ratio&sector_dir=desc"
+        ).get_data(as_text=True)
+        ratio_names = _sector_tbody(both)
+        assert ratio_names.find("Zeta Index") < ratio_names.find("Alpha Index")
+        assert ratio_names.find("Alpha Index") < ratio_names.find("US Equity Index")
+        assert "sector_sort=ratio" in both
+        assert "sort=bolag" in _stock_thead(both)
+        assert "Paged Co 01" in _stock_tbody(both)
+        by_index = client_with_user.get(
+            "/stocks?exchange=nyse&sector_sort=index&sector_dir=asc"
+        ).get_data(as_text=True)
+        index_names = _sector_tbody(by_index)
+        assert index_names.find("Alpha Index") < index_names.find("US Equity Index")
+        assert index_names.find("US Equity Index") < index_names.find("Zeta Index")
+        reversed_index = client_with_user.get(
+            "/stocks?exchange=nyse&sector_sort=index&sector_dir=desc"
+        ).get_data(as_text=True)
+        reversed_names = _sector_tbody(reversed_index)
+        assert reversed_names.find("Zeta Index") < reversed_names.find("Alpha Index")
+        stock_only = client_with_user.get(
+            "/stocks?exchange=nyse&sort=bolag&dir=asc"
+        ).get_data(as_text=True)
+        nyse_sectors = _sector_tbody(stock_only)
+        assert nyse_sectors.find("US Equity Index") < nyse_sectors.find("Alpha Index")
+        invalid = client_with_user.get(
+            "/stocks?exchange=nyse&sector_sort=nope&sector_dir=asc"
+        ).get_data(as_text=True)
+        invalid_names = _sector_tbody(invalid)
+        assert invalid_names.find("US Equity Index") < invalid_names.find("Alpha Index")
+        assert "sector_sort=nope" not in invalid
+
+    def test_aktier_column_width_rules_align_tables(self):
+        css = (
+            Path(__file__)
+            .resolve()
+            .parents[1]
+            .joinpath("static/css/stocks.css")
+            .read_text()
+        )
+        assert "#sector-table table" in css
+        assert "#stocks-table table" in css
+        assert "table-layout: fixed" in css
+        for name in (
+            "aktier-col-trend",
+            "aktier-col-signal",
+            "aktier-col-name",
+            "aktier-col-id",
+            "aktier-col-currency",
+            "aktier-col-price",
+            "aktier-col-last",
+        ):
+            assert name in css
+        assert "5 * 2.8125rem" in css
+        assert "10 * 2.8125rem" in css
+        assert "white-space: nowrap" in css
+        assert "#sector-table thead th:nth-child(4)" in css
+        assert "#sector-table thead th:nth-child(5)" in css
+        assert "#stocks-table thead th:nth-child(5)" in css
+        buttons = re.search(r"\.exchange-buttons\s*\{([^}]+)\}", css)
+        assert buttons is not None
+        assert "nowrap" in buttons.group(1)
+
+
+class TestFtseHeaderLabels:
+    """SPEC 023: Antal Bolag, FTSE UK market, stored index names."""
+
+    def test_ftse_empty_and_uk_only(self, client_with_user, app):
+        week = date(2026, 9, 28)
+        trading_day = date.today() - timedelta(days=7)
+        _seed_index_row(
+            app,
+            ticker="UK-IDX",
+            sector="FTSE Equity Index",
+            country="uk",
+            trading_date=week,
+            ticker_count=400,
+            currency="GBP",
+            pct_uptrend=Decimal("40.0"),
+            z_score=Decimal("0.2"),
+        )
+        _seed_index_row(
+            app,
+            ticker="UK-IDX-ENERGY",
+            sector="Energy",
+            country="uk",
+            trading_date=week,
+            ticker_count=40,
+            currency="GBP",
+            pct_uptrend=Decimal("20.0"),
+        )
+        _seed_index_row(
+            app,
+            ticker="US-IDX",
+            sector="US Equity Index",
+            country="us",
+            trading_date=week,
+            ticker_count=500,
+            currency="USD",
+            pct_uptrend=Decimal("60.0"),
+        )
+        _seed_index_row(
+            app,
+            ticker="SWE-IDX",
+            sector="OMX Equity Index",
+            country="swe",
+            trading_date=week,
+            ticker_count=700,
+            currency="SEK",
+            pct_uptrend=Decimal("50.0"),
+        )
+        with app.app_context():
+            db.session.add(
+                UkTicker(
+                    symbol="AZN.L",
+                    company="AstraZeneca PLC",
+                    market="gb_market",
+                    exchange_name="LSE",
+                )
+            )
+            db.session.add(
+                UkMetric(
+                    ticker="AZN.L",
+                    company="AstraZeneca PLC",
+                    trading_date=trading_day,
+                    current_price=120.0,
+                    currency="GBP",
+                )
+            )
+            db.session.add(
+                Ticker(
+                    symbol="AAPL",
+                    company="Apple Inc.",
+                    market="us_market",
+                    exchange_name="NASDAQ",
+                )
+            )
+            db.session.add(
+                Metric(
+                    ticker="AAPL",
+                    company="Apple Inc.",
+                    trading_date=trading_day,
+                    current_price=190.0,
+                    currency="USD",
+                )
+            )
+            db.session.commit()
+
+        empty = client_with_user.get("/stocks?exchange=ftse")
+        # Reload after seed is already done; first request with data:
+        html = empty.get_data(as_text=True)
+        _assert_sector_headers(html)
+        _assert_stock_headers(html)
+        sectors = _sector_tbody(html)
+        stocks = _stock_tbody(html)
+        assert "FTSE Equity Index" in sectors
+        assert "Energy" in sectors
+        assert sectors.find("FTSE Equity Index") < sectors.find("Energy")
+        assert "AstraZeneca PLC" in stocks
+        assert "Apple Inc." not in stocks
+        assert "US Equity Index" not in sectors
+        assert "OMX Equity Index" not in sectors
+        assert "NYSE & Nasdaq" not in html
+        assert "FTSE London" not in html
+        assert "exchange=ftse" in html
+        assert "exchange-btn--selected" in html
+
+        nasdaq = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
+        nasdaq_sectors = _sector_tbody(nasdaq)
+        nasdaq_stocks = _stock_tbody(nasdaq)
+        assert "US Equity Index" in nasdaq_sectors
+        assert "FTSE Equity Index" not in nasdaq_sectors
+        assert "AstraZeneca PLC" not in nasdaq_stocks
+        assert "Apple Inc." in nasdaq_stocks
+
+    def test_ftse_empty_fixtures_do_not_invent_rows(self, client_with_user):
+        html = client_with_user.get("/stocks?exchange=ftse").get_data(as_text=True)
+        _assert_sector_headers(html)
+        _assert_stock_headers(html)
+        assert "heat-cell" not in _sector_tbody(html)
+        assert "heat-cell" not in _stock_tbody(html)
+        assert "Inga sektorer" in html
+        assert "Inga aktier" in html
+        assert "FTSE" in html
+
+    def test_ftse_chart_return_keeps_exchange(self, client_with_user, app):
+        trading_day = date.today() - timedelta(days=7)
+        with app.app_context():
+            db.session.add(
+                UkTicker(
+                    symbol="AZN.L",
+                    company="AstraZeneca PLC",
+                    market="gb_market",
+                    exchange_name="LSE",
+                    business_summary="AstraZeneca develops medicines.",
+                )
+            )
+            db.session.add(
+                UkMetric(
+                    ticker="AZN.L",
+                    company="AstraZeneca PLC",
+                    trading_date=trading_day,
+                    current_price=120.0,
+                    sma_50=118.0,
+                    sma_200=110.0,
+                    currency="GBP",
+                )
+            )
+            db.session.commit()
+        client_with_user.get("/stocks?exchange=ftse")
+        html = client_with_user.get("/stocks/chart/AZN.L").get_data(as_text=True)
+        assert "AstraZeneca PLC" in html
+        assert "Tillbaka till Aktier" in html
+        assert "exchange=ftse" in html
+
+
+class TestHeaderNowrapReset:
+    """SPEC 024: Antal Bolag/Valuta one line, FTSE beside OMX, Återställ."""
+
+    def test_landing_buttons_and_aterstall(self, client_with_user):
+        html = client_with_user.get("/stocks").get_data(as_text=True)
+        _assert_sector_headers(html)
+        _assert_stock_headers(html)
+        assert html.find("NASDAQ") < html.find("NYSE") < html.find(
+            "OMX Stockholm"
+        ) < html.find(">FTSE<")
+        assert html.count("Återställ") == 2
+        assert 'aterstall-btn--sector' in html
+        assert 'aterstall-btn--stocks' in html
+        assert _aterstall_href(html, "sector").endswith("/stocks")
+        assert _aterstall_href(html, "stocks").endswith("/stocks")
+
+    def test_aterstall_omits_the_matching_sort_pair(self, client_with_user, app):
+        _seed_paged_nyse(app, count=26)
+        week = date(2026, 9, 28)
+        _seed_index_row(
+            app,
+            ticker="US-IDX",
+            sector="US Equity Index",
+            country="us",
+            trading_date=week,
+            ticker_count=1,
+            pct_uptrend=Decimal("10.0"),
+        )
+        html = client_with_user.get(
+            "/stocks?exchange=nyse&sort=bolag&dir=asc&sector_sort=ratio"
+            "&sector_dir=desc&page=2"
+        ).get_data(as_text=True)
+        sector_q = _query_params(_aterstall_href(html, "sector"))
+        stocks_q = _query_params(_aterstall_href(html, "stocks"))
+        assert sector_q.get("exchange") == ["nyse"]
+        assert sector_q.get("sort") == ["bolag"]
+        assert sector_q.get("dir") == ["asc"]
+        assert "sector_sort" not in sector_q
+        assert "sector_dir" not in sector_q
+        assert stocks_q.get("exchange") == ["nyse"]
+        assert stocks_q.get("page") == ["1"]
+        assert stocks_q.get("sector_sort") == ["ratio"]
+        assert stocks_q.get("sector_dir") == ["desc"]
+        assert "sort" not in stocks_q
+        assert "dir" not in stocks_q
+
+    def test_index_reset_restores_market_first(self, client_with_user, app):
+        week = date(2026, 9, 28)
+        _seed_index_row(
+            app,
+            ticker="US-IDX",
+            sector="US Equity Index",
+            country="us",
+            trading_date=week,
+            ticker_count=1,
+            pct_uptrend=Decimal("10.0"),
+            z_score=Decimal("0.1"),
+        )
+        _seed_index_row(
+            app,
+            ticker="US-IDX-ZETA",
+            sector="Zeta Index",
+            country="us",
+            trading_date=week,
+            ticker_count=2,
+            pct_uptrend=Decimal("90.0"),
+            z_score=Decimal("1.0"),
+        )
+        sorted_html = client_with_user.get(
+            "/stocks?exchange=nasdaq&sector_sort=index&sector_dir=desc"
+        ).get_data(as_text=True)
+        names = _sector_tbody(sorted_html)
+        assert names.find("Zeta Index") < names.find("US Equity Index")
+        reset = client_with_user.get(_aterstall_href(sorted_html, "sector")).get_data(
+            as_text=True
+        )
+        reset_names = _sector_tbody(reset)
+        assert reset_names.find("US Equity Index") < reset_names.find("Zeta Index")
+        assert "sector_sort=" not in _aterstall_href(reset, "sector")
+
+    def test_stock_reset_default_order_from_page_one(self, client_with_user, app):
+        _seed_paged_nyse(app, count=26)
+        sorted_html = client_with_user.get(
+            "/stocks?exchange=nyse&sort=bolag&dir=desc&page=2"
+        ).get_data(as_text=True)
+        assert "Paged Co 01" in _stock_tbody(sorted_html)
+        reset = client_with_user.get(_aterstall_href(sorted_html, "stocks")).get_data(
+            as_text=True
+        )
+        stocks = _stock_tbody(reset)
+        assert "Paged Co 01" in stocks
+        assert "Paged Co 26" not in stocks
+        reset_q = _query_params(_aterstall_href(reset, "stocks"))
+        assert "sort" not in reset_q
+        assert reset_q.get("page") == ["1"] or "page" not in reset_q
+
+
+class TestTrendScaleWidth:
+    """SPEC 025: Bearish–Bullish colour line matches the index table width."""
+
+    def test_trend_scale_css_fills_index_table_column(self):
+        css = (
+            Path(__file__)
+            .resolve()
+            .parents[1]
+            .joinpath("static/css/stocks.css")
+            .read_text()
+        )
+        scale = re.search(r"\.trend-scale\s*\{([^}]+)\}", css)
+        assert scale is not None
+        body = scale.group(1)
+        assert "width: 100%" in body
+        assert "max-width: 36rem" not in body
+        assert "max-width: 36rem" not in css
+        assert "#1d4ed8" in css
+        assert "#991b1b" in css
+
+    def test_landing_keeps_legend_and_full_width_scale(self, client_with_user):
+        html = client_with_user.get("/stocks").get_data(as_text=True)
+        _assert_trend_legend(html)
+        assert 'class="trend-scale"' in html
+        assert html.find("trend-scale") < html.find('id="sector-table"')
+
+
+class TestIndustriSectorFilter:
+    """SPEC 026: stock-table Industri filters by stored sector type."""
+
+    def test_landing_has_no_industry_control(self, client_with_user):
+        html = client_with_user.get("/stocks").get_data(as_text=True)
+        thead = _stock_thead(html)
+        assert "industry=" not in thead
+        assert ">Alla<" not in thead
+        assert "sort=industri" not in html
+
+    def test_filter_links_use_stored_labels_not_market_index(
+        self, client_with_user, app
+    ):
+        _seed_industry_filter_nyse(app)
+        html = client_with_user.get("/stocks?exchange=nyse").get_data(as_text=True)
+        thead = _stock_thead(html)
+        assert ">Alla<" in thead
+        assert "industry=Technology" in thead
+        assert "industry=Healthcare" in thead
+        assert "US Equity Index" not in thead
+        assert "sort=industri" not in html
+        assert "Energy" in _sector_tbody(html)
+
+    def test_known_industry_filters_full_set_from_page_one(
+        self, client_with_user, app
+    ):
+        _seed_industry_filter_nyse(app)
+        html = client_with_user.get(
+            "/stocks?exchange=nyse&industry=Technology"
+        ).get_data(as_text=True)
+        cells = _industri_cells(html)
+        assert cells
+        assert all(cell == "Technology" for cell in cells)
+        assert "Health Co 01" not in html
+        assert "Empty Industri Co" not in html
+        assert "1–25 av 26" in html or "1&ndash;25 av 26" in html
+        assert "Tech Co 01" in html
+        assert "Tech Co 26" not in html
+        assert "US Equity Index" in _sector_tbody(html)
+        assert "Energy" in _sector_tbody(html)
+
+    def test_industry_plus_bolag_sort_still_filters(self, client_with_user, app):
+        _seed_industry_filter_nyse(app)
+        html = client_with_user.get(
+            "/stocks?exchange=nyse&industry=Healthcare&sort=bolag&dir=asc"
+        ).get_data(as_text=True)
+        cells = _industri_cells(html)
+        assert cells == ["Healthcare", "Healthcare"]
+        assert "Health Co 01" in html
+        assert "Tech Co 01" not in html
+        assert "sort=bolag" in _stock_thead(html)
+
+    def test_unknown_industry_shows_all_names(self, client_with_user, app):
+        _seed_industry_filter_nyse(app)
+        html = client_with_user.get(
+            "/stocks?exchange=nyse&industry=NotASector"
+        ).get_data(as_text=True)
+        assert "Tech Co 01" in html
+        assert "Health Co 01" in html
+        assert "Empty Industri Co" in html
+        assert "1–25 av 29" in html or "1&ndash;25 av 29" in html
+
+    def test_aterstall_and_bors_omit_or_keep_industry(self, client_with_user, app):
+        _seed_industry_filter_nyse(app)
+        html = client_with_user.get(
+            "/stocks?exchange=nyse&industry=Technology&sort=bolag&dir=asc"
+            "&sector_sort=ratio&sector_dir=desc"
+        ).get_data(as_text=True)
+        stocks_q = _query_params(_aterstall_href(html, "stocks"))
+        sector_q = _query_params(_aterstall_href(html, "sector"))
+        nasdaq_q = _query_params(_exchange_href(html, "NASDAQ"))
+        assert "industry" not in stocks_q
+        assert stocks_q.get("page") == ["1"]
+        assert "sort" not in stocks_q
+        assert sector_q.get("industry") == ["Technology"]
+        assert "industry" not in nasdaq_q
+        assert nasdaq_q.get("sort") == ["bolag"]
+
+    def test_signed_out_stocks_has_no_filter(self, client):
+        response = client.get("/stocks")
+        assert response.status_code == 302
+        html = response.get_data(as_text=True)
+        assert "industry=" not in html
+        assert "Industri" not in html
+
 
 class TestErrorHandlers:
     """Test cases for error handlers."""
@@ -108,3 +2405,43 @@ class TestErrorHandlers:
         response = client.get("/nonexistent-route")
         assert response.status_code == 404
         # Note: This will fail without the 404.html template properly configured
+
+    def test_500_error_handler(self, mocker):
+        """Unhandled exceptions return 500 with a generic message and are logged."""
+        from src import create_app
+
+        app = create_app("test")
+        app.config["DEBUG"] = False
+        app.debug = False
+        mock_log = mocker.patch.object(app.logger, "exception")
+
+        @app.route("/test-trigger-500")
+        def trigger_500():
+            raise RuntimeError("secret internal error detail")
+
+        with app.test_client() as client:
+            response = client.get("/test-trigger-500")
+
+        assert response.status_code == 500
+        assert b"secret internal error detail" not in response.data
+        assert b"Something went wrong" in response.data
+        assert b"An unexpected error occurred" in response.data
+        mock_log.assert_called_once_with("Unhandled exception")
+
+    def test_500_error_handler_debug_shows_detail(self):
+        """In debug mode, the 500 page may include the exception message."""
+        from src import create_app
+
+        app = create_app("test")
+        app.config["DEBUG"] = True
+        app.debug = True
+
+        @app.route("/test-trigger-500-debug")
+        def trigger_500_debug():
+            raise RuntimeError("debug error detail")
+
+        with app.test_client() as client:
+            response = client.get("/test-trigger-500-debug")
+
+        assert response.status_code == 500
+        assert b"debug error detail" in response.data

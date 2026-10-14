@@ -87,32 +87,29 @@ $(document).ready(function () {
         }
     });
 
-    // Password visibility toggle
+    // Password visibility toggle (native type=password; no plaintext on submit)
     if ($passwordInput.length) {
-        // Create password toggle button
         const $toggleBtn = $(`
-     <button type="button" class="btn btn-link password-toggle p-0">
+     <button type="button" class="btn btn-link password-toggle p-0" title="Show password" aria-label="Show password">
     <i class="bi bi-eye"></i>
 </button>
         `);
 
-        // Add relative positioning to password field container
         $passwordInput.parent().css('position', 'relative');
         $passwordInput.parent().append($toggleBtn);
 
         $toggleBtn.on('click', function (e) {
             e.preventDefault();
-            const type = $passwordInput.attr('type') === 'password' ? 'text' : 'password';
-            $passwordInput.attr('type', type);
+            const showing = $passwordInput.attr('type') === 'password';
+            $passwordInput.attr('type', showing ? 'text' : 'password');
 
-            // Toggle icon
             const $icon = $(this).find('i');
-            if (type === 'text') {
+            if (showing) {
                 $icon.removeClass('bi-eye').addClass('bi-eye-slash');
-                $(this).attr('title', 'Hide password');
+                $(this).attr({ title: 'Hide password', 'aria-label': 'Hide password' });
             } else {
                 $icon.removeClass('bi-eye-slash').addClass('bi-eye');
-                $(this).attr('title', 'Show password');
+                $(this).attr({ title: 'Show password', 'aria-label': 'Show password' });
             }
         });
     }
