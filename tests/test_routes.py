@@ -754,6 +754,7 @@ class TestAktierRoutes:
         assert "/login" in index_chart.location
         body = response.get_data(as_text=True)
         assert "Positivt momentum kan indikera" not in body
+        assert "gått bra eller dåligt under senaste året" not in body
         assert "Bearish" not in body
         assert "Kors" not in body
         assert "Signal" not in body
@@ -1650,17 +1651,23 @@ response_has_kors_cell = response_has_signal_cell
 
 def _assert_trend_legend(html):
     assert (
-        "Positivt momentum kan indikera en potentiell uppåtgående (bullish) trend, medan negativt momentum kan indikera en nedåtgående (bearish) trend."
+        "Trend: Visar om en aktie har gått bra eller dåligt under senaste året."
         in html
     )
     assert (
-        "I bred bemärkelse kan momentum mätas både mellan olika tillgångsslag och för enskilda värdepapper, där marknadsmomentum i synnerhet avser den övergripande marknaden."
+        "Signal: Visar om köpläge eller säljläge har inträffat senaste fyra veckorna"
         in html
     )
     assert (
-        "Trend mäts här som 50-dagars genomsnittligt pris dividerat med 200-dagars genomsnittligt pris."
+        "Ratio: Visar hur stor andel av alla aktier som just nu har ett positivt momentum."
         in html
     )
+    assert (
+        "https://www.cmcmarkets.com/en-gb/technical-analysis/golden-cross-and-death-cross-explained"
+        in html
+    )
+    assert "Positivt momentum kan indikera" not in html
+    assert "Trend mäts här som 50-dagars" not in html
     assert "Bearish" in html
     assert "Bullish" in html
     assert "min-height: 15rem" not in html
