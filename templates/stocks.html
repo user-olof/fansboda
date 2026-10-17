@@ -104,11 +104,26 @@
                             <tbody>
                                 {% if sectors %}
                                 {% for sector in sectors %}
-                                <tr>
+                                {% set is_market_index = sector.ticker in market_index_tickers %}
+                                {% set ns = namespace(filter_href='') %}
+                                {% if selected_exchange %}
+                                    {% if is_market_index %}
+                                        {% set ns.filter_href = url_for('stocks.stocks', exchange=selected_exchange, page=1, **aktier_query) %}
+                                    {% else %}
+                                        {% set ns.filter_href = url_for('stocks.stocks', exchange=selected_exchange, page=1, industry=sector.sector, **aktier_query) %}
+                                    {% endif %}
+                                {% endif %}
+                                {% set is_active_index_row = (industry_filter and sector.sector and industry_filter|lower == sector.sector|lower) or (not industry_filter and is_market_index) %}
+                                <tr{% if is_active_index_row %} class="index-row--active" aria-current="true"{% endif %}>
                                     <td class="heat-cell{% if sector.heat_hot %} heat-cell--hot{% endif %}"
                                         style="background-color: {{ sector.heat_color }};"
-                                        title="{{ sector.heat_title }}"></td>
+                                        title="{{ sector.heat_title }}">
+                                        {% if ns.filter_href %}
+                                        <a class="index-row-filter" href="{{ ns.filter_href }}"><span class="index-row-filter-fill"></span></a>
+                                        {% endif %}
+                                    </td>
                                     <td class="kors-cell"{% if sector.kors and sector.kors_title %} title="{{ sector.kors_title }}"{% endif %}>
+                                        {% if ns.filter_href %}<a class="index-row-filter" href="{{ ns.filter_href }}">{% endif %}
                                         {% if sector.kors == "Death" %}
                                         <img class="signal-icon signal-icon--death"
                                              src="{{ url_for('static', filename='images/signals/sphere-death.svg') }}"
@@ -131,6 +146,7 @@
                                              role="img"
                                              aria-label="none">
                                         {% endif %}
+                                        {% if ns.filter_href %}</a>{% endif %}
                                     </td>
                                     <td class="fw-semibold">
                                         {% if sector.ticker %}
@@ -139,10 +155,18 @@
                                         {{ sector.sector }}
                                         {% endif %}
                                     </td>
-                                    <td class="sector-count-cell">{{ sector.ticker_count if sector.ticker_count is not none else "—" }}</td>
-                                    <td>{{ sector.currency or "—" }}</td>
-                                    <td>{{ "%.2f"|format(sector.current_price) if sector.current_price is not none else "—" }}</td>
-                                    <td class="sector-ratio-cell">{{ sector.ratio_label or "—" }}</td>
+                                    <td class="sector-count-cell">
+                                        {% if ns.filter_href %}<a class="index-row-filter" href="{{ ns.filter_href }}">{% endif %}{{ sector.ticker_count if sector.ticker_count is not none else "—" }}{% if ns.filter_href %}</a>{% endif %}
+                                    </td>
+                                    <td>
+                                        {% if ns.filter_href %}<a class="index-row-filter" href="{{ ns.filter_href }}">{% endif %}{{ sector.currency or "—" }}{% if ns.filter_href %}</a>{% endif %}
+                                    </td>
+                                    <td>
+                                        {% if ns.filter_href %}<a class="index-row-filter" href="{{ ns.filter_href }}">{% endif %}{{ "%.2f"|format(sector.current_price) if sector.current_price is not none else "—" }}{% if ns.filter_href %}</a>{% endif %}
+                                    </td>
+                                    <td class="sector-ratio-cell">
+                                        {% if ns.filter_href %}<a class="index-row-filter" href="{{ ns.filter_href }}">{% endif %}{{ sector.ratio_label or "—" }}{% if ns.filter_href %}</a>{% endif %}
+                                    </td>
                                 </tr>
                                 {% endfor %}
                                 {% else %}

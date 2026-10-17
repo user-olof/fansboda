@@ -151,8 +151,13 @@ def industry_options(rows, exclude_labels=None):
     return labels
 
 
-def parse_industry_filter(value, options):
-    """Return the canonical option label, or ``None`` for no filter."""
+def parse_industry_filter(value, options, extra_allowed=None):
+    """Return the canonical option label, or ``None`` for no filter.
+
+    ``options`` are stock Industri labels (dropdown). ``extra_allowed`` are
+    sector-index display labels so a real sector with zero names still filters
+    (empty table) instead of being treated as unknown junk.
+    """
     raw = str(value).strip() if value is not None else ""
     if not raw:
         return None
@@ -160,6 +165,10 @@ def parse_industry_filter(value, options):
     for label in options:
         if label.casefold() == wanted:
             return label
+    for label in extra_allowed or ():
+        text = str(label).strip() if label is not None else ""
+        if text and text.casefold() == wanted:
+            return text
     return None
 
 
@@ -637,6 +646,24 @@ def _market_index_labels(sector_rows):
         for row in sector_rows
         if row.get("ticker") in MARKET_INDEX_TICKERS
     ]
+
+
+def _sector_index_labels(sector_rows):
+    """Displayed sector labels for non-market-wide index rows."""
+    labels = []
+    seen = set()
+    for row in sector_rows:
+        if row.get("ticker") in MARKET_INDEX_TICKERS:
+            continue
+        label = (row.get("sector") or "").strip()
+        if not label:
+            continue
+        key = label.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        labels.append(label)
+    return labels
 
 
 def _load_sector_rows(market):
@@ -1148,7 +1175,9 @@ def stocks():
             all_rows, exclude_labels=_market_index_labels(sector_rows)
         )
         industry_filter = parse_industry_filter(
-            request.args.get("industry"), industry_choices
+            request.args.get("industry"),
+            industry_choices,
+            extra_allowed=_sector_index_labels(sector_rows),
         )
         stock_rows, stock_total, stock_page = _load_table_page(
             current_user.id,
@@ -1188,6 +1217,7 @@ def stocks():
         sector_dir=sector_direction,
         industry_filter=industry_filter,
         industry_options=industry_choices,
+        market_index_tickers=MARKET_INDEX_TICKERS,
         aktier_query=_optional_sort_args(
             sort_key, direction, sector_sort_key, sector_direction
         ),
