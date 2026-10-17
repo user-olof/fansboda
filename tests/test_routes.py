@@ -192,6 +192,57 @@ def _industri_cells(html):
     ]
 
 
+def _seed_index_row_filter_nyse(app):
+    """026 NYSE fixture plus a Technology sector index for row-filter hrefs."""
+    _seed_industry_filter_nyse(app)
+    _seed_index_row(
+        app,
+        ticker="US-IDX-TECH",
+        sector="Technology",
+        country="us",
+        trading_date=date(2026, 9, 28),
+        ticker_count=26,
+        pct_uptrend=Decimal("30.0"),
+    )
+
+
+def _sector_data_rows(html):
+    rows = []
+    for chunk in _sector_tbody(html).split("<tr")[1:]:
+        attrs, _, rest = chunk.partition(">")
+        inner = rest.split("</tr>", 1)[0]
+        if "Inga sektorer" in inner:
+            continue
+        hrefs = [
+            href.replace("&amp;", "&")
+            for href in re.findall(r'href="([^"]+)"', inner)
+        ]
+        name_href = next(
+            (href for href in hrefs if "/stocks/index/" in urlparse(href).path),
+            None,
+        )
+        filter_hrefs = [
+            href for href in hrefs if "/stocks/index/" not in urlparse(href).path
+        ]
+        ticker = None
+        if name_href:
+            ticker = urlparse(name_href).path.rstrip("/").rsplit("/", 1)[-1]
+        label_match = re.search(r"/stocks/index/[^\"<>]+\"[^>]*>([^<]+)</a>", inner)
+        rows.append(
+            {
+                "attrs": attrs,
+                "label": label_match.group(1) if label_match else None,
+                "ticker": ticker,
+                "name_href": name_href,
+                "filter_hrefs": filter_hrefs,
+                "active": (
+                    "index-row--active" in attrs or 'aria-current="true"' in attrs
+                ),
+            }
+        )
+    return rows
+
+
 def _seed_industry_filter_nyse(app):
     """26 Technology + 2 Healthcare + 1 empty Industri; US market index + Energy."""
     trading_day = date.today() - timedelta(days=7)
@@ -703,6 +754,7 @@ class TestAktierRoutes:
         assert "/login" in index_chart.location
         body = response.get_data(as_text=True)
         assert "Positivt momentum kan indikera" not in body
+        assert "gått bra eller dåligt under senaste året" not in body
         assert "Bearish" not in body
         assert "Kors" not in body
         assert "Signal" not in body
@@ -899,7 +951,10 @@ class TestAktierRoutes:
         html = client_with_user.get("/stocks?exchange=nasdaq").get_data(as_text=True)
         assert "background-color: #1d4ed8" in html
         assert "background-color: #e5e7eb" in html
-        assert re.search(r'class="heat-cell[^"]*"[^>]*>\s*</td>', html)
+        assert re.search(
+            r'class="heat-cell[^"]*"[^>]*>\s*<a class="index-row-filter"',
+            html,
+        )
         visible = html.replace("z=-2.00", "")
         assert "-2.00" not in visible
         assert response_has_signal_cell(html, "none")
@@ -1596,17 +1651,23 @@ response_has_kors_cell = response_has_signal_cell
 
 def _assert_trend_legend(html):
     assert (
-        "Positivt momentum kan indikera en potentiell uppåtgående (bullish) trend, medan negativt momentum kan indikera en nedåtgående (bearish) trend."
+        "Trend: Visar om en aktie har gått bra eller dåligt under senaste året."
         in html
     )
     assert (
-        "I bred bemärkelse kan momentum mätas både mellan olika tillgångsslag och för enskilda värdepapper, där marknadsmomentum i synnerhet avser den övergripande marknaden."
+        "Signal: Visar om köpläge eller säljläge har inträffat senaste fyra veckorna"
         in html
     )
     assert (
-        "Trend mäts här som 50-dagars genomsnittligt pris dividerat med 200-dagars genomsnittligt pris."
+        "Ratio: Visar hur stor andel av alla aktier som just nu har ett positivt momentum."
         in html
     )
+    assert (
+        "https://www.cmcmarkets.com/en-gb/technical-analysis/golden-cross-and-death-cross-explained"
+        in html
+    )
+    assert "Positivt momentum kan indikera" not in html
+    assert "Trend mäts här som 50-dagars" not in html
     assert "Bearish" in html
     assert "Bullish" in html
     assert "min-height: 15rem" not in html
@@ -2395,6 +2456,129 @@ class TestIndustriSectorFilter:
         html = response.get_data(as_text=True)
         assert "industry=" not in html
         assert "Industri" not in html
+
+
+class TestIndexRowFilter:
+    """SPEC 027: index-row cells (not Index name) set the 026 Industri filter."""
+
+    def test_index_name_is_chart_and_other_cells_filter(
+        self, client_with_user, app
+    ):
+        _seed_index_row_filter_nyse(app)
+        html = client_with_user.get("/stocks?exchange=nyse").get_data(as_text=True)
+        by_ticker = {row["ticker"]: row for row in _sector_data_rows(html)}
+        tech = by_ticker["US-IDX-TECH"]
+        market = by_ticker["US-IDX"]
+        assert urlparse(tech["name_href"]).path == "/stocks/index/US-IDX-TECH"
+        assert "industry=" not in tech["name_href"]
+        assert len(tech["filter_hrefs"]) == 6
+        for href in tech["filter_hrefs"]:
+            query = _query_params(href)
+            assert query.get("industry") == ["Technology"]
+            assert query.get("page") == ["1"]
+            assert query.get("sort") != ["industri"]
+        assert len(market["filter_hrefs"]) == 6
+        for href in market["filter_hrefs"]:
+            query = _query_params(href)
+            assert "industry" not in query
+            assert query.get("page") == ["1"]
+        assert market["active"]
+        assert not tech["active"]
+        assert "US Equity Index" in _sector_tbody(html)
+        assert "Energy" in _sector_tbody(html)
+        assert "Technology" in _sector_tbody(html)
+        landing = client_with_user.get("/stocks").get_data(as_text=True)
+        assert "index-row-filter" not in landing
+        assert "industry=" not in _sector_tbody(landing)
+
+    def test_following_sector_cell_filters_names_and_marks_industri(
+        self, client_with_user, app
+    ):
+        _seed_index_row_filter_nyse(app)
+        listed = client_with_user.get("/stocks?exchange=nyse").get_data(as_text=True)
+        tech = next(
+            row
+            for row in _sector_data_rows(listed)
+            if row["ticker"] == "US-IDX-TECH"
+        )
+        html = client_with_user.get(tech["filter_hrefs"][0]).get_data(as_text=True)
+        cells = _industri_cells(html)
+        assert cells
+        assert all(cell == "Technology" for cell in cells)
+        assert "Health Co 01" not in html
+        assert "Empty Industri Co" not in html
+        thead = _stock_thead(html)
+        assert "industry=Technology" in thead
+        assert 'aria-current="true"' in thead
+        tech_row = next(
+            row
+            for row in _sector_data_rows(html)
+            if row["ticker"] == "US-IDX-TECH"
+        )
+        assert tech_row["active"]
+        assert "US Equity Index" in _sector_tbody(html)
+        assert "Energy" in _sector_tbody(html)
+
+    def test_following_market_wide_cell_shows_all_names(
+        self, client_with_user, app
+    ):
+        _seed_index_row_filter_nyse(app)
+        filtered = client_with_user.get(
+            "/stocks?exchange=nyse&industry=Technology"
+        ).get_data(as_text=True)
+        market = next(
+            row
+            for row in _sector_data_rows(filtered)
+            if row["ticker"] == "US-IDX"
+        )
+        html = client_with_user.get(market["filter_hrefs"][0]).get_data(as_text=True)
+        assert "Tech Co 01" in html
+        assert "Health Co 01" in html
+        assert "Empty Industri Co" in html
+        market_row = next(
+            row
+            for row in _sector_data_rows(html)
+            if row["ticker"] == "US-IDX"
+        )
+        assert market_row["active"]
+        thead = _stock_thead(html)
+        assert "industry=Technology" in thead
+        assert 'aria-current="true"' not in thead
+
+    def test_sector_index_with_no_names_empties_stock_table(
+        self, client_with_user, app
+    ):
+        _seed_index_row_filter_nyse(app)
+        html = client_with_user.get(
+            "/stocks?exchange=nyse&industry=Energy"
+        ).get_data(as_text=True)
+        assert "Tech Co 01" not in html
+        assert "Health Co 01" not in html
+        assert "Inga aktier" in html
+        assert "US Equity Index" in _sector_tbody(html)
+        assert "Energy" in _sector_tbody(html)
+        assert "Technology" in _sector_tbody(html)
+        energy = next(
+            row
+            for row in _sector_data_rows(html)
+            if row["ticker"] == "US-IDX-ENERGY"
+        )
+        assert energy["active"]
+        menu = re.search(
+            r'class="industri-filter-menu">(.*?)</div>',
+            _stock_thead(html),
+            flags=re.DOTALL,
+        )
+        assert menu is not None
+        assert "industry=Energy" not in menu.group(1)
+        assert "industry=Technology" in menu.group(1)
+
+    def test_signed_out_stocks_has_no_row_filter(self, client):
+        response = client.get("/stocks")
+        assert response.status_code == 302
+        assert "/login" in response.location
+        html = response.get_data(as_text=True)
+        assert "index-row-filter" not in html
 
 
 class TestErrorHandlers:
