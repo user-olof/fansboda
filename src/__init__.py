@@ -7,7 +7,6 @@ from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
 from flask_caching import Cache
 from flask_talisman import Talisman
-from flask_cors import CORS
 import flask_bcrypt
 from dotenv import load_dotenv
 
@@ -86,19 +85,6 @@ def create_app(config_name=None):
     csrf.init_app(app)
     cache.init_app(app)
     # Session(app)
-
-    CORS(
-        app,
-        origins=[
-            "https://www.fansboda.dpdns.org",
-            "https://fansboda.dpdns.org",
-        ],  # No external origins allowed
-        methods=["GET", "POST"],  # Only allow necessary methods
-        allow_headers=["Content-Type", "Authorization"],
-        supports_credentials=True,
-        max_age=86400,
-    )
-    print("CORS initialized")
 
     # Configure Flask-Talisman with CSP
     talisman = configure_talisman(app)

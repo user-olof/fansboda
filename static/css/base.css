@@ -10,6 +10,39 @@ body {
     box-shadow: none !important;
 }
 
+.navbar-brand-group {
+    flex-direction: row !important;
+    flex-wrap: nowrap;
+    align-items: center;
+}
+
+.navbar-brand,
+.nav-link-aktier {
+    font-weight: 600;
+    font-size: 1.5rem;
+}
+
+.nav-link-aktier {
+    color: var(--bs-navbar-brand-color);
+    margin-left: 10px;
+}
+
+.nav-link-aktier:hover,
+.nav-link-aktier:focus {
+    color: var(--bs-navbar-brand-hover-color);
+}
+
+@media (max-width: 767.98px) {
+    .navbar.navbar-expand-lg > .container {
+        flex-wrap: nowrap;
+    }
+
+    .navbar-brand,
+    .nav-link-aktier {
+        font-size: 1rem;
+    }
+}
+
 main {
     margin-top: 0 !important;
     padding-top: 0 !important;

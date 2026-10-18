@@ -1199,3 +1199,31 @@ class TestLoginPasswordMask:
         assert "restoreActual" not in source
         assert "enableDelayedPasswordMask" not in source
         assert "passwordMask.restoreActual" not in source
+
+
+class TestNoCorsHeaders:
+    """Same-origin app: no Access-Control-Allow-Origin on any response."""
+
+    def test_health_has_no_cors_headers(self, client):
+        response = client.get("/health")
+        assert response.status_code == 200
+        assert "Access-Control-Allow-Origin" not in response.headers
+        assert "Access-Control-Allow-Credentials" not in response.headers
+
+    def test_login_has_no_cors_headers_without_origin(self, client):
+        response = client.get("/login")
+        assert "Access-Control-Allow-Origin" not in response.headers
+        assert "Access-Control-Allow-Credentials" not in response.headers
+
+    def test_login_has_no_cors_headers_for_foreign_origin(self, client):
+        response = client.get(
+            "/login", headers={"Origin": "https://evil.example"}
+        )
+        assert "Access-Control-Allow-Origin" not in response.headers
+
+    def test_login_has_no_cors_headers_for_fansboda_origin(self, client):
+        response = client.get(
+            "/login",
+            headers={"Origin": "https://www.fansboda.dpdns.org"},
+        )
+        assert "Access-Control-Allow-Origin" not in response.headers

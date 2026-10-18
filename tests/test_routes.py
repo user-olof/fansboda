@@ -564,6 +564,20 @@ class TestRoutes:
         assert response.status_code == 302
         assert "/login" in response.location
 
+    def test_favicon_is_public(self, client):
+        response = client.get("/favicon.ico")
+        assert response.status_code == 200
+        assert response.mimetype in ("image/vnd.microsoft.icon", "image/x-icon")
+        assert response.data[:4] == b"\x00\x00\x01\x00"
+
+    def test_robots_txt_is_public(self, client):
+        response = client.get("/robots.txt")
+        assert response.status_code == 200
+        assert response.mimetype == "text/plain"
+        body = response.get_data(as_text=True)
+        assert "User-agent:" in body
+        assert "Disallow: /" in body
+
     def test_index_route_with_login(self, client, auth):
         """Test index route when logged in."""
         with client.application.app_context():
@@ -2579,6 +2593,123 @@ class TestIndexRowFilter:
         assert "/login" in response.location
         html = response.get_data(as_text=True)
         assert "index-row-filter" not in html
+
+
+def _static_css(name):
+    return Path(__file__).resolve().parents[1].joinpath("static/css", name).read_text()
+
+
+def _media_max_767(css):
+    marker = "@media (max-width: 767.98px)"
+    start = css.find(marker)
+    assert start != -1
+    brace = css.find("{", start)
+    depth = 0
+    for index in range(brace, len(css)):
+        if css[index] == "{":
+            depth += 1
+        elif css[index] == "}":
+            depth -= 1
+            if depth == 0:
+                return css[start : index + 1]
+    raise AssertionError("unclosed 767.98px media query")
+
+
+class TestMobileLayout:
+    """SPEC 028: compact taskbar, 2×2 börs buttons, pannable tables on phones."""
+
+    def test_taskbar_stays_one_row_and_shrinks_on_phone(self, client_with_user):
+        signed_in = client_with_user.get("/").get_data(as_text=True)
+        assert "navbar-brand-group" in signed_in
+        assert "flex-row" in signed_in
+        assert "flex-nowrap" in signed_in
+        assert "nav-link-aktier" in signed_in
+        assert "Logout" in signed_in
+
+        css = _static_css("base.css")
+        assert ".navbar-brand-group" in css
+        assert "flex-direction: row" in css
+        assert "font-size: 1.5rem" in css
+        phone = _media_max_767(css)
+        assert "font-size: 1rem" in phone
+        assert "1.5rem" not in phone
+
+    def test_signed_out_has_no_aktier_link(self, client):
+        login = client.get("/login").get_data(as_text=True)
+        assert "nav-link-aktier" not in login
+        stocks = client.get("/stocks")
+        assert stocks.status_code == 302
+        assert "/login" in stocks.location
+
+    def test_bors_buttons_are_two_by_two_on_phone(self, client_with_user):
+        html = client_with_user.get("/stocks").get_data(as_text=True)
+        nasdaq = html.find(">NASDAQ<")
+        nyse = html.find(">NYSE<")
+        omx = html.find(">OMX Stockholm<")
+        ftse = html.find(">FTSE<")
+        assert nasdaq != -1 and nyse != -1 and omx != -1 and ftse != -1
+        assert nasdaq < nyse < omx < ftse
+
+        css = _static_css("stocks.css")
+        desktop = re.search(r"\.exchange-buttons\s*\{([^}]+)\}", css)
+        assert desktop is not None
+        assert "nowrap" in desktop.group(1)
+
+        phone = _media_max_767(css)
+        assert "grid-template-columns: 1fr 1fr" in phone
+        btn = re.search(r"\.exchange-btn\s*\{([^}]+)\}", phone)
+        assert btn is not None
+        assert "min-height: 2.5rem" in btn.group(1)
+        assert "min-width: 0" in btn.group(1)
+        assert "font-size: 0.95rem" in btn.group(1)
+        assert "min-width: 10rem" not in btn.group(1)
+        assert "min-height: 3.75rem" not in btn.group(1)
+        assert "font-size: 1.35rem" not in btn.group(1)
+
+        scale = re.search(r"\.trend-scale\s*\{([^}]+)\}", css)
+        assert scale is not None
+        assert "width: 100%" in scale.group(1)
+        assert "max-width: 36rem" not in css
+        assert ".trend-legend" not in phone
+        assert ".trend-caption" not in phone
+        assert ".trend-scale" not in phone
+
+    def test_tables_pan_and_keep_one_line_names_on_phone(self, client):
+        css = _static_css("stocks.css")
+        assert "table-layout: fixed" in css
+        for name in (
+            "aktier-col-trend",
+            "aktier-col-signal",
+            "aktier-col-name",
+            "aktier-col-id",
+            "aktier-col-currency",
+            "aktier-col-price",
+            "aktier-col-last",
+        ):
+            assert name in css
+        assert "#sector-table thead th:nth-child(4)" in css
+        assert "#sector-table thead th:nth-child(5)" in css
+        assert "#stocks-table thead th:nth-child(5)" in css
+
+        stocks_rule = css.split("#stocks-table .table-responsive")[1].split(
+            "#stocks-table .table-responsive >"
+        )[0]
+        assert "10 * 2.8125rem" in stocks_rule
+        assert "overflow-x: auto" in stocks_rule
+        sector_css = css.split("#sector-table .table-responsive")[1].split(
+            "#sector-table .table-responsive >"
+        )[0]
+        assert "5 * 2.8125rem" in sector_css
+        assert "overflow-x: auto" in sector_css
+
+        phone = _media_max_767(css)
+        assert "min-width: 52rem" in phone
+        assert "#sector-table table" in phone
+        assert "#stocks-table table" in phone
+        assert "white-space: nowrap" in phone
+
+        signed_out = client.get("/stocks")
+        assert signed_out.status_code == 302
 
 
 class TestErrorHandlers:
