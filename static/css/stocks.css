@@ -178,6 +178,7 @@
    above a sticky thead with z-index: auto. */
 #stocks-table .table-responsive {
     max-height: calc(2.55rem + 10 * 2.8125rem);
+    overflow-x: auto;
     overflow-y: auto;
 }
 
@@ -202,6 +203,7 @@
 /* Sector table: 5 data rows + header in view, then scroll. */
 #sector-table .table-responsive {
     max-height: calc(2.55rem + 5 * 2.8125rem);
+    overflow-x: auto;
     overflow-y: auto;
 }
 
@@ -412,4 +414,32 @@ th[aria-sort="descending"] .stocks-sort-link::after {
     border-color: #e5e7eb;
     cursor: not-allowed;
     pointer-events: none;
+}
+
+@media (max-width: 767.98px) {
+    .exchange-buttons {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+    }
+
+    .exchange-btn {
+        min-height: 2.5rem;
+        min-width: 0;
+        width: 100%;
+        padding: 0.45rem 0.6rem;
+        font-size: 0.95rem;
+    }
+
+    #sector-table table,
+    #stocks-table table {
+        min-width: 52rem;
+    }
+
+    #sector-table th,
+    #sector-table td,
+    #stocks-table th,
+    #stocks-table td {
+        white-space: nowrap;
+    }
 }

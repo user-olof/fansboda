@@ -41,13 +41,14 @@
     font-size: 1.5rem; /* Default for small screens */
 }
 
+.hero-welcome {
+    text-align: center;
+    margin: 0;
+}
+
 /* Small mobile screens (up to 360px) */
 @media (max-width: 360px) {
     .hero-background h1 {
-        font-size: 1.2rem;
-    }
-    
-    .hero-background .bi-house-heart {
         font-size: 1.2rem;
     }
 }

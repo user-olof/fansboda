@@ -1,5 +1,12 @@
 # src/routes/home.py
-from flask import Blueprint, current_app, render_template, request, jsonify
+from flask import (
+    Blueprint,
+    current_app,
+    render_template,
+    request,
+    jsonify,
+    send_from_directory,
+)
 from src.access_control import allowed_user_required, admin_required
 from src.models.user import User
 from src.route_protection import dev_only
@@ -108,6 +115,24 @@ def format_amount_swedish(amount) -> str:
 @home_bp.route("/health")
 def health():
     return "OK", 200
+
+
+@home_bp.route("/favicon.ico")
+def favicon():
+    return send_from_directory(
+        current_app.static_folder,
+        "favicon.ico",
+        mimetype="image/vnd.microsoft.icon",
+    )
+
+
+@home_bp.route("/robots.txt")
+def robots_txt():
+    return send_from_directory(
+        current_app.static_folder,
+        "robots.txt",
+        mimetype="text/plain",
+    )
 
 
 @home_bp.route("/")
