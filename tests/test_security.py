@@ -1227,3 +1227,39 @@ class TestNoCorsHeaders:
             headers={"Origin": "https://www.fansboda.dpdns.org"},
         )
         assert "Access-Control-Allow-Origin" not in response.headers
+
+
+class TestFrameAncestors:
+    """Clickjacking: local, test, and production all refuse being framed."""
+
+    def test_test_env_blocks_iframes(self, client):
+        csp = client.get("/login").headers.get("Content-Security-Policy", "")
+        assert "frame-ancestors 'none'" in csp
+        assert "quirktools.com" not in csp
+
+    def test_development_blocks_iframes(self):
+        from flask import Flask
+
+        from src import configure_talisman
+
+        app = Flask(__name__)
+        app.env = "development"
+        configure_talisman(app)
+        csp = app.test_client().get("/login").headers.get(
+            "Content-Security-Policy", ""
+        )
+        assert "frame-ancestors 'none'" in csp
+        assert "quirktools.com" not in csp
+
+    def test_production_blocks_iframes(self):
+        from flask import Flask
+
+        from src import configure_talisman
+
+        app = Flask(__name__)
+        app.env = "production"
+        configure_talisman(app)
+        response = app.test_client().get("/login")
+        csp = response.headers.get("Content-Security-Policy", "")
+        assert "frame-ancestors 'none'" in csp
+        assert "quirktools.com" not in csp

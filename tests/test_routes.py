@@ -2656,7 +2656,7 @@ class TestMobileLayout:
         assert "nowrap" in desktop.group(1)
 
         phone = _media_max_767(css)
-        assert "grid-template-columns: 1fr 1fr" in phone
+        assert "minmax(0, 1fr)" in phone
         btn = re.search(r"\.exchange-btn\s*\{([^}]+)\}", phone)
         assert btn is not None
         assert "min-height: 2.5rem" in btn.group(1)
@@ -2703,11 +2703,118 @@ class TestMobileLayout:
         assert "overflow-x: auto" in sector_css
 
         phone = _media_max_767(css)
-        assert "min-width: 52rem" in phone
-        assert "#sector-table table" in phone
-        assert "#stocks-table table" in phone
         assert "white-space: nowrap" in phone
 
+        signed_out = client.get("/stocks")
+        assert signed_out.status_code == 302
+
+
+class TestIphoneTableButtons:
+    """SPEC 029: content-sized matching columns; börs buttons fit the iPhone viewport."""
+
+    def test_phone_columns_have_content_min_widths(self, client):
+        css = _static_css("stocks.css")
+        assert "table-layout: fixed" in css
+        phone = _media_max_767(css)
+        mins = {
+            "aktier-col-trend": "6.5rem",
+            "aktier-col-signal": "6rem",
+            "aktier-col-name": "20rem",
+            "aktier-col-id": "9.5rem",
+            "aktier-col-currency": "7.5rem",
+            "aktier-col-price": "7rem",
+            "aktier-col-last": "10rem",
+        }
+        for name, minimum in mins.items():
+            block = re.search(rf"\.{name}\s*\{{([^}}]+)\}}", phone)
+            assert block is not None, name
+            assert f"min-width: {minimum}" in block.group(1)
+        name_block = re.search(r"\.aktier-col-name\s*\{([^}]+)\}", phone)
+        assert name_block is not None
+        match = re.search(r"min-width:\s*([\d.]+)rem", name_block.group(1))
+        assert match is not None
+        assert float(match.group(1)) >= 18
+        assert "min-width: 52rem" not in phone
+        assert "5 * 2.8125rem" in css
+        assert "10 * 2.8125rem" in css
+        assert "#sector-table thead th:nth-child(4)" in css
+        assert "#sector-table thead th:nth-child(5)" in css
+        assert "#stocks-table thead th:nth-child(5)" in css
+        signed_out = client.get("/stocks")
+        assert signed_out.status_code == 302
+
+    def test_phone_bors_grid_stays_inside_viewport(self, client_with_user):
+        html = client_with_user.get("/stocks").get_data(as_text=True)
+        assert html.find(">NASDAQ<") < html.find(">NYSE<") < html.find(
+            ">OMX Stockholm<"
+        ) < html.find(">FTSE<")
+        css = _static_css("stocks.css")
+        desktop = re.search(r"\.exchange-buttons\s*\{([^}]+)\}", css)
+        assert desktop is not None
+        assert "nowrap" in desktop.group(1)
+        phone = _media_max_767(css)
+        grid = re.search(r"\.exchange-buttons\s*\{([^}]+)\}", phone)
+        assert grid is not None
+        assert "minmax(0, 1fr)" in grid.group(1)
+        assert "max-width: 100%" in grid.group(1)
+        btn = re.search(r"\.exchange-btn\s*\{([^}]+)\}", phone)
+        assert btn is not None
+        assert "min-width: 0" in btn.group(1)
+        scale = re.search(r"\.trend-scale\s*\{([^}]+)\}", css)
+        assert scale is not None
+        assert "width: 100%" in scale.group(1)
+        assert "max-width: 36rem" not in css
+        assert ".trend-legend" not in phone
+        assert ".trend-caption" not in phone
+        assert ".trend-scale" not in phone
+
+    def test_signed_out_stocks_redirects(self, client):
+        signed_out = client.get("/stocks")
+        assert signed_out.status_code == 302
+        assert "/login" in signed_out.location
+
+
+class TestAktierTextAlignment:
+    """SPEC 030: numerical cells left; Trend/Signal headers centered; other headers left."""
+
+    def test_numerical_cells_align_left(self, client):
+        css = _static_css("stocks.css")
+        count = re.search(r"\.sector-count-cell\s*,\s*\n\s*\.sector-ratio-cell\s*,\s*\n\s*#sector-table tbody td:nth-child\(6\),\s*\n\s*#stocks-table tbody td:nth-child\(6\)\s*\{([^}]+)\}", css)
+        if count is None:
+            count = re.search(r"\.sector-count-cell\s*,[\s\S]*?#stocks-table tbody td:nth-child\(6\)\s*\{([^}]+)\}", css)
+        assert count is not None
+        body = count.group(1)
+        assert "text-align: left" in body
+        assert "text-align: right" not in body
+        assert "white-space: nowrap" in body
+        phone = _media_max_767(css)
+        assert "aktier-col-name" in phone
+        assert "minmax(0, 1fr)" in phone
+        signed_out = client.get("/stocks")
+        assert signed_out.status_code == 302
+
+    def test_named_headers_align_left(self, client):
+        css = _static_css("stocks.css")
+        headers = re.search(
+            r"#sector-table thead th,\s*\n\s*#stocks-table thead th\s*\{([^}]+)\}",
+            css,
+        )
+        assert headers is not None
+        assert "text-align: center" in headers.group(1)
+        named = re.search(
+            r"#sector-table thead th:nth-child\(n\+3\),\s*\n\s*#stocks-table thead th:nth-child\(n\+3\)\s*\{([^}]+)\}",
+            css,
+        )
+        assert named is not None
+        assert "text-align: left" in named.group(1)
+        sort_link = re.search(r"\.stocks-sort-link\s*\{([^}]+)\}", css)
+        assert sort_link is not None
+        assert "text-align: inherit" in sort_link.group(1)
+        summary = re.search(r"\.industri-filter > summary\s*\{([^}]+)\}", css)
+        assert summary is not None
+        assert "text-align: inherit" in summary.group(1)
+        phone = _media_max_767(css)
+        assert "white-space: nowrap" in phone
         signed_out = client.get("/stocks")
         assert signed_out.status_code == 302
 
