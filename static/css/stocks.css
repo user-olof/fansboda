@@ -293,6 +293,7 @@
     cursor: pointer;
     color: inherit;
     white-space: nowrap;
+    text-align: inherit;
 }
 
 .industri-filter > summary::-webkit-details-marker {
@@ -328,9 +329,21 @@
     color: #fff;
 }
 
+#sector-table thead th,
+#stocks-table thead th {
+    text-align: center;
+}
+
+#sector-table thead th:nth-child(n+3),
+#stocks-table thead th:nth-child(n+3) {
+    text-align: left;
+}
+
 .stocks-sort-link {
+    display: block;
     color: inherit;
     text-decoration: none;
+    text-align: inherit;
 }
 
 .stocks-sort-link:hover,
@@ -359,8 +372,10 @@ th[aria-sort="descending"] .stocks-sort-link::after {
 }
 
 .sector-count-cell,
-.sector-ratio-cell {
-    text-align: right;
+.sector-ratio-cell,
+#sector-table tbody td:nth-child(6),
+#stocks-table tbody td:nth-child(6) {
+    text-align: left;
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
 }
@@ -419,8 +434,10 @@ th[aria-sort="descending"] .stocks-sort-link::after {
 @media (max-width: 767.98px) {
     .exchange-buttons {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
         gap: 0.5rem;
+        width: 100%;
+        max-width: 100%;
     }
 
     .exchange-btn {
@@ -433,7 +450,43 @@ th[aria-sort="descending"] .stocks-sort-link::after {
 
     #sector-table table,
     #stocks-table table {
-        min-width: 52rem;
+        min-width: 66.5rem;
+        width: 66.5rem;
+    }
+
+    .aktier-col-trend {
+        width: 6.5rem;
+        min-width: 6.5rem;
+    }
+
+    .aktier-col-signal {
+        width: 6rem;
+        min-width: 6rem;
+    }
+
+    .aktier-col-name {
+        width: 20rem;
+        min-width: 20rem;
+    }
+
+    .aktier-col-id {
+        width: 9.5rem;
+        min-width: 9.5rem;
+    }
+
+    .aktier-col-currency {
+        width: 7.5rem;
+        min-width: 7.5rem;
+    }
+
+    .aktier-col-price {
+        width: 7rem;
+        min-width: 7rem;
+    }
+
+    .aktier-col-last {
+        width: 10rem;
+        min-width: 10rem;
     }
 
     #sector-table th,
