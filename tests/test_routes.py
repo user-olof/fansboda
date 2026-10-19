@@ -2867,6 +2867,39 @@ class TestPhoneChartScroll:
         assert signed_out.status_code == 302
 
 
+class TestPhoneStockScroll:
+    """SPEC 032: Aktier page scroll up is not trapped in the stock table."""
+
+    def test_phone_stock_table_does_not_clip_vertically(self, client):
+        css = _static_css("stocks.css")
+        stocks_rule = css.split("#stocks-table .table-responsive")[1].split(
+            "#stocks-table .table-responsive >"
+        )[0]
+        assert "10 * 2.8125rem" in stocks_rule
+        sector_css = css.split("#sector-table .table-responsive")[1].split(
+            "#sector-table .table-responsive >"
+        )[0]
+        assert "5 * 2.8125rem" in sector_css
+        phone = _media_max_767(css)
+        stocks_phone = re.search(
+            r"#stocks-table \.table-responsive\s*\{([^}]+)\}", phone
+        )
+        assert stocks_phone is not None
+        assert "overflow-y: visible" in stocks_phone.group(1)
+        assert "max-height: none" in stocks_phone.group(1)
+        assert "10 * 2.8125rem" not in stocks_phone.group(1)
+        assert "overflow-x: auto" in stocks_phone.group(1)
+        sector_phone = re.search(
+            r"#sector-table \.table-responsive\s*\{([^}]+)\}", phone
+        )
+        assert sector_phone is not None
+        assert "overflow-y: visible" in sector_phone.group(1)
+        assert "max-height: none" in sector_phone.group(1)
+        assert "minmax(0, 1fr)" in phone
+        signed_out = client.get("/stocks")
+        assert signed_out.status_code == 302
+
+
 class TestErrorHandlers:
     """Test cases for error handlers."""
 
