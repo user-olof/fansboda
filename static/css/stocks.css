@@ -495,4 +495,16 @@ th[aria-sort="descending"] .stocks-sort-link::after {
     #stocks-table td {
         white-space: nowrap;
     }
+
+    #sector-table .table-responsive {
+        max-height: none;
+        overflow-y: visible;
+        overflow-x: auto;
+    }
+
+    #stocks-table .table-responsive {
+        max-height: none;
+        overflow-y: visible;
+        overflow-x: auto;
+    }
 }
