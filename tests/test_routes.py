@@ -2819,6 +2819,54 @@ class TestAktierTextAlignment:
         assert signed_out.status_code == 302
 
 
+class TestPhoneChartScroll:
+    """SPEC 031: phone chart fits on screen; Aktier page scroll is not trapped in the index table."""
+
+    def test_phone_chart_canvas_is_shorter_than_laptop(self, client):
+        css = _static_css("chart.css")
+        laptop = re.search(r"\.chart-canvas-wrapper\s*\{([^}]+)\}", css)
+        assert laptop is not None
+        assert "height: 480px" in laptop.group(1)
+        phone = _media_max_767(css)
+        phone_wrap = re.search(r"\.chart-canvas-wrapper\s*\{([^}]+)\}", phone)
+        assert phone_wrap is not None
+        assert "480px" not in phone_wrap.group(1)
+        match = re.search(r"height:\s*([\d.]+)rem", phone_wrap.group(1))
+        assert match is not None
+        assert float(match.group(1)) < 480 / 16
+        html = Path(__file__).resolve().parents[1].joinpath(
+            "templates/chart.html"
+        ).read_text()
+        assert "chart.js@4.4.1" in html
+        assert "maintainAspectRatio: false" in html
+        signed_out = client.get("/stocks/chart/VOLV-B.ST")
+        assert signed_out.status_code == 302
+        assert "/login" in signed_out.location
+
+    def test_phone_index_table_does_not_clip_vertically(self, client):
+        css = _static_css("stocks.css")
+        sector_css = css.split("#sector-table .table-responsive")[1].split(
+            "#sector-table .table-responsive >"
+        )[0]
+        assert "5 * 2.8125rem" in sector_css
+        stocks_rule = css.split("#stocks-table .table-responsive")[1].split(
+            "#stocks-table .table-responsive >"
+        )[0]
+        assert "10 * 2.8125rem" in stocks_rule
+        phone = _media_max_767(css)
+        sector_phone = re.search(
+            r"#sector-table \.table-responsive\s*\{([^}]+)\}", phone
+        )
+        assert sector_phone is not None
+        assert "overflow-y: visible" in sector_phone.group(1)
+        assert "max-height: none" in sector_phone.group(1)
+        assert "5 * 2.8125rem" not in sector_phone.group(1)
+        assert "overflow-x: auto" in sector_phone.group(1)
+        assert "minmax(0, 1fr)" in phone
+        signed_out = client.get("/stocks")
+        assert signed_out.status_code == 302
+
+
 class TestErrorHandlers:
     """Test cases for error handlers."""
 
