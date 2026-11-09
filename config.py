@@ -1,4 +1,5 @@
 import os
+import tempfile
 from datetime import timedelta
 from dotenv import load_dotenv
 from cachelib.file import FileSystemCache
@@ -15,6 +16,11 @@ class Config:
 
     FLASK_APP = "app.py"
     GOOGLE_CLOUD_PROJECT = "fansboda-project"
+
+    # Aktier börs snapshots, shared by all gunicorn workers (spec 033)
+    AKTIER_SNAPSHOT_DIR = os.getenv("AKTIER_SNAPSHOT_DIR", "/tmp/fansboda-aktier")
+    AKTIER_SNAPSHOT_TTL = 86400
+    AKTIER_VERSION_PROBE_SECONDS = 600
 
 
 def get_database_uri(env_name="dev"):
@@ -81,6 +87,8 @@ class TestConfig(Config):
     CACHE_TYPE = "NullCache"
     CACHE_DEFAULT_TIMEOUT = 0
     CACHE_NO_NULL_WARNING = True
+    AKTIER_SNAPSHOT_DIR = os.path.join(tempfile.gettempdir(), f"aktier-test-{os.getpid()}")
+    AKTIER_VERSION_PROBE_SECONDS = 0
     WTF_CSRF_ENABLED = False
     LOGIN_DISABLED = True
     ALLOWED_EMAILS = ["test@example.com"]

@@ -154,10 +154,6 @@ def logout():
         # Clear user cache
         cache.delete(f"user_{user_id}")
 
-        from src.routes.stocks import clear_aktier_table_cache
-
-        clear_aktier_table_cache(user_id)
-
         # Clear session data
         session.clear()
 

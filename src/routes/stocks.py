@@ -1,12 +1,12 @@
 # src/routes/stocks.py
 import math
+import time
 from datetime import date, timedelta
 from decimal import Decimal
 
-from flask import Blueprint, jsonify, render_template, request, session, url_for
-from flask_login import current_user
+from flask import Blueprint, jsonify, make_response, render_template, request, session, url_for
 
-from src import cache, db
+from src import db
 from src.access_control import role_required
 from src.models.market_metrics import MarketMetric
 from src.models.metrics import Metric
@@ -19,6 +19,7 @@ from src.models.uk_market_metrics import UkMarketMetric
 from src.models.uk_metrics import UkMetric
 from src.models.uk_ticker import UkTicker
 from src.models.user import Role
+from src.services import aktier_snapshot
 from src.services.cross_detection import SmaSnapshot, detect_all_patterns
 from src.services.kors_display import select_kors_display
 
@@ -39,7 +40,6 @@ EXCHANGE_COUNTRY = {
 }
 
 PAGE_SIZE = 25
-AKTIER_CACHE_TIMEOUT = 3600
 SMA_HISTORY_WEEKS = 52
 
 # Sortable Aktier columns (URL `sort=`). Invalid sort/dir → default symbol order.
@@ -706,19 +706,6 @@ def _ticker_sectors(ticker_model, symbols):
     }
 
 
-def _aktier_cache_key(user_id, exchange_key):
-    # v2: full-row blobs for global sort (partial page caches must not be sorted).
-    return f"aktier_table_v2:{user_id}:{exchange_key}"
-
-
-def clear_aktier_table_cache(user_id):
-    """Drop kept Aktier table pages for this user (all venues)."""
-    if user_id is None:
-        return
-    for exchange_key in EXCHANGE_QUERY:
-        cache.delete(_aktier_cache_key(user_id, exchange_key))
-
-
 def _page_count(total):
     if total <= 0:
         return 1
@@ -818,40 +805,6 @@ def _kors_for_metric(metric, snapshots, country=""):
         return None, ""
 
 
-def _cached_page(blob, page):
-    if not isinstance(blob, dict):
-        return None
-    pages = blob.get("pages") or {}
-    if page in pages:
-        return pages[page]
-    return pages.get(str(page))
-
-
-def _empty_cache_blob(total):
-    return {"total": total, "pages": {}, "rows": None, "complete": False}
-
-
-def _blob_complete_rows(blob, total):
-    """Return full symbol-order rows only when the cache holds the entire set."""
-    if not isinstance(blob, dict) or blob.get("total") != total:
-        return None
-    rows = blob.get("rows")
-    if blob.get("complete") and isinstance(rows, list) and len(rows) == total:
-        return rows
-    last = _page_count(total)
-    if total == 0:
-        return []
-    assembled = []
-    for page in range(1, last + 1):
-        page_rows = _cached_page(blob, page)
-        if page_rows is None:
-            return None
-        assembled.extend(page_rows)
-    if len(assembled) != total:
-        return None
-    return assembled
-
-
 def _matching_symbols_with_metrics(exchange_key):
     """Symbols on this venue that have a metric, sorted by symbol. No full latest-metric scan."""
     metric_model, ticker_model, market_model = _tables_for_country(
@@ -898,150 +851,6 @@ def _build_page_rows(symbols_slice, metric_model, ticker_model, country=""):
             )
         )
     return rows
-
-
-def _store_cache_blob(user_id, exchange_key, blob):
-    if user_id is None:
-        return
-    cache.set(
-        _aktier_cache_key(user_id, exchange_key),
-        blob,
-        timeout=AKTIER_CACHE_TIMEOUT,
-    )
-
-
-def _store_page(user_id, exchange_key, total, page, rows, blob=None):
-    if user_id is None:
-        return
-    if not isinstance(blob, dict) or blob.get("total") != total:
-        blob = _empty_cache_blob(total)
-    blob.setdefault("pages", {})[page] = rows
-    blob["total"] = total
-    # A single page write never claims completeness for sorting.
-    if blob.get("complete") and isinstance(blob.get("rows"), list):
-        start = (page - 1) * PAGE_SIZE
-        full = list(blob["rows"])
-        full[start : start + len(rows)] = rows
-        blob["rows"] = full
-    else:
-        blob["complete"] = False
-        complete_rows = _blob_complete_rows(blob, total)
-        if complete_rows is not None:
-            blob["rows"] = complete_rows
-            blob["complete"] = True
-    _store_cache_blob(user_id, exchange_key, blob)
-
-
-def _store_full_rows(user_id, exchange_key, rows, total, blob=None):
-    if user_id is None:
-        return
-    if not isinstance(blob, dict) or blob.get("total") != total:
-        blob = _empty_cache_blob(total)
-    blob["total"] = total
-    blob["rows"] = rows
-    blob["complete"] = True
-    blob.setdefault("pages", {})
-    last = _page_count(total)
-    for page in range(1, last + 1):
-        blob["pages"][page] = _slice_page(rows, page)
-    _store_cache_blob(user_id, exchange_key, blob)
-
-
-def _ensure_full_rows(user_id, exchange_key):
-    """Full exchange rows in default symbol order. Never returns a partial set."""
-    key = _aktier_cache_key(user_id, exchange_key) if user_id is not None else None
-    blob = cache.get(key) if key else None
-    symbols, metric_model, ticker_model, _market_model = _matching_symbols_with_metrics(
-        exchange_key
-    )
-    total = len(symbols)
-    cached = _blob_complete_rows(blob, total)
-    if cached is not None:
-        if isinstance(blob, dict) and not blob.get("complete"):
-            _store_full_rows(user_id, exchange_key, cached, total, blob)
-        return cached, total
-
-    country = EXCHANGE_COUNTRY[exchange_key]
-    rows = _build_page_rows(symbols, metric_model, ticker_model, country=country)
-    _store_full_rows(user_id, exchange_key, rows, total, blob)
-    return rows, total
-
-
-def _load_table_page(
-    user_id,
-    exchange_key,
-    requested_page,
-    sort_key=None,
-    direction=None,
-    industry=None,
-):
-    """Load one page. With sort or industry filter: full set → filter → sort → page."""
-    if sort_key or industry:
-        all_rows, _unfiltered = _ensure_full_rows(user_id, exchange_key)
-        filtered = filter_stock_rows(all_rows, industry)
-        ordered = sort_stock_rows(filtered, sort_key, direction)
-        total = len(ordered)
-        page = parse_page(requested_page, total)
-        return _slice_page(ordered, page), total, page
-
-    key = _aktier_cache_key(user_id, exchange_key) if user_id is not None else None
-    blob = cache.get(key) if key else None
-
-    if isinstance(blob, dict) and isinstance(blob.get("total"), int):
-        total = blob["total"]
-        page = parse_page(requested_page, total)
-        complete_rows = _blob_complete_rows(blob, total)
-        if complete_rows is not None:
-            return _slice_page(complete_rows, page), total, page
-        cached_rows = _cached_page(blob, page)
-        if cached_rows is not None:
-            return cached_rows, total, page
-
-    symbols, metric_model, ticker_model, _market_model = _matching_symbols_with_metrics(
-        exchange_key
-    )
-    country = EXCHANGE_COUNTRY[exchange_key]
-    total = len(symbols)
-    page = parse_page(requested_page, total)
-    start = (page - 1) * PAGE_SIZE
-    rows = _build_page_rows(
-        symbols[start : start + PAGE_SIZE],
-        metric_model,
-        ticker_model,
-        country=country,
-    )
-    _store_page(user_id, exchange_key, total, page, rows, blob)
-    return rows, total, page
-
-
-def _warm_exchange_pages(user_id, exchange_key):
-    symbols, metric_model, ticker_model, _market_model = _matching_symbols_with_metrics(
-        exchange_key
-    )
-    country = EXCHANGE_COUNTRY[exchange_key]
-    total = len(symbols)
-    last = _page_count(total)
-    key = _aktier_cache_key(user_id, exchange_key)
-    blob = cache.get(key)
-    if not isinstance(blob, dict) or blob.get("total") != total:
-        blob = _empty_cache_blob(total)
-    blob.setdefault("pages", {})
-    for page in range(1, last + 1):
-        if _cached_page(blob, page) is not None:
-            continue
-        start = (page - 1) * PAGE_SIZE
-        blob["pages"][page] = _build_page_rows(
-            symbols[start : start + PAGE_SIZE],
-            metric_model,
-            ticker_model,
-            country=country,
-        )
-    blob["total"] = total
-    full_rows = _blob_complete_rows(blob, total) or []
-    blob["rows"] = full_rows
-    blob["complete"] = True
-    cache.set(key, blob, timeout=AKTIER_CACHE_TIMEOUT)
-    return last, total
 
 
 def _optional_sort_args(
@@ -1147,6 +956,7 @@ def _remember_aktier_view(
 @stocks_bp.route("/stocks")
 @role_required(Role.USER, Role.ADMIN)
 def stocks():
+    started = time.perf_counter()
     selected_exchange = parse_exchange(request.args.get("exchange"))
     sort_key, direction = parse_sort(
         request.args.get("sort"),
@@ -1163,30 +973,26 @@ def stocks():
     industry_filter = None
     industry_choices = []
     if selected_exchange:
-        sector_rows = _load_sector_rows(EXCHANGE_COUNTRY[selected_exchange])
+        snapshot = aktier_snapshot.get_snapshot(selected_exchange)
+        sector_rows = snapshot["sector_rows"]
         if sector_sort_key:
             sector_rows = sort_sector_rows(
                 sector_rows, sector_sort_key, sector_direction
             )
-        all_rows, _unfiltered_total = _ensure_full_rows(
-            current_user.id, selected_exchange
-        )
-        industry_choices = industry_options(
-            all_rows, exclude_labels=_market_index_labels(sector_rows)
-        )
+        industry_choices = snapshot["industry_options"]
         industry_filter = parse_industry_filter(
             request.args.get("industry"),
             industry_choices,
-            extra_allowed=_sector_index_labels(sector_rows),
+            extra_allowed=snapshot["sector_labels"],
         )
-        stock_rows, stock_total, stock_page = _load_table_page(
-            current_user.id,
-            selected_exchange,
-            request.args.get("page"),
-            sort_key=sort_key,
-            direction=direction,
-            industry=industry_filter,
+        ordered = sort_stock_rows(
+            filter_stock_rows(snapshot["stock_rows"], industry_filter),
+            sort_key,
+            direction,
         )
+        stock_total = len(ordered)
+        stock_page = parse_page(request.args.get("page"), stock_total)
+        stock_rows = _slice_page(ordered, stock_page)
         _remember_aktier_view(
             selected_exchange,
             stock_page,
@@ -1199,7 +1005,7 @@ def stocks():
     last_page = _page_count(stock_total)
     range_start = ((stock_page - 1) * PAGE_SIZE) + 1 if stock_total else 0
     range_end = min(stock_page * PAGE_SIZE, stock_total)
-    return render_template(
+    html = render_template(
         "stocks.html",
         title="Aktier",
         stocks=stock_rows,
@@ -1258,16 +1064,12 @@ def stocks():
             for column in SECTOR_SORT_COLUMNS
         },
     )
-
-
-@stocks_bp.route("/stocks/warm")
-@role_required(Role.USER, Role.ADMIN)
-def warm_stocks():
-    selected_exchange = parse_exchange(request.args.get("exchange"))
-    if not selected_exchange:
-        return jsonify({"ok": False}), 400
-    pages_cached, total = _warm_exchange_pages(current_user.id, selected_exchange)
-    return jsonify({"ok": True, "pages_cached": pages_cached, "total": total})
+    response = make_response(html)
+    app_ms = (time.perf_counter() - started) * 1000
+    response.headers["Server-Timing"] = (
+        f"app;dur={app_ms:.0f}, db;dur={aktier_snapshot.db_ms():.0f}"
+    )
+    return response
 
 
 @stocks_bp.route("/stocks/chart/<ticker>")

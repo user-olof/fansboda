@@ -164,6 +164,16 @@ class AuthActions:
 
 
 @pytest.fixture(autouse=True)
+def clear_aktier_snapshots(app):
+    """Each test seeds its own börs data; never serve a snapshot from another test."""
+    from src.services import aktier_snapshot
+
+    with app.app_context():
+        aktier_snapshot.clear()
+    yield
+
+
+@pytest.fixture(autouse=True)
 def clear_sessions(app):
     """Clear all sessions and caches before each test."""
     """ This is not needed as we are using NullCache for testing """

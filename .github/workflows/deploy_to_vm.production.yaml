@@ -163,6 +163,26 @@ jobs:
           --quiet \
           --command "sudo chown -R 1001:1001 ~/fansboda/secrets"
 
+    - name: Warm Aktier snapshots and schedule re-warm
+      run: |
+        gcloud compute ssh ${{ vars.GCP_VM_NAME }} \
+          --zone=us-central1-a \
+          --project=${{ vars.GCP_PROJECT_ID }} \
+          --tunnel-through-iap \
+          --quiet \
+          --command '
+          for i in $(seq 1 36); do
+            [ "$(docker inspect -f "{{.State.Health.Status}}" fansboda-web 2>/dev/null)" = healthy ] && break
+            sleep 5
+          done
+          docker exec fansboda-web .venv/bin/flask --app app aktier-warm \
+            || echo "aktier-warm failed; pages build on first press"
+          WARM="docker exec fansboda-web .venv/bin/flask --app app aktier-warm >> $HOME/fansboda/aktier-warm.log 2>&1"
+          ( crontab -l 2>/dev/null | grep -v aktier-warm
+            echo "0 13 * * 6 $WARM"
+            echo "0 6 * * * $WARM" ) | crontab -
+          crontab -l | grep aktier-warm'
+
     
     
         

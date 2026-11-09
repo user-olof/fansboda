@@ -338,9 +338,3 @@
     </div>
 </div>
 {% endblock %}
-
-{% block scripts %}
-{% if selected_exchange %}
-<script src="{{ url_for('static', filename='js/stocks.js') }}"></script>
-{% endif %}
-{% endblock %}

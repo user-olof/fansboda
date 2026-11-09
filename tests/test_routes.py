@@ -4,6 +4,9 @@ from decimal import Decimal
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+import pytest
+from sqlalchemy import event
+
 from src.models.market_metrics import MarketMetric
 from src.models.metrics import Metric
 from src.models.swe_metrics import SweMetric
@@ -757,9 +760,6 @@ class TestAktierRoutes:
         paged = client.get("/stocks?exchange=omx_stockholm&page=2")
         assert paged.status_code == 302
         assert "/login" in paged.location
-        warm = client.get("/stocks/warm?exchange=omx_stockholm")
-        assert warm.status_code == 302
-        assert "/login" in warm.location
         ftse = client.get("/stocks?exchange=ftse")
         assert ftse.status_code == 302
         assert "/login" in ftse.location
@@ -1435,7 +1435,7 @@ class TestAktierRoutes:
         assert "Apple Inc." not in empty_html
         _assert_sector_above_stocks(empty_html)
         _assert_stock_headers(empty_html)
-        assert "js/stocks.js" in empty_html
+        assert "js/stocks.js" not in empty_html
 
     def test_chart_unknown_ticker_does_not_500(self, client_with_user):
         response = client_with_user.get("/stocks/chart/NOT-A-TICKER")
@@ -1746,7 +1746,7 @@ def _has_usable_paging_link(html, label):
 
 
 class TestAktierPaging:
-    """25-row Aktier pages, totals, warm cache, and chart return."""
+    """25-row Aktier pages, totals, and chart return."""
 
     def test_first_page_caps_at_25_and_shows_total(self, client_with_user, app):
         _seed_paged_nyse(app, count=26)
@@ -1756,7 +1756,7 @@ class TestAktierPaging:
         assert "Paged Co 25" in html
         assert "Paged Co 26" not in html
         assert _tbody_row_count(html) == 25
-        assert "stocks.js" in html
+        assert "stocks.js" not in html
 
     def test_page_two_has_26th_not_first(self, client_with_user, app):
         _seed_paged_nyse(app, count=26)
@@ -1797,30 +1797,6 @@ class TestAktierPaging:
         assert "exchange=nyse" in html
         assert "page=2" in html
 
-    def test_warm_requires_login(self, client):
-        response = client.get("/stocks/warm?exchange=nyse")
-        assert response.status_code == 302
-        assert "/login" in response.location
-
-    def test_warm_unknown_exchange_is_not_ok(self, client_with_user):
-        response = client_with_user.get("/stocks/warm?exchange=tokyo")
-        assert response.status_code == 400
-        assert response.get_json()["ok"] is False
-
-    def test_warm_fills_pages_for_logged_in_user(self, client_with_user, app):
-        _seed_paged_nyse(app, count=26)
-        response = client_with_user.get("/stocks/warm?exchange=nyse")
-        assert response.status_code == 200
-        payload = response.get_json()
-        assert payload["ok"] is True
-        assert payload["total"] == 26
-        assert payload["pages_cached"] == 2
-        page_two = client_with_user.get("/stocks?exchange=nyse&page=2").get_data(
-            as_text=True
-        )
-        assert "kors-cell" in page_two
-        assert "Paged Co 26" in page_two
-
     def test_switching_exchange_does_not_mix_venues(self, client_with_user, app):
         _seed_paged_nyse(app, count=26, include_nasdaq=True)
         page_two = client_with_user.get("/stocks?exchange=nyse&page=2").get_data(
@@ -1832,6 +1808,129 @@ class TestAktierPaging:
         assert "Apple Inc." in nasdaq
         assert "Paged Co 26" not in nasdaq
         assert "Paged Co 01" not in nasdaq
+
+
+class _DataStatements:
+    """Count SQL statements that read stock or index tables (SPEC 033)."""
+
+    def __init__(self, app):
+        self.app = app
+        self.statements = []
+
+    def __enter__(self):
+        with self.app.app_context():
+            self.engine = db.engine
+        event.listen(self.engine, "before_cursor_execute", self._record)
+        return self
+
+    def __exit__(self, *exc):
+        event.remove(self.engine, "before_cursor_execute", self._record)
+
+    def _record(self, conn, cursor, statement, *args):
+        lowered = statement.lower()
+        if any(table in lowered for table in ("metrics", "tickers", "indices")):
+            self.statements.append(statement)
+
+
+def _seed_snapshot_nyse(app, count=30):
+    _seed_paged_nyse(app, count=count)
+    with app.app_context():
+        for index, ticker in enumerate(
+            Ticker.query.filter(Ticker.symbol.like("P%")).order_by(Ticker.symbol), start=1
+        ):
+            ticker.sector = "Technology" if index % 2 else "Energy"
+        for index, metric in enumerate(
+            Metric.query.filter(Metric.ticker.like("P%")).order_by(Metric.ticker), start=1
+        ):
+            metric.z_score = index / 10
+        db.session.commit()
+
+
+class TestAktierSnapshotLoad:
+    """SPEC 033: Aktier pages served from the prepared börs snapshot."""
+
+    @pytest.fixture(autouse=True)
+    def _long_version_memo(self, app):
+        app.config["AKTIER_VERSION_PROBE_SECONDS"] = 600
+        yield
+        app.config["AKTIER_VERSION_PROBE_SECONDS"] = 0
+
+    def _warm_then_count(self, client, app, url):
+        client.get("/stocks?exchange=nyse")
+        with _DataStatements(app) as counter:
+            response = client.get(url)
+        return response, counter.statements
+
+    def test_bors_press_reads_no_stock_or_index_tables(self, client_with_user, app):
+        _seed_snapshot_nyse(app)
+        response, statements = self._warm_then_count(
+            client_with_user, app, "/stocks?exchange=nyse"
+        )
+        html = response.get_data(as_text=True)
+        assert response.status_code == 200
+        assert statements == []
+        assert "1–25 av 30" in html or "1&ndash;25 av 30" in html
+        assert "Paged Co 01" in html and "Paged Co 25" in html
+        assert "Paged Co 26" not in html
+
+    def test_server_timing_header(self, client_with_user, app):
+        _seed_snapshot_nyse(app, count=3)
+        response = client_with_user.get("/stocks?exchange=nyse")
+        timing = response.headers.get("Server-Timing", "")
+        assert "app;dur=" in timing
+        assert "db;dur=" in timing
+
+    def test_industri_choices_from_snapshot(self, client_with_user, app):
+        _seed_snapshot_nyse(app)
+        html = client_with_user.get("/stocks?exchange=nyse").get_data(as_text=True)
+        menu = html.split("industri-filter-menu", 1)[1].split("</div>", 1)[0]
+        assert ">Energy<" in menu
+        assert ">Technology<" in menu
+
+    def test_no_warm_script_or_route(self, client_with_user, app):
+        _seed_snapshot_nyse(app, count=3)
+        html = client_with_user.get("/stocks?exchange=nyse").get_data(as_text=True)
+        assert "stocks.js" not in html
+        assert client_with_user.get("/stocks/warm?exchange=nyse").status_code == 404
+
+    def test_paging_reads_no_stock_or_index_tables(self, client_with_user, app):
+        _seed_snapshot_nyse(app)
+        for url, first, absent in (
+            ("/stocks?exchange=nyse&page=2", "Paged Co 26", "Paged Co 25"),
+            ("/stocks?exchange=nyse&page=99", "Paged Co 30", "Paged Co 01"),
+        ):
+            response, statements = self._warm_then_count(client_with_user, app, url)
+            html = response.get_data(as_text=True)
+            assert statements == []
+            assert first in html
+            assert absent not in html
+            assert "26–30 av 30" in html or "26&ndash;30 av 30" in html
+
+    def test_sort_and_filter_cover_whole_bors_without_queries(self, client_with_user, app):
+        _seed_snapshot_nyse(app)
+        response, statements = self._warm_then_count(
+            client_with_user, app, "/stocks?exchange=nyse&sort=trend&dir=desc"
+        )
+        html = response.get_data(as_text=True)
+        assert statements == []
+        assert html.find("Paged Co 30") < html.find("Paged Co 29")
+        assert "Paged Co 05" not in html
+
+        response, statements = self._warm_then_count(
+            client_with_user, app, "/stocks?exchange=nyse&industry=Energy&page=1"
+        )
+        html = response.get_data(as_text=True)
+        assert statements == []
+        assert "1–15 av 15" in html or "1&ndash;15 av 15" in html
+        assert "Paged Co 02" in html
+        assert "Paged Co 01" not in html.split("<tbody", 2)[2]
+
+    def test_unknown_industry_shows_all(self, client_with_user, app):
+        _seed_snapshot_nyse(app)
+        html = client_with_user.get(
+            "/stocks?exchange=nyse&industry=Nope"
+        ).get_data(as_text=True)
+        assert "1–25 av 30" in html or "1&ndash;25 av 30" in html
 
 
 class TestAktierSort:
