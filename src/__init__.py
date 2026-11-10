@@ -107,6 +107,21 @@ def create_app(config_name=None):
     register_error_handlers(app)
     register_login_manager(login_manager, cache, db)
 
+    @app.cli.command("aktier-warm")
+    def aktier_warm():
+        """Build Aktier börs snapshots for the current data (spec 033)."""
+        from src.services.aktier_snapshot import warm_all
+
+        failed = False
+        for exchange_key, (status, rows, seconds) in warm_all().items():
+            if status == "built":
+                print(f"{exchange_key}: built {rows} rows in {seconds:.1f} s")
+            else:
+                print(f"{exchange_key}: {status}")
+            failed = failed or status.startswith("failed")
+        if failed:
+            sys.exit(1)
+
     return app
 
 
